@@ -1,0 +1,2955 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>DSK Editor</title>
+<!-- Decimal.js: used only at the final coordinate-rounding step before
+     writing DXF/SVG output, to clean up floating-point noise (e.g.
+     29.999999999999996) accumulated across many additions/subtractions of
+     insets and offsets, so exported files always show clean millimeter
+     values. Not used for the geometry math itself (fillets/arcs rely on
+     Math.sin/cos/atan, which Decimal.js can't improve). -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
+<style>
+  :root{
+    --bg: #14181c;
+    --panel: #1b2126;
+    --panel-2: #20272d;
+    --line: #2c363d;
+    --grid: #232c32;
+    --ink: #dfe6ea;
+    --ink-dim: #7d8b93;
+    --accent: #ff8a3d;
+    --accent-dim: #8a4d24;
+    --mono: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+    --sans: 'Inter', -apple-system, Segoe UI, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg); color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{
+    display:grid;
+    grid-template-columns: 1fr 360px;
+    height:100vh;
+    min-height:480px;
+  }
+  @media (max-width: 820px){
+    #app{ grid-template-columns: 1fr; grid-template-rows: 45vh 1fr; }
+  }
+
+  /* ---------- Preview pane ---------- */
+  #preview{
+    position:relative;
+    background:
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/24px 24px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/24px 24px,
+      var(--bg);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    overflow:hidden;
+    border-right:1px solid var(--line);
+  }
+  #preview .label{
+    position:absolute; top:16px; left:20px;
+    font-family:var(--mono); font-size:11px; letter-spacing:.12em;
+    color:var(--ink-dim); text-transform:uppercase;
+  }
+  #preview .dims{
+    position:absolute; bottom:16px; left:20px;
+    font-family:var(--mono); font-size:12px; color:var(--ink-dim);
+    line-height:1.6;
+  }
+  #preview .dims b{ color:var(--ink); font-weight:600; }
+  svg#stage{ max-width:92%; max-height:82%; overflow:visible; }
+  .layer-outline{
+    fill: rgba(255,138,61,0.06);
+    stroke: var(--accent);
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+  }
+  .layer-underframe{
+    fill: none;
+    stroke: #4d8ff0;
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+  .layer-underframe-holes{
+    fill: none;
+    stroke: #b06fe0;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .layer-elements{
+    fill: rgba(76,201,124,0.08);
+    stroke: #4cc97c;
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+  .layer-elements-back{
+    fill: rgba(77,207,224,0.08);
+    stroke: #4dcfe0;
+    stroke-width: 1.5;
+    stroke-dasharray: 6 4;
+    vector-effect: non-scaling-stroke;
+  }
+  .layer-dimensions{
+    fill: #e05a5a;
+    stroke: #e05a5a;
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  /* A contour whose layer isn't in Layers.registry — see RenderSVG's own
+     comment. Bright red and animated specifically so it can't be mistaken
+     for a normal (if unfamiliar) layer color; this is meant to look like
+     an error, not just a new style. Preview-only, per the person — export
+     (DXF/SVG/PNG) still writes the contour out normally, just without a
+     registered layer name/color to draw from. */
+  .layer-unknown{
+    fill: rgba(255,0,0,0.15);
+    stroke: #ff0000;
+    stroke-width: 2;
+    vector-effect: non-scaling-stroke;
+    animation: layer-unknown-blink 1s step-start infinite;
+  }
+  @keyframes layer-unknown-blink{
+    50% { opacity: 0.25; }
+  }
+  .dim-line{ stroke: var(--ink-dim); stroke-width:1; vector-effect:non-scaling-stroke; }
+  .dim-text{ fill: #e05a5a; stroke: none; font-family: var(--mono); font-size: 20px; font-weight: 600; }
+
+  /* ---------- Controls pane ---------- */
+  #controls{
+    background:var(--panel);
+    overflow-y:auto;
+    padding:22px 22px 100px;
+  }
+  #controls h1{
+    font-family:var(--mono);
+    font-size:14px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--ink);
+    margin:0 0 4px;
+  }
+  #controls .sub{
+    font-size:12px; color:var(--ink-dim); margin-bottom:22px;
+  }
+  fieldset{
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 16px 16px;
+    margin:0 0 16px;
+    background:var(--panel-2);
+  }
+  legend{
+    font-family:var(--mono);
+    font-size:10.5px;
+    letter-spacing:.1em;
+    text-transform:uppercase;
+    color:var(--accent);
+    padding:0 6px;
+  }
+  .field{ margin-bottom:12px; }
+  .field:last-child{ margin-bottom:0; }
+  .field label{
+    display:flex; justify-content:space-between; align-items:baseline;
+    font-size:12.5px; color:var(--ink); margin-bottom:5px;
+  }
+  .field label .unit{ color:var(--ink-dim); font-family:var(--mono); font-size:11px; }
+  .field input[type=number]{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:5px;
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:13px;
+    padding:7px 9px;
+  }
+  .instance-row{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px 14px 14px;
+    margin-bottom:10px;
+    position:relative;
+  }
+  .instance-row-header{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-bottom:10px;
+  }
+  .instance-row-title{
+    font-family:var(--mono); font-size:11px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--ink-dim);
+  }
+  .instance-remove-btn{
+    background:none; border:none; color:var(--ink-dim);
+    font-family:var(--mono); font-size:11px; cursor:pointer;
+    padding:2px 6px; border-radius:4px;
+  }
+  .instance-remove-btn:hover{ color:#e05a5a; background:rgba(224,90,90,0.1); }
+
+  /* Anchor picker: a 3x3 grid mirroring the tabletop's own corners/edges/
+     center, replacing a 9-item text <select> — clicking the square that
+     visually matches the desired reference point is far more direct than
+     reading "Верхний правый угол" in a dropdown list. The grid's own
+     border represents the tabletop; each button's position within it IS
+     its meaning, so no separate label per button is needed beyond a
+     small icon showing corner/edge/center. */
+  .anchor-grid{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    grid-template-rows:repeat(3, 1fr);
+    gap:3px;
+    width:84px;
+    height:84px;
+    padding:4px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+  }
+  .anchor-grid-btn{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:3px;
+    cursor:pointer;
+    padding:0;
+    display:flex; align-items:center; justify-content:center;
+    transition:background .1s, border-color .1s;
+  }
+  .anchor-grid-btn:hover{ border-color:var(--accent); }
+  .anchor-grid-btn::before{
+    content:'';
+    width:6px; height:6px;
+    border-radius:50%;
+    background:var(--ink-dim);
+  }
+  .anchor-grid-btn.active{ background:var(--accent-dim); border-color:var(--accent); }
+  .anchor-grid-btn.active::before{ background:var(--accent); }
+  .anchor-grid-label{
+    font-size:12.5px; color:var(--ink); margin-bottom:6px; display:block;
+  }
+
+  /* Anchor row: the anchor-grid picker on the left, its X/Y inset fields
+     stacked in a column on the right — same two-column layout for every
+     embeddable element, so the controls don't jump around between
+     elements or reflow their fields in/out as the anchor changes (insets
+     are always shown now, per the person's request, rather than hidden
+     for anchors where a given axis doesn't apply). */
+  .anchor-row{ display:flex; gap:12px; align-items:flex-start; margin-bottom:12px; }
+  .anchor-row .anchor-grid-label{ margin-bottom:8px; }
+  .field-col{ flex:1; display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .field-col .field{ margin:0; }
+
+  .btn-add{
+    width:100%;
+    background:transparent;
+    color:var(--accent);
+    border:1px dashed var(--accent-dim);
+    border-radius:6px;
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.05em;
+    padding:10px 0;
+    cursor:pointer;
+    margin-top:2px;
+  }
+  .btn-add:hover{ background:rgba(255,138,61,0.08); border-color:var(--accent); }
+  .field input[type=number]:focus{
+    outline:none; border-color:var(--accent);
+  }
+  .field input[type=range]{
+    width:100%; accent-color:var(--accent);
+  }
+  .field input[type=text]{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:5px;
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:13px;
+    padding:8px 9px;
+  }
+  .field select{
+    width:100%;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:5px;
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:13px;
+    padding:8px 9px;
+    appearance:none;
+    -webkit-appearance:none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%237d8b93'/></svg>");
+    background-repeat:no-repeat;
+    background-position:right 10px center;
+  }
+  .field select:focus{
+    outline:none; border-color:var(--accent);
+  }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  .toggle-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom: 4px;
+  }
+  .toggle-row span{ font-size:12.5px; color:var(--ink); }
+  .switch{
+    position:relative; width:38px; height:21px; flex-shrink:0;
+  }
+  .switch input{ opacity:0; width:0; height:0; position:absolute; }
+  .switch .track{
+    position:absolute; inset:0; background:var(--line);
+    border-radius:20px; transition:.15s; cursor:pointer;
+  }
+  .switch .track::before{
+    content:''; position:absolute; width:15px; height:15px;
+    left:3px; top:3px; background:var(--ink-dim);
+    border-radius:50%; transition:.15s;
+  }
+  .switch input:checked + .track{ background:var(--accent-dim); }
+  .switch input:checked + .track::before{
+    transform:translateX(17px); background:var(--accent);
+  }
+
+  #notchFields{ transition:opacity .15s; }
+  #notchFields.disabled, #topNotchFields.disabled{ opacity:.35; pointer-events:none; }
+
+  .btn-secondary{
+    width:100%;
+    background:transparent;
+    color:var(--ink);
+    border:1px solid var(--line);
+    border-radius:6px;
+    font-family:var(--mono);
+    font-size:12.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    font-weight:600;
+    padding:12px 0;
+    cursor:pointer;
+  }
+  .btn-secondary:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn-secondary:active{ transform:translateY(1px); }
+
+  /* Export split-button: main action (PNG by default) + a narrow chevron
+     that opens a dropdown for the other formats (DXF/SVG). Reuses
+     #exportBtn's look but as two adjacent pieces instead of one block,
+     so the dropdown trigger doesn't need its own separate visual style. */
+  #exportSplit{ display:flex; margin-top:6px; position:relative; }
+  #exportMainBtn{
+    flex:1;
+    background:var(--accent);
+    color:#1a1108;
+    border:none;
+    border-radius:6px 0 0 6px;
+    font-family:var(--mono);
+    font-size:12.5px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    font-weight:600;
+    padding:12px 0;
+    cursor:pointer;
+  }
+  #exportMainBtn:hover{ background:#ffa25f; }
+  #exportMainBtn:active{ transform:translateY(1px); }
+  #exportMenuToggle{
+    width:34px;
+    background:var(--accent);
+    color:#1a1108;
+    border:none;
+    border-left:1px solid rgba(0,0,0,.2);
+    border-radius:0 6px 6px 0;
+    cursor:pointer;
+    font-size:10px;
+    display:flex; align-items:center; justify-content:center;
+  }
+  #exportMenuToggle:hover{ background:#ffa25f; }
+  #exportMenu{
+    display:none;
+    position:absolute;
+    top:calc(100% + 4px);
+    right:0;
+    left:0;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+    z-index:10;
+  }
+  #exportMenu.open{ display:block; }
+  #exportMenu button{
+    display:block;
+    width:100%;
+    text-align:left;
+    background:none;
+    border:none;
+    color:var(--ink);
+    font-family:var(--mono);
+    font-size:12px;
+    padding:10px 12px;
+    cursor:pointer;
+  }
+  #exportMenu button:hover{ background:var(--panel); color:var(--accent); }
+
+  /* Save/Load: compact icon buttons side by side, with a native tooltip
+     via title="" rather than a full label, per the request for a more
+     compact icon-based treatment than the old full-width text buttons. */
+  #projectRow{ display:flex; gap:8px; margin-top:8px; }
+  .btn-icon{
+    flex:1;
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background:transparent;
+    color:var(--ink);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:10px 0;
+    cursor:pointer;
+  }
+  .btn-icon:hover{ border-color:var(--accent); color:var(--accent); }
+  .btn-icon:active{ transform:translateY(1px); }
+  .btn-icon svg{ width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="preview">
+    <svg id="stage" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <div id="controls">
+    <fieldset id="orderHeader">
+      <legend>Проект</legend>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Номер заказа</label>
+        <input type="text" id="orderNumber" value="DSK">
+      </div>
+      <div class="toggle-row" style="margin-bottom:12px;">
+        <span>Показать размерные линии</span>
+        <label class="switch">
+          <input type="checkbox" id="dimensionsOn" checked>
+          <span class="track"></span>
+        </label>
+      </div>
+      <div id="exportSplit">
+        <button id="exportMainBtn">Экспортировать PNG</button>
+        <button id="exportMenuToggle" type="button" title="Другие форматы" aria-haspopup="true" aria-expanded="false">▾</button>
+        <div id="exportMenu" role="menu">
+          <button type="button" data-format="dxf" role="menuitem">Экспортировать DXF</button>
+          <button type="button" data-format="svg" role="menuitem">Экспортировать SVG</button>
+          <button type="button" data-format="png" role="menuitem">Экспортировать PNG</button>
+        </div>
+      </div>
+      <div id="projectRow">
+        <button id="saveProjectBtn" class="btn-icon" type="button" title="Сохранить проект в JSON">
+          <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+          <span>Сохранить</span>
+        </button>
+        <button id="loadProjectBtn" class="btn-icon" type="button" title="Загрузить проект из JSON">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>
+          <span>Загрузить</span>
+        </button>
+      </div>
+      <input type="file" id="loadProjectInput" accept="application/json,.json" style="display:none;">
+    </fieldset>
+
+    <fieldset>
+      <legend>Столешница</legend>
+      <div class="row2">
+        <div class="field">
+          <label>Ширина <span class="unit">мм</span></label>
+          <input type="number" id="rectW" value="1500" min="1" step="1">
+        </div>
+        <div class="field">
+          <label>Высота <span class="unit">мм</span></label>
+          <input type="number" id="rectH" value="700" min="1" step="1">
+        </div>
+      </div>
+      <div class="field">
+        <label>Толщина <span class="unit">мм</span></label>
+        <input type="number" id="rectThickness" value="30" min="1" step="1">
+      </div>
+	  <div class="row2">
+        <div class="field">
+          <label>Скругление верх<span class="unit">мм</span></label>
+          <input type="number" id="rTop" value="5" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>Скругление низ<span class="unit">мм</span></label>
+          <input type="number" id="rBottom" value="50" min="0" step="1">
+        </div>
+	  </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Эргономический вырез</legend>
+      <div class="toggle-row">
+        <span>Добавить вырез</span>
+        <label class="switch">
+          <input type="checkbox" id="notchOn" checked>
+          <span class="track"></span>
+        </label>
+      </div>
+      <div id="notchFields" style="margin-top:12px;">
+        <div class="row2">
+          <div class="field">
+            <label>Ширина низа <span class="unit">мм</span></label>
+            <input type="number" id="notchBottom" value="750" min="0" step="1">
+          </div>
+          <div class="field">
+            <label>Ширина верха <span class="unit">мм</span></label>
+            <input type="number" id="notchTop" value="600" min="0" step="1">
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Высота выреза <span class="unit">мм</span></label>
+            <input type="number" id="notchH" value="75" min="0" step="1">
+          </div>
+          <div class="field">
+            <label>Скругление углов <span class="unit">мм</span></label>
+            <input type="number" id="rNotch" value="50" min="0" step="1">
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Вырез для проводов</legend>
+      <div class="field">
+        <label>Тип выреза</label>
+        <select id="topNotchType">
+          <option value="none">Нет выреза</option>
+          <option value="tslot">Т-образный</option>
+          <option value="rect">Прямоугольный</option>
+        </select>
+      </div>
+      <div id="topNotchFields" style="margin-top:12px;">
+        <div class="row2">
+          <div class="field">
+            <label>Ширина выреза <span class="unit">мм</span></label>
+            <input type="number" id="topNotchWidth" value="300" min="0" step="1">
+          </div>
+          <div class="field">
+            <label>Смещение <span class="unit">мм</span></label>
+            <input type="number" id="topNotchOffset" value="0" step="1">
+          </div>
+        </div>
+        <div class="field">
+          <label>Скругление углов <span class="unit">мм</span></label>
+          <input type="number" id="rTopNotch" value="5" min="0" step="1">
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Подстолье</legend>
+      <div class="field">
+        <label>Тип подстолья</label>
+        <select id="underframeType">
+          <option value="none">Нет подстолья</option>
+          <option value="60" selected>Подстолье 60</option>
+          <option value="70">Подстолье 70</option>
+        </select>
+      </div>
+      <div id="underframeFields" style="margin-top:12px;">
+        <div class="row2">
+          <div class="field">
+            <label>Отступ <span class="unit">мм</span></label>
+            <input type="number" id="underframeInsetH" value="50" min="0" step="1">
+          </div>
+          <div class="field">
+            <label>Смещение <span class="unit">мм</span></label>
+            <input type="number" id="underframeInsetV" value="0" step="1">
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Пульты управления</legend>
+      <div id="pultList"></div>
+      <button type="button" id="addPultBtn" class="btn-add">+ Добавить пульт</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Беспроводные зарядки</legend>
+      <div id="chargerList"></div>
+      <button type="button" id="addChargerBtn" class="btn-add">+ Добавить зарядку</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Блоки розеток</legend>
+      <div id="outletBlockList"></div>
+      <button type="button" id="addOutletBlockBtn" class="btn-add">+ Добавить блок розеток</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Подставки для телефона</legend>
+      <div id="phoneStandList"></div>
+      <button type="button" id="addPhoneStandBtn" class="btn-add">+ Добавить подставку</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Лотки для сетевого фильтра</legend>
+      <div id="trayList"></div>
+      <button type="button" id="addTrayBtn" class="btn-add">+ Добавить лоток</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Выдвижные подставки</legend>
+      <div id="pulloutList"></div>
+      <button type="button" id="addPulloutBtn" class="btn-add">+ Добавить подставку</button>
+    </fieldset>
+
+    <fieldset>
+      <legend>Торцевые USB-зарядки</legend>
+      <div id="usbChargerList"></div>
+      <button type="button" id="addUsbChargerBtn" class="btn-add">+ Добавить USB-зарядку</button>
+    </fieldset>
+
+  </div>
+
+</div>
+
+<script>
+(function(){
+
+// ============================================================================
+// Geo — pure 2D geometry helpers. No knowledge of "tabletop", "notch", DXF,
+// or the DOM. Everything here operates on plain {x,y} points and on
+// "rounded contours": arrays of {x, y, bulge} vertices, where `bulge` is the
+// DXF-style curvature applying to the segment from that vertex to the next
+// (0 = straight line; nonzero = arc, magnitude = tan(sweepAngle/4), sign
+// positive for CCW). This convention is shared by DXF's LWPOLYLINE/POLYLINE
+// bulge field and is what the rest of the app (SVG preview, DXF export)
+// consumes, so every element builder ultimately produces this shape.
+// ============================================================================
+const Geo = (() => {
+
+  function dist(a, b){ return Math.hypot(a[0]-b[0], a[1]-b[1]); }
+
+  // Rounds a coordinate to `decimals` places using Decimal.js rather than
+  // plain Number rounding, specifically for the moment a value is about to
+  // be written into an output file (DXF/SVG). Plain floating-point math
+  // accumulates small binary-representation errors across the many
+  // additions/subtractions involved in placing an element (inset + offset
+  // - half-width, etc.), so a value that's conceptually exactly 30 can
+  // arrive here as 29.999999999999996; Decimal.js's decimal (not binary)
+  // arithmetic cleans that up to a true "30" before export, so CAD/CAM
+  // tools reading the file see round millimeter values instead of noise.
+  // Falls back to plain rounding if Decimal.js failed to load (e.g. no
+  // network on first load with the CDN script) so export still works,
+  // just without the extra cleanup.
+  function cleanRound(value, decimals = 4){
+    if (typeof Decimal === 'undefined') {
+      const f = Math.pow(10, decimals);
+      return Math.round(value * f) / f;
+    }
+    return new Decimal(value).toDecimalPlaces(decimals).toNumber();
+  }
+
+  // Shifts every vertex of a contour by (dx, dy), keeping each vertex's
+  // bulge untouched — bulge describes curvature relative to the segment's
+  // own two endpoints, so a plain translation never needs to touch it.
+  // Used by every element's buildContours to place its local-coordinate
+  // shape at its resolved world position.
+  function translate(verts, dx, dy){
+    return verts.map(v => ({ x: v.x + dx, y: v.y + dy, bulge: v.bulge }));
+  }
+
+  // Rotates a contour counter-clockwise by `degrees` around a given pivot
+  // (defaults to the local origin). A pure rotation is a rigid motion —
+  // it never changes which side of an edge is "inside" a curve, so bulge
+  // (which only encodes curvature relative to the edge's own direction,
+  // not any absolute axis) needs no sign correction here, unlike a
+  // mirror. Used for the user-facing "Повернуть" control on embeddable
+  // elements — applied to local coordinates, before Geo.translate places
+  // the shape at its resolved world position, so the pivot is whatever
+  // point the caller's local (0,0) represents for that element (its own
+  // anchor point, not necessarily its visual center).
+  function rotate(verts, degrees, pivot = { x: 0, y: 0 }){
+    if (!degrees) return verts;
+    const rad = degrees * Math.PI / 180;
+    const cos = Math.cos(rad), sin = Math.sin(rad);
+    return verts.map(v => {
+      const dx = v.x - pivot.x, dy = v.y - pivot.y;
+      return {
+        x: pivot.x + dx * cos - dy * sin,
+        y: pivot.y + dx * sin + dy * cos,
+        bulge: v.bulge,
+      };
+    });
+  }
+
+  // Mirrors a contour across a horizontal or vertical line through a
+  // given pivot (defaults to the local origin) — 'horizontal' flips
+  // vertically (reflects y, i.e. the shape ends up mirrored across a
+  // horizontal line, matching how "Отразить: по горизонтали" reads as
+  // "flip across the horizontal axis" for other CAD/vector tools), while
+  // 'vertical' flips horizontally (reflects x). Any reflection reverses a
+  // contour's winding (CW <-> CCW) and each bulge's effective curvature
+  // side, so this always runs the result back through reverseContour to
+  // restore consistent winding — same correction every other mirroring
+  // element in this app already applies (see e.g. the underframe/pult's
+  // own mirrorX, or the usbCharger's own mirrorY).
+  function mirror(verts, axisKind, pivot = { x: 0, y: 0 }){
+    if (!axisKind || axisKind === 'none') return verts;
+    const flipped = verts.map(v => {
+      if (axisKind === 'horizontal') {
+        return { x: v.x, y: 2 * pivot.y - v.y, bulge: -v.bulge };
+      }
+      return { x: 2 * pivot.x - v.x, y: v.y, bulge: -v.bulge };
+    });
+    return reverseContour(flipped);
+  }
+
+  // Shoelace formula: positive for a counter-clockwise contour, negative
+  // for clockwise. Used to check/enforce winding direction before writing
+  // a contour out (DXF and the fill-rule-sensitive parts of SVG both care
+  // about winding).
+  function signedArea(verts){
+    let a = 0;
+    const n = verts.length;
+    for (let i = 0; i < n; i++){
+      const p1 = verts[i], p2 = verts[(i + 1) % n];
+      a += p1.x * p2.y - p2.x * p1.y;
+    }
+    return a / 2;
+  }
+
+  // Reverses a contour's winding direction (CW <-> CCW). Since `bulge` on
+  // vertex i describes the arc for the edge i -> i+1, reversing point
+  // order also shifts which vertex each bulge belongs to and flips its
+  // sign relative to the new edge direction — both handled here, not just
+  // the point order, so the resulting contour still draws the same arcs.
+  function reverseContour(verts){
+    const n = verts.length;
+    const revPoints = [...verts].reverse().map(v => ({ x: v.x, y: v.y }));
+    const out = [];
+    for (let k = 0; k < n; k++){
+      const origIdx = (n - 2 - k + n) % n;
+      out.push({ x: revPoints[k].x, y: revPoints[k].y, bulge: -verts[origIdx].bulge });
+    }
+    return out;
+  }
+
+  // Shifts every vertex of a contour by (dx, dy), keeping each vertex's
+  // bulge untouched — bulge describes curvature relative to the segment's
+  // own two endpoints, so a plain translation never needs to touch it.
+  // Used by every element's buildContours to place its local-coordinate
+  // shape at its resolved world position.
+
+  // Shoelace formula: positive for a counter-clockwise contour, negative
+  // for clockwise. Used to check/enforce winding direction before writing
+  // a contour out (DXF and the fill-rule-sensitive parts of SVG both care
+  // about winding).
+
+  // Reverses a contour's winding direction (CW <-> CCW). Since `bulge` on
+  // vertex i describes the arc for the edge i -> i+1, reversing point
+  // order also shifts which vertex each bulge belongs to and flips its
+  // sign relative to the new edge direction — both handled here, not just
+  // the point order, so the resulting contour still draws the same arcs.
+
+  // Given the corner of a polygon (prev -> corner -> next) and a fillet
+  // radius, returns [tangentIn, tangentOut, bulge]:
+  //   tangentIn / tangentOut: where the fillet arc touches the two edges
+  //   bulge: curvature for the arc FROM tangentIn TO tangentOut
+  // If r<=0 or the corner is degenerate, returns the corner itself twice
+  // with bulge 0 (no rounding) so callers can treat every corner uniformly.
+  function filletCorner(pIn, corner, pOut, r){
+    if (r <= 0) return [corner, corner, 0];
+    const v1 = [pIn[0]-corner[0], pIn[1]-corner[1]];
+    const v2 = [pOut[0]-corner[0], pOut[1]-corner[1]];
+    const len1 = Math.hypot(v1[0], v1[1]);
+    const len2 = Math.hypot(v2[0], v2[1]);
+    if (len1 < 1e-9 || len2 < 1e-9) return [corner, corner, 0];
+    const u1 = [v1[0]/len1, v1[1]/len1];
+    const u2 = [v2[0]/len2, v2[1]/len2];
+    let dot = u1[0]*u2[0] + u1[1]*u2[1];
+    dot = Math.max(-1, Math.min(1, dot));
+    const theta = Math.acos(dot);
+    if (theta < 1e-6) return [corner, corner, 0];
+    let tlen = r / Math.tan(theta/2);
+    // Clamp so the fillet never overruns the available edge length
+    // (prevents self-intersecting geometry on very tight params).
+    const maxLen = Math.min(len1, len2) * 0.999;
+    tlen = Math.min(tlen, maxLen);
+    const t1 = [corner[0]+u1[0]*tlen, corner[1]+u1[1]*tlen];
+    const t2 = [corner[0]+u2[0]*tlen, corner[1]+u2[1]*tlen];
+    const cross = u1[0]*u2[1] - u1[1]*u2[0];
+    const sweep = Math.PI - theta;
+    const bmag = Math.tan(sweep/4);
+    const bulge = cross < 0 ? bmag : -bmag;
+    return [t1, t2, bulge];
+  }
+
+  // Turns a list of {pt: [x,y], r: radius} corners (in order, forming a
+  // closed polygon) into a rounded contour: an array of {x, y, bulge}
+  // vertices, two per corner (tangent-in, tangent-out), ready for SVG
+  // rendering or DXF tessellation.
+  function roundedPolygon(corners){
+    const n = corners.length;
+    const verts = [];
+    for (let i = 0; i < n; i++){
+      const prev = corners[(i - 1 + n) % n].pt;
+      const cur = corners[i].pt;
+      const next = corners[(i + 1) % n].pt;
+      const r = corners[i].r;
+      const [tIn, tOut, bulge] = filletCorner(prev, cur, next, r);
+      // bulge describes the arc FROM this vertex TO the next one in the
+      // list. The arc runs from tIn to tOut (the fillet itself), so the
+      // bulge goes on tIn; tOut then starts a straight edge to the next
+      // corner's tIn, so it carries bulge 0.
+      verts.push({ x: tIn[0], y: tIn[1], bulge: bulge });
+      verts.push({ x: tOut[0], y: tOut[1], bulge: 0 });
+    }
+    return verts;
+  }
+
+  // Reconstructs the radius of a bulge arc from its chord length.
+  function bulgeRadius(p1, p2, bulge){
+    const d = dist(p1, p2);
+    return Math.abs(d * (1 + bulge*bulge) / (4 * Math.abs(bulge)));
+  }
+
+  // Converts one rounded contour into an SVG path `d` string. `flipY`
+  // mirrors CAD (Y-up) coordinates into SVG (Y-down) display space around
+  // height H; when flipping, the arc sweep-flag must also flip to keep the
+  // visual direction consistent (a CCW arc in Y-up becomes CW on screen).
+  function contourToSvgPath(verts, flipY, H, closed = true){
+    const y = v => flipY ? (H - v) : v;
+    let d = `M ${verts[0].x} ${y(verts[0].y)} `;
+    const n = verts.length;
+    const segCount = closed ? n : n - 1;
+    for (let i = 0; i < segCount; i++){
+      const cur = verts[i];
+      const next = verts[(i+1) % n];
+      if (Math.abs(cur.bulge) < 1e-9){
+        d += `L ${next.x} ${y(next.y)} `;
+      } else {
+        const r = bulgeRadius([cur.x, cur.y], [next.x, next.y], cur.bulge);
+        const sweepAngle = Math.abs(4 * Math.atan(cur.bulge));
+        const largeArc = sweepAngle > Math.PI ? 1 : 0;
+        let sweepFlag = cur.bulge > 0 ? 1 : 0;
+        if (flipY) sweepFlag = 1 - sweepFlag;
+        d += `A ${r} ${r} 0 ${largeArc} ${sweepFlag} ${next.x} ${y(next.y)} `;
+      }
+    }
+    if (closed) d += 'Z';
+    return d;
+  }
+
+  // Converts one rounded contour into a plain polyline (list of {x,y}
+  // points, no bulge) by sampling each arc into short straight segments.
+  // Used only for DXF export: some DXF readers handle bulge on the classic
+  // POLYLINE/VERTEX entity inconsistently (a few drop or misread the 42
+  // group), which can turn a small fillet into a visible kink. Tessellating
+  // before export guarantees the file looks identical in every reader; the
+  // on-screen preview still uses true arcs via contourToSvgPath above.
+  function tessellateContour(verts, segmentsPerFullCircle, closed = true){
+    const out = [];
+    const n = verts.length;
+    const segCount = closed ? n : n - 1;
+    for (let i = 0; i < segCount; i++){
+      const cur = verts[i];
+      const next = verts[(i + 1) % n];
+      out.push({ x: cur.x, y: cur.y });
+      if (Math.abs(cur.bulge) < 1e-9) continue; // straight edge, nothing to add
+
+      const bulge = cur.bulge;
+      const sweepAngleMag = Math.abs(4 * Math.atan(Math.abs(bulge))); // 0..2*PI
+      const isCCW = bulge > 0; // DXF convention: positive bulge = CCW
+      const chord = dist([cur.x, cur.y], [next.x, next.y]);
+      const r = Math.abs(chord / (2 * Math.sin(sweepAngleMag / 2)));
+
+      const mx = (cur.x + next.x) / 2, my = (cur.y + next.y) / 2;
+      const dx = next.x - cur.x, dy = next.y - cur.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const nxp = -dy / len, nyp = dx / len; // unit perpendicular to the chord
+      const h = r * Math.cos(sweepAngleMag / 2); // distance from chord midpoint to center
+
+      // A chord has two possible circle centers (one on each side). Rather
+      // than assume which sign matches the bulge convention, try both and
+      // keep whichever one actually produces the expected sweep angle when
+      // walking from `cur` to `next` — this is the only fully reliable check
+      // (confirmed by earlier debugging: trusting the sign convention alone
+      // silently breaks on concave/reflex corners).
+      const candidates = [
+        { x: mx + nxp * h, y: my + nyp * h },
+        { x: mx - nxp * h, y: my - nyp * h },
+      ];
+      let best = null;
+      for (const c of candidates){
+        const a0 = Math.atan2(cur.y - c.y, cur.x - c.x);
+        const a1 = Math.atan2(next.y - c.y, next.x - c.x);
+        let diff = a1 - a0;
+        while (diff <= -Math.PI * 2) diff += Math.PI * 2;
+        while (diff > Math.PI * 2) diff -= Math.PI * 2;
+        if (isCCW && diff < 0) diff += Math.PI * 2;
+        if (!isCCW && diff > 0) diff -= Math.PI * 2;
+        const err = Math.abs(Math.abs(diff) - sweepAngleMag);
+        if (!best || err < best.err) best = { center: c, startAngle: a0, sweep: diff, err };
+      }
+
+      const { center, startAngle, sweep } = best;
+      const steps = Math.max(2, Math.ceil((Math.abs(sweep) / (2 * Math.PI)) * segmentsPerFullCircle));
+      for (let s = 1; s < steps; s++){
+        const a = startAngle + sweep * (s / steps);
+        out.push({ x: center.x + r * Math.cos(a), y: center.y + r * Math.sin(a) });
+      }
+    }
+    if (!closed) out.push({ x: verts[n - 1].x, y: verts[n - 1].y });
+    return out;
+  }
+
+  return { dist, filletCorner, roundedPolygon, bulgeRadius, contourToSvgPath, tessellateContour, cleanRound, translate, signedArea, reverseContour, rotate, mirror };
+})();
+
+
+// ============================================================================
+// Layers — the DXF layer registry. Every contour produced by an element
+// declares which layer it belongs to; DXF export groups entities by layer
+// and emits a proper LAYER table so the names/colors show up in any CAD
+// tool's layer manager. Declared here even for layers nothing draws on yet,
+// so the drawing is ready to receive future elements (underframe holes,
+// insert cutouts, dimension lines) without touching the export code again.
+// ============================================================================
+const Layers = (() => {
+  // DXF color index: 1=red 2=yellow 3=green 4=cyan 5=blue 6=magenta 7=white/black
+  //
+  // machining describes how a layer's contours should be cut, for anyone
+  // reading the DXF on a CNC — not read or used by any geometry/export
+  // code here (the DXF's own numbers stay the same regardless), it's
+  // metadata the operator uses to set up the machine:
+  //   side       — which face of the material to cut from: 'top' or
+  //                'bottom' ('bottom' by default — most of this app's own
+  //                geometry is drawn from the underside)
+  //   depth      — cut depth in mm, or 'none' if this layer isn't milled
+  //                at all (a schematic/reference layer)
+  //   depthAnchor— what the depth is measured from: 'top' (from the
+  //                material's top face), 'bottom' (from the face named in
+  //                `side`), or 'center' (from the material's mid-plane,
+  //                where the final depth is thickness/2 + depth). E.g.
+  //                side='bottom', depth=5, depthAnchor='bottom' means "mill
+  //                5mm deep, starting from the bottom face"; side='bottom',
+  //                depth=0, depthAnchor='top' means "cut all the way
+  //                through" (the bottom-side cut reaches the top face).
+  //   millType   — 'contour' (just follow the path, e.g. an outline cut)
+  //                or 'pocket' (clear the whole enclosed area, e.g. a
+  //                recess) — 'contour' by default.
+  // DIMENSIONS has no `machining` — it's pure on-screen/on-paper
+  // reference, never actually cut.
+  const registry = {
+    OUTLINE:			{ name: 'OUTLINE',			color: 7, machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'outside' } }, // tabletop silhouette
+    CUTOUT:				{ name: 'CUTOUT',			color: 7, machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside' } }, // tabletop cutouts
+    PHYSICAL:			{ name: 'PHYSICAL',			color: 5 }, // physical parts that is not part of a tabletop, for reference
+    UNDERFRAME:			{ name: 'UNDERFRAME',		color: 5 }, // physical underframe parts: legs, control panel
+    HOLES:				{ name: 'HOLES',			color: 6, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } }, // mounting holes
+    UNDERFRAME_HOLES:	{ name: 'UNDERFRAME_HOLES',	color: 6, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } }, // mounting holes for the underframe parts
+    ELEMENTS:			{ name: 'ELEMENTS',			color: 3, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } },
+    ELEMENTS_BACK:		{ name: 'ELEMENTS_BACK',	color: 4, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'pocket' } },
+    ENGRAVING:			{ name: 'ENGRAVING',		color: 3, machining: { side: 'top', depth: 0.5, depthAnchor: 'top', millType: 'pocket' } },
+    PHONESTAND:			{ name: 'PHONESTAND',		color: 3, machining: { side: 'top', depth: 11, depthAnchor: 'top', millType: 'pocket' } },
+    WIRELESS_POCKET:	{ name: 'WIRELESS_POCKET',	color: 3, machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
+    DIMENSIONS:			{ name: 'DIMENSIONS',		color: 1 }, // dimension lines — pure reference, never milled, so no `machining` at all
+  };
+  const all = () => Object.values(registry);
+  // Returns undefined for an id not in the registry — deliberately NOT
+  // falling back to OUTLINE (an earlier version did), since silently
+  // reassigning unknown-layer geometry to a real layer would hide the
+  // mistake instead of surfacing it. Callers that need a display name/
+  // color for known-safe cases (e.g. always-valid literal layer names)
+  // can still rely on the value being present; anything reading a
+  // contour's own `layer` field (element-authored, so typos are possible)
+  // must handle the undefined case — see RenderSVG's unknown-layer
+  // handling for where that surfaces to the person.
+  const get = (id) => registry[id];
+  return { registry, all, get };
+})();
+
+
+// ============================================================================
+// Elements — the plugin contract for anything that contributes geometry to
+// the drawing (today: the tabletop outline itself, via TabletopOutline; in
+// the future: leg-frame holes, wireless charger cutouts, USB ports, cable
+// trays, etc). Each element is a plain object:
+//   {
+//     id: 'tabletopOutline',
+//     buildContours(params) -> [{ contour: [{x,y,bulge},...], layer: 'OUTLINE' }]
+//   }
+// buildContours receives the full params object and returns a list of
+// (contour, layer) pairs. Multiple contours let one element draw several
+// disconnected shapes (e.g. a cutout element could emit both a milling
+// contour and a separate schematic-only marking contour on a different
+// layer). Positioning helpers below let an element resolve "20mm from the
+// left edge" / "centered" / "10mm in from the top-right corner" against the
+// current tabletop bounds without hardcoding tabletop knowledge into every
+// element.
+// ============================================================================
+const Elements = (() => {
+  const registry = [];
+  function register(element){ registry.push(element); }
+  function all(){ return registry; }
+
+  // Resolves an anchor + offset into an absolute point, given the
+  // tabletop's bounding box. `anchor` is one of: 'left','right','top',
+  // 'bottom','topLeft','topRight','bottomLeft','bottomRight','center'.
+  // `offset` is {x, y} in mm, added after the anchor's base position
+  // (positive x = further right, positive y = further up, matching CAD
+  // Y-up convention used throughout Geo).
+  function resolveAnchor(anchor, offset, bounds){
+    const { minX, minY, maxX, maxY } = bounds;
+    const midX = (minX + maxX) / 2, midY = (minY + maxY) / 2;
+    const base = {
+      left:        { x: minX, y: midY },
+      right:       { x: maxX, y: midY },
+      top:         { x: midX, y: maxY },
+      bottom:      { x: midX, y: minY },
+      topLeft:     { x: minX, y: maxY },
+      topRight:    { x: maxX, y: maxY },
+      bottomLeft:  { x: minX, y: minY },
+      bottomRight: { x: maxX, y: minY },
+      center:      { x: midX, y: midY },
+    }[anchor] || { x: midX, y: midY };
+    const off = offset || { x: 0, y: 0 };
+    return { x: base.x + (off.x || 0), y: base.y + (off.y || 0) };
+  }
+
+  // For each anchor, which sign to apply to insetX/insetY so a positive
+  // number means "further from that anchor, toward the opposite side" —
+  // e.g. inset from topRight always pulls left/down, inset from
+  // bottomLeft always pulls right/up. For a corner anchor this is a true
+  // inward distance (can't sensibly go negative — the field enforces
+  // that). For an edge-center anchor (top/bottom/left/right), the axis
+  // running ALONG that edge has no "inward" direction to measure from —
+  // there's only a horizontal (or vertical) shift left/right of center —
+  // so that axis is marked `directional: false` and allowed to go
+  // negative, with the same sign convention (positive = right/down) as a
+  // plain coordinate shift rather than an inward distance. Both axes are
+  // always shown and always meaningful now; `directional` only changes
+  // whether the field allows negative numbers, not whether it's visible.
+  const ANCHOR_INSET = {
+    topLeft:     { signX: +1, signY: -1, directionalX: true,  directionalY: true  },
+    topRight:    { signX: -1, signY: -1, directionalX: true,  directionalY: true  },
+    bottomLeft:  { signX: +1, signY: +1, directionalX: true,  directionalY: true  },
+    bottomRight: { signX: -1, signY: +1, directionalX: true,  directionalY: true  },
+    top:         { signX: +1, signY: -1, directionalX: false, directionalY: true  },
+    bottom:      { signX: +1, signY: +1, directionalX: false, directionalY: true  },
+    left:        { signX: +1, signY: +1, directionalX: true,  directionalY: false },
+    right:       { signX: -1, signY: +1, directionalX: true,  directionalY: false },
+    center:      { signX: +1, signY: +1, directionalX: false, directionalY: false },
+  };
+
+  // Resolves an anchor + insetX/insetY into an absolute point. For a
+  // directional axis (corner-to-corner, or the "inward" axis of an
+  // edge-center anchor), insetX/insetY is a plain non-negative distance
+  // and the sign flip below makes a bigger number always move further
+  // from that anchor. For a non-directional axis (the along-the-edge
+  // axis of an edge-center anchor, or either axis of 'center'), the same
+  // field is instead a signed left/right (or up/down) shift — positive
+  // moves right/down, negative moves left/up — since there's no "inward"
+  // direction to measure from a middle point.
+  function resolveInset(anchor, insetX, insetY, bounds){
+    const sign = ANCHOR_INSET[anchor] || ANCHOR_INSET.center;
+    const offset = {
+      x: (insetX || 0) * sign.signX,
+      y: (insetY || 0) * sign.signY,
+    };
+    return resolveAnchor(anchor, offset, bounds);
+  }
+
+  return { register, all, resolveAnchor, resolveInset, ANCHOR_INSET };
+})();
+
+// ============================================================================
+// registerSimpleEmbeddable — factory for every repeatable embeddable
+// element (charger, outlet block, phone stand, tray, pull-out stand, USB
+// charger, pult). A list of instances, each placed by anchor+insetX/insetY,
+// with the same rotate/mirror transform applied to every one of the
+// element's own local-space contours before translating into place.
+//
+// config:
+//   id         — element id, matches the id used elsewhere (e.g. Drawing)
+//   paramsKey  — which p.<key> array holds this element's instances
+//   variants   — { key: { parts } }. `parts` is an array of
+//                { verts, layer } in the element's own local coordinates.
+//                The geometry must be authored such that (0,0) is the
+//                intended reference point (anchor) for all transformations
+//                (rotation, mirror, translation). A single-key `variants` means
+//                there's effectively no type choice (only one shape
+//                exists) — the UI layer decides whether to show a type
+//                selector based on how many keys are present, not this
+//                factory.
+//   defaultVariant — which variants key new instances default to
+//   adjustPosition — optional (worldPos, p, footprint) => worldPos hook
+//                for positioning logic that depends on something outside
+//                this element's own geometry — currently only the
+//                pull-out stand's auto-lift over the tabletop's own ergo-
+//                notch needs this; every other element leaves it unset.
+//   resolveInsets — optional (instance, p) => {insetX, insetY} hook for
+//                elements whose inset values need something other than a
+//                direct pass-through of instance.insetX/insetY — the USB
+//                charger's own X follows a dynamic default (the
+//                underframe's own inset + 220mm) when unset, and its Y is
+//                always fixed regardless of what's configured, both
+//                handled here rather than baking USB-charger-specific
+//                logic into the shared buildContours below.
+function registerSimpleEmbeddable({ id, paramsKey, variants, defaultVariant, adjustPosition, resolveInsets }){
+  function buildContours(p){
+    const instances = p[paramsKey] || [];
+    const entries = [];
+    const bounds = { minX: 0, minY: 0, maxX: p.W, maxY: p.H };
+    for (const instance of instances){
+      const data = variants[instance.type] || variants[defaultVariant];
+      if (!data) continue;
+      const rotation = instance.rotation || 0;
+      const center = Elements.resolveInset(instance.anchor, instance.insetX, instance.insetY, bounds);
+      
+      for (const { verts, layer } of data.parts){
+        // All transforms (mirror, rotate) are applied relative to (0,0).
+        const placed = Geo.translate(Geo.rotate(Geo.mirror(verts, instance.mirror), rotation), center.x, center.y);
+        entries.push({ contour: placed, layer });
+      }
+    }
+    return entries;
+  }
+
+  Elements.register({ id, buildContours, VARIANTS: variants });
+}
+
+
+// ============================================================================
+// Element: Tabletop outline (rectangle + optional bottom trapezoid notch +
+// optional top notch). This is the one real element ported through the
+// Elements contract in this refactor, proving the pattern on the geometry
+// that's already been extensively verified — no math changes from the
+// previous version, only where it lives.
+// ============================================================================
+Elements.register((() => {
+  // Fixed depths for the top notch shapes, per spec: rectangle is 30mm
+  // tall; the inverted-T's stem and base are each 20mm tall.
+  const RECT_NOTCH_H = 30;
+  const T_STEM_H = 20, T_STEM_W = 30, T_BASE_H = 20;
+
+  function buildTopNotchCorners(p){
+    const { W, H, topNotchType, topNotchWidth, topNotchOffset, rTopNotch } = p;
+    if (topNotchType === 'rect' && topNotchWidth > 0) {
+      const cx = W/2 + (topNotchOffset || 0);
+      const topR = [cx + topNotchWidth/2, H];
+      const botR = [cx + topNotchWidth/2, H - RECT_NOTCH_H];
+      const botL = [cx - topNotchWidth/2, H - RECT_NOTCH_H];
+      const topL = [cx - topNotchWidth/2, H];
+      return [
+        { pt: topR, r: rTopNotch }, { pt: botR, r: rTopNotch },
+        { pt: botL, r: rTopNotch }, { pt: topL, r: rTopNotch },
+      ];
+    }
+    if (topNotchType === 'tslot' && topNotchWidth > 0) {
+      const cx = W/2 + (topNotchOffset || 0);
+      const stemR_top = [cx + T_STEM_W/2, H];
+      const stemR_bot = [cx + T_STEM_W/2, H - T_STEM_H];
+      const baseR_top = [cx + topNotchWidth/2, H - T_STEM_H];
+      const baseR_bot = [cx + topNotchWidth/2, H - T_STEM_H - T_BASE_H];
+      const baseL_bot = [cx - topNotchWidth/2, H - T_STEM_H - T_BASE_H];
+      const baseL_top = [cx - topNotchWidth/2, H - T_STEM_H];
+      const stemL_bot = [cx - T_STEM_W/2, H - T_STEM_H];
+      const stemL_top = [cx - T_STEM_W/2, H];
+      return [
+        { pt: stemR_top, r: rTopNotch }, { pt: stemR_bot, r: rTopNotch },
+        { pt: baseR_top, r: rTopNotch }, { pt: baseR_bot, r: rTopNotch },
+        { pt: baseL_bot, r: rTopNotch }, { pt: baseL_top, r: rTopNotch },
+        { pt: stemL_bot, r: rTopNotch }, { pt: stemL_top, r: rTopNotch },
+      ];
+    }
+    return [];
+  }
+
+  function buildContours(p){
+    const { W, H, rTop, rBottom, rNotch, notchOn, notchH, notchBottom, notchTop } = p;
+    const BL = [0, 0], BR = [W, 0], TR = [W, H], TL = [0, H];
+    const topCorners = buildTopNotchCorners(p);
+
+    let corners;
+    if (notchOn && notchH > 0 && notchBottom > 0) {
+      const cx = W/2;
+      const nBL = [cx - notchBottom/2, 0];
+      const nBR = [cx + notchBottom/2, 0];
+      const nTR = [cx + notchTop/2, notchH];
+      const nTL = [cx - notchTop/2, notchH];
+      corners = [
+        { pt: BL, r: rBottom }, { pt: nBL, r: rNotch }, { pt: nTL, r: rNotch },
+        { pt: nTR, r: rNotch }, { pt: nBR, r: rNotch }, { pt: BR, r: rBottom },
+        { pt: TR, r: rTop }, ...topCorners, { pt: TL, r: rTop },
+      ];
+    } else {
+      corners = [
+        { pt: BL, r: rBottom }, { pt: BR, r: rBottom },
+        { pt: TR, r: rTop }, ...topCorners, { pt: TL, r: rTop },
+      ];
+    }
+
+    const contour = Geo.roundedPolygon(corners);
+    return [{ contour, layer: 'OUTLINE' }];
+  }
+
+  return { id: 'tabletopOutline', buildContours };
+})());
+
+
+// ============================================================================
+// Element: Wireless charger. Vector data imported from the manufacturer's
+// ArtCAM-exported SVG (circular arcs, converted to our native bulge format).
+// SVG uses a Y-DOWN coordinate system; converting to our Y-up CAD space
+// needs both a Y negation AND a matching vertex-order reversal (a plain Y
+// flip alone leaves the contour's winding backwards relative to every other
+// shape in this app, which silently corrupts fill/inside-outside logic even
+// though it doesn't show up as a visual mirror by itself) — verified against
+// the source file by confirming the signed area comes out positive (CCW,
+// matching the tabletop outline's own convention) both before and after the
+// transform, same magnitude.
+//
+// Of the 4 source paths, 3 are the front-side schematic mark (bolt icon,
+// two charge-wave arcs) and stay on ELEMENTS. The 4th ("Ring" in the
+// source) is actually the charging module's POCKET — the cavity milled
+// into the underside of the tabletop that the module sits in — so it's
+// back-side geometry, not part of the visible icon. It's placed on
+// ELEMENTS_BACK (own color, dashed in the preview) to keep that distinction
+// visible now, even though front/back-specific handling (e.g. mirroring for
+// back-side toolpaths) isn't built out yet.
+//
+// Positioned via Elements.resolveInset, so entering a plain non-negative
+// distance from whichever anchor is selected always moves the element
+// further from that anchor — no need to know which sign means "inward" for
+// a given corner or edge. Default position is the spec: 225mm and 200mm in
+// from the top-right corner.
+// ============================================================================
+registerSimpleEmbeddable({
+  id: 'wirelessCharger',
+  paramsKey: 'chargers',
+  defaultVariant: 'standard',
+  variants: {
+    // Local-space contours (mm), centered at the charger's own geometric
+    // center (0,0), in CAD Y-up orientation with CCW winding (see note above).
+    // Each sub-shape keeps its own closed contour so the SVG preview and
+    // DXF export can draw them as separate entities, matching the source
+    // file's 4 separate paths. Only one shape exists for this element, so
+    // the UI shows no type selector (see registerSimpleEmbeddable's own
+    // comment on single-key variants).
+    standard: { parts: [
+      { verts: [{x:-26.4914,y:-1.0651,bulge:0.62501483},{x:-24.4493,y:-5.059,bulge:0},{x:-6.3497,y:-4.9705,bulge:0},{x:-15.9346,y:-39.3432,bulge:0.35646076},{x:-14.5962,y:-42.2547,bulge:0.35646078},{x:-11.4761,y:-41.525,bulge:0},{x:26.4743,y:7.0011,bulge:0.63274294},{x:24.4244,y:11.0183,bulge:0},{x:5.8147,y:10.7397,bulge:0},{x:10.5256,y:39.6092,bulge:0.34255076},{x:8.993,y:42.316,bulge:0.34255076},{x:5.9906,y:41.5029,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:-0.0,y:53.1095,bulge:0.40227135},{x:-15.9857,y:37.7647,bulge:0.66241657},{x:-15.9859,y:-37.7653,bulge:0.40225204},{x:-0.0005,y:-53.1095,bulge:0.40225206},{x:15.9863,y:-37.7667,bulge:0.66240831},{x:15.9863,y:37.7654,bulge:0.40227133}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:42.4151,y:42.4374,bulge:0.41355164},{x:38.8835,y:42.4222,bulge:0.41355159},{x:38.8907,y:38.8906,bulge:-0.41446643},{x:38.8907,y:-38.8909,bulge:0.4142134},{x:38.8906,y:-42.4263,bulge:0.4142134},{x:42.426,y:-42.4264,bulge:0.41496756}], layer: 'ELEMENTS' },
+      { verts: [{x:-38.8902,y:38.8905,bulge:0.41421365},{x:-38.8903,y:42.4262,bulge:0.41421365},{x:-42.426,y:42.426,bulge:0.4145031},{x:-42.4261,y:-42.4264,bulge:0.41421361},{x:-38.8904,y:-42.4266,bulge:0.41421361},{x:-38.8902,y:-38.8909,bulge:-0.41474487}], layer: 'ELEMENTS' },
+    ] },
+  },
+});
+
+
+// ============================================================================
+// Element: Underframe (подстолье) — physical leg frames only, no control
+// panel (see the separate Пульт element below for that). Vector data
+// imported from ArtCAM-exported SVGs, one per size variant (60 / 70), using
+// the same Bézier-to-bulge conversion as the wireless charger, extended to
+// detect circular holes encoded as 4-segment cubic-Bézier approximations
+// (the standard "kappa" construction CAD tools use to draw circles with
+// Béziers) — these convert losslessly to exact 2-vertex bulge circles
+// rather than being tessellated.
+//
+// The source file's combined frame+pult drawing was vertically flipped as
+// a single rigid unit (not per-piece) before being split into these two
+// elements, since the panel was originally authored above the frame and
+// needs to end up below it — flipping preserves their relative geometry
+// exactly, which independent per-piece flips would risk breaking. Winding
+// direction was independently re-verified per contour after the flip
+// (checked via signed area / bulge sign, not assumed), since a reflection
+// reverses winding and some source contours already wound differently from
+// others before any transform was applied.
+//
+// The right-hand leg is generated by mirroring the left-hand data across a
+// vertical axis; mirroring, like the flip above, reverses winding and gets
+// the same re-verification.
+//
+// Local coordinate convention: x=0 at the frame's own left edge, y=0 at the
+// frame's own TOP edge (growing downward). The frame is centered vertically
+// on the tabletop by default (a vertical inset of 0), with the inset then
+// shifting it up or down from that centered position — see buildContours
+// for the exact placement math.
+//
+// Layers: physical parts (leg profile) go on UNDERFRAME; mounting holes
+// (присадка) go on UNDERFRAME_HOLES, so a CAM operator can isolate cut
+// paths from reference holes.
+// ============================================================================
+Elements.register((() => {
+  const UNDERFRAME_VARIANTS = {
+    '60': {
+      width: 503.0, height: 575.0,
+      frameOutline: [[{x:240.5,y:336.0,bulge:0},{x:265.5,y:336.0,bulge:0},{x:265.5,y:239.0,bulge:0},{x:240.5,y:239.0,bulge:0}],[{x:37.5,y:356.0,bulge:0},{x:503.0,y:356.0,bulge:0},{x:503.0,y:336.0,bulge:0},{x:37.5,y:336.0,bulge:0}],[{x:37.5,y:336.0,bulge:0},{x:199.0,y:336.0,bulge:0},{x:199.0,y:239.0,bulge:0},{x:37.5,y:239.0,bulge:0}],[{x:0.0,y:575.0,bulge:0},{x:37.5,y:575.0,bulge:0},{x:37.5,y:0.0,bulge:0},{x:0.0,y:0.0,bulge:0}],[{x:478.0,y:336.0,bulge:0},{x:503.0,y:336.0,bulge:0},{x:503.0,y:239.0,bulge:0},{x:478.0,y:239.0,bulge:0}],[{x:37.5,y:239.0,bulge:0},{x:503.0,y:239.0,bulge:0},{x:503.0,y:219.0,bulge:0},{x:37.5,y:219.0,bulge:0}]],
+      frameHoles: [[{x:23.0,y:20.0,bulge:1.0},{x:32.0,y:20.0,bulge:1.0}],[{x:21.5,y:20.0,bulge:1.0},{x:33.5,y:20.0,bulge:1.0}],[{x:23.0,y:425.0,bulge:1.0},{x:32.0,y:425.0,bulge:1.0}],[{x:21.5,y:425.0,bulge:1.0},{x:33.5,y:425.0,bulge:1.0}],[{x:23.0,y:150.0,bulge:1.0},{x:32.0,y:150.0,bulge:1.0}],[{x:21.5,y:150.0,bulge:1.0},{x:33.5,y:150.0,bulge:1.0}],[{x:23.0,y:555.0,bulge:1.0},{x:32.0,y:555.0,bulge:1.0}],[{x:21.5,y:555.0,bulge:1.0},{x:33.5,y:555.0,bulge:1.0}],[{x:248.5,y:287.5,bulge:1.0},{x:257.5,y:287.5,bulge:1.0}],[{x:247.0,y:287.5,bulge:1.0},{x:259.0,y:287.5,bulge:1.0}],[{x:486.0,y:287.5,bulge:1.0},{x:495.0,y:287.5,bulge:1.0}],[{x:484.5,y:287.5,bulge:1.0},{x:496.5,y:287.5,bulge:1.0}]],
+    },
+    '70': {
+      width: 548.0, height: 575.0,
+      frameOutline: [[{x:278.0,y:367.5,bulge:0},{x:298.0,y:367.5,bulge:0},{x:298.0,y:207.5,bulge:0},{x:278.0,y:207.5,bulge:0}],[{x:38.0,y:387.5,bulge:0},{x:548.0,y:387.5,bulge:0},{x:548.0,y:367.5,bulge:0},{x:38.0,y:367.5,bulge:0}],[{x:0.0,y:575.0,bulge:0},{x:38.0,y:575.0,bulge:0},{x:38.0,y:0.0,bulge:0},{x:0.0,y:0.0,bulge:0}],[{x:38.0,y:207.5,bulge:0},{x:548.0,y:207.5,bulge:0},{x:548.0,y:187.5,bulge:0},{x:38.0,y:187.5,bulge:0}],[{x:528.0,y:367.5,bulge:0},{x:548.0,y:367.5,bulge:0},{x:548.0,y:207.5,bulge:0},{x:528.0,y:207.5,bulge:0}]],
+      frameHoles: [[{x:23.5,y:20.0,bulge:1.0},{x:32.5,y:20.0,bulge:1.0}],[{x:22.0,y:20.0,bulge:1.0},{x:34.0,y:20.0,bulge:1.0}],[{x:23.5,y:425.0,bulge:1.0},{x:32.5,y:425.0,bulge:1.0}],[{x:22.0,y:425.0,bulge:1.0},{x:34.0,y:425.0,bulge:1.0}],[{x:23.5,y:150.0,bulge:1.0},{x:32.5,y:150.0,bulge:1.0}],[{x:22.0,y:150.0,bulge:1.0},{x:34.0,y:150.0,bulge:1.0}],[{x:23.5,y:555.0,bulge:1.0},{x:32.5,y:555.0,bulge:1.0}],[{x:22.0,y:555.0,bulge:1.0},{x:34.0,y:555.0,bulge:1.0}],[{x:283.5,y:287.5,bulge:1.0},{x:292.5,y:287.5,bulge:1.0}],[{x:282.0,y:287.5,bulge:1.0},{x:294.0,y:287.5,bulge:1.0}],[{x:533.5,y:287.5,bulge:1.0},{x:542.5,y:287.5,bulge:1.0}],[{x:532.0,y:287.5,bulge:1.0},{x:544.0,y:287.5,bulge:1.0}]],
+    },
+  };
+
+  function ensureCCW(verts){
+    if (verts.length < 2) return verts;
+    if (verts.length === 2) return verts[0].bulge > 0 ? verts : Geo.reverseContour(verts);
+    return Geo.signedArea(verts) >= 0 ? verts : Geo.reverseContour(verts);
+  }
+
+  function mirrorX(verts, axisX){
+    const mirrored = verts.map(v => ({ x: 2 * axisX - v.x, y: v.y, bulge: -v.bulge }));
+    return ensureCCW(mirrored);
+  }
+
+  // Builds one leg-side's geometry at a given placement, optionally
+  // mirrored. `leftX` is where this side's local x=0 lands on the
+  // tabletop; `topY` is where this side's local y=0 (the frame's own top
+  // edge) lands — i.e. the tabletop's top edge minus the vertical inset.
+  function buildSide(data, leftX, topY, mirror){
+    const place = (verts) => {
+      let v = verts;
+      if (mirror) v = mirrorX(v, data.width / 2);
+      // local y grows downward from the frame's own top (y=0), so placing
+      // it needs a Y flip relative to translate's plain add: worldY =
+      // topY - localY.
+      return v.map(pt => ({
+        x: (mirror ? pt.x : pt.x) + leftX,
+        y: topY - pt.y,
+        bulge: mirror ? -pt.bulge : pt.bulge, // Y-flip on placement also reverses arc direction
+      }));
+    };
+    const entries = [];
+    for (const contour of data.frameOutline) entries.push({ contour: ensureCCW(place(contour)), layer: 'UNDERFRAME' });
+    for (const contour of data.frameHoles) entries.push({ contour: ensureCCW(place(contour)), layer: 'UNDERFRAME_HOLES' });
+    return entries;
+  }
+
+  function buildContours(p){
+    if (!p.underframeType || p.underframeType === 'none') return [];
+    const data = UNDERFRAME_VARIANTS[p.underframeType];
+    if (!data) return [];
+
+    const insetH = p.underframeInsetH != null ? p.underframeInsetH : 50;
+    // Centered vertically by default (insetV=0): the frame's own vertical
+    // midpoint lands on the tabletop's own vertical midpoint. insetV then
+    // shifts it from that centered position — positive moves the frame up,
+    // negative moves it down, matching this app's normal CAD Y-up
+    // convention (unlike the charger's always-non-negative inset system,
+    // there's no single anchor corner here to derive a sign from, so this
+    // stays a plain signed offset from center).
+    const insetV = p.underframeInsetV || 0;
+    const topY = p.H / 2 + data.height / 2 + insetV;
+
+    const entries = [];
+    entries.push(...buildSide(data, insetH, topY, false));
+    entries.push(...buildSide(data, p.W - insetH - data.width, topY, true));
+    return entries;
+  }
+
+  return { id: 'underframe', buildContours, VARIANTS: UNDERFRAME_VARIANTS };
+})());
+
+
+// ============================================================================
+// Element: Пульт управления подстольем (control panel). Split out from the
+// underframe element into its own registration so additional panel designs
+// can be added later as sibling variants — "Стандартный" (Standard) is
+// taken from the same source drawing as the underframe (see that
+// element's comment for the winding/flip verification, which applied to
+// the whole combined drawing including this panel); "Встраиваемый с USB"
+// (Embedded, USB) is a single-copy panel traced from its own ArtCAM SVG
+// export (one real contour — a grey reference rectangle in that source
+// file, flush with the tabletop's own bottom edge, was confirmed with the
+// person to be a positioning guide from the original drawing, not real
+// milling geometry, and was excluded).
+//
+// Standard is drawn twice — once near the left edge, once mirrored near
+// the right — same as the underframe's own two leg assemblies, so the
+// installer has a mounting option on either side. Both copies share the
+// same insets: a horizontal inset from whichever edge each copy is
+// closer to (default underframeInsetH + 65mm, so it lines up with the
+// underframe's own placement by default), and a vertical inset from the
+// tabletop's bottom edge (default 0 — flush against the bottom, matching
+// its position "in the lower part" after the flip). Both insets remain
+// independently adjustable and apply symmetrically to both copies.
+//
+// Embedded is drawn once (no mirrored second copy — confirmed with the
+// person, since it's milled as a single instance rather than duplicated
+// left/right like Standard). It's positioned by its own center, anchored
+// from the tabletop's bottom-right corner: horizontal inset defaults to
+// underframeInsetH + 120mm (same "follow the underframe by default"
+// pattern as the USB charger's own inset), independently overridable.
+// There's no vertical inset — confirmed with the person that only the
+// horizontal position is configurable; the panel always sits flush
+// against the bottom edge, same as in the source drawing (the shape's
+// own 18mm gap from the bottom edge is already baked into its contour,
+// not applied as a separate inset).
+// ============================================================================
+registerSimpleEmbeddable({
+  id: 'pult',
+  paramsKey: 'pults',
+  defaultVariant: 'standard',
+  variants: {
+    standard: {
+      parts: [
+        { verts: [{x:-45.0,y:50.0,bulge:0},{x:-45.0,y:0.0,bulge:0},{x:45.0,y:0.0,bulge:0},{x:45.0,y:50.0,bulge:0}], layer: 'UNDERFRAME' },
+        { verts: [{x:-34.0,y:30.0,bulge:1.0},{x:-26.0,y:30.0,bulge:1.0}], layer: 'UNDERFRAME_HOLES' },
+        { verts: [{x:-33.0,y:30.0,bulge:1.0},{x:-27.0,y:30.0,bulge:1.0}], layer: 'UNDERFRAME_HOLES' },
+        { verts: [{x:26.0,y:30.0,bulge:1.0},{x:34.0,y:30.0,bulge:1.0}], layer: 'UNDERFRAME_HOLES' },
+        { verts: [{x:27.0,y:30.0,bulge:1.0},{x:33.0,y:30.0,bulge:1.0}], layer: 'UNDERFRAME_HOLES' },
+      ],
+    },
+    embeddedUsb: {
+      parts: [
+        { verts: [{x:-36.0,y:41.0,bulge:-0.414214},{x:-41.0,y:36.0,bulge:0},{x:-76.5,y:36.0,bulge:0.414214},{x:-80.5,y:32.0,bulge:0},{x:-80.5,y:22.0,bulge:0.414214},{x:-76.5,y:18.0,bulge:0},{x:76.5,y:18.0,bulge:0.414214},{x:80.5,y:22.0,bulge:0},{x:80.5,y:32.0,bulge:0.414214},{x:76.5,y:36.0,bulge:0},{x:-13.0,y:36.0,bulge:-0.414214},{x:-18.0,y:41.0,bulge:0},{x:-18.0,y:46.0,bulge:0.414214},{x:-23.0,y:51.0,bulge:0},{x:-31.0,y:51.0,bulge:0.414214},{x:-36.0,y:46.0,bulge:0}], layer: 'UNDERFRAME' },
+        { verts: [{x:-79.0,y:34.0,bulge:0},{x:-79.0,y:0.0,bulge:0},{x:79.0,y:0.0,bulge:0},{x:79.0,y:34.0,bulge:0}], layer: 'ELEMENTS' },
+      ],
+    },
+  },
+});
+
+
+// ============================================================================
+// Element: Блок розеток (outlet block). Vector data imported from an
+// ArtCAM-exported SVG the same way as the other inserts — see the
+// wireless charger's comment for the winding/flip verification method,
+// applied identically here. Two contours: the outer physical cutout
+// (larger rectangle) and an inner reference/marking rectangle.
+// Positioned via a single anchor + center inset, same contract as every
+// other center-anchored element in this app. Default: 300mm right and
+// 115mm down from the top-left corner.
+// ============================================================================
+registerSimpleEmbeddable({
+  id: 'outletBlock',
+  paramsKey: 'outletBlocks',
+  defaultVariant: 'standard',
+  variants: {
+    standard: { parts: [
+      { verts: [{x:-133.5,y:60.0,bulge:0},{x:-133.5,y:-60.0,bulge:0},{x:133.5,y:-60.0,bulge:0},{x:133.5,y:60.0,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:118.5,y:-55.0,bulge:0},{x:118.5,y:55.0,bulge:0},{x:-118.5,y:55.0,bulge:0},{x:-118.5,y:-55.0,bulge:0}], layer: 'ELEMENTS_BACK' },
+    ] },
+  },
+});
+
+// ============================================================================
+// Element: Подставка для телефона (phone stand). Single-contour vector
+// (no holes in the source file). Positioned via a single anchor + center
+// inset. Default: 225mm left and 105mm down from the top-right corner.
+// ============================================================================
+registerSimpleEmbeddable({
+  id: 'phoneStand',
+  paramsKey: 'phoneStands',
+  defaultVariant: 'standard',
+  variants: {
+    standard: { parts: [
+      { verts: [{x:-125.0,y:-5.5,bulge:0},{x:125.0,y:-5.5,bulge:0},{x:125.0,y:5.5,bulge:0},{x:-125.0,y:5.5,bulge:0}], layer: 'ELEMENTS' },
+    ] },
+  },
+});
+
+// ============================================================================
+// Element: Лоток для сетевого фильтра (cable/power-strip tray). Two size
+// variants (60cm / 80cm), same VARIANTS pattern as the underframe. Each
+// variant has a 3-piece physical outline (two end brackets + the tray
+// body) and 8 mounting-hole contours (4 physical holes, each drawn as a
+// concentric pair — matches the underframe's own hole convention).
+// Positioned via a single anchor + insetX/insetY, same as every other
+// embeddable element — default anchor is the top edge, where insetY is
+// an inward distance (from the top) and insetX is a left/right shift
+// from horizontal center (there's no "inward" direction along a
+// horizontally-centered edge), both resolved by Elements.resolveInset.
+// ============================================================================
+registerSimpleEmbeddable({
+  id: 'tray',
+  paramsKey: 'trays',
+  defaultVariant: '60',
+  variants: {
+    '60': { parts: [
+      { verts: [{x:171.5,y:65.0,bulge:0},{x:171.5,y:-65.0,bulge:0},{x:191.5,y:-65.0,bulge:0},{x:191.5,y:65.0,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:-191.5,y:65.0,bulge:0},{x:-191.5,y:-65.0,bulge:0},{x:-171.5,y:-65.0,bulge:0},{x:-171.5,y:65.0,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:-300.0,y:47.5,bulge:0},{x:-300.0,y:-47.5,bulge:0},{x:300.0,y:-47.5,bulge:0},{x:300.0,y:47.5,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:-177.5,y:42.5,bulge:1.0},{x:-185.5,y:42.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:-178.5,y:42.5,bulge:1.0},{x:-184.5,y:42.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:-177.5,y:-42.5,bulge:1.0},{x:-185.5,y:-42.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:-178.5,y:-42.5,bulge:1.0},{x:-184.5,y:-42.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:185.5,y:42.5,bulge:1.0},{x:177.5,y:42.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:184.5,y:42.5,bulge:1.0},{x:178.5,y:42.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:185.5,y:-42.5,bulge:1.0},{x:177.5,y:-42.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:184.5,y:-42.5,bulge:1.0},{x:178.5,y:-42.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+    ] },
+    '80': { parts: [
+      { verts: [{x:350.0,y:-65.0,bulge:0},{x:350.0,y:65.0,bulge:0},{x:330.0,y:65.0,bulge:0},{x:330.0,y:-65.0,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:-330.0,y:-65.0,bulge:0},{x:-330.0,y:65.0,bulge:0},{x:-350.0,y:65.0,bulge:0},{x:-350.0,y:-65.0,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:400.0,y:-47.5,bulge:0},{x:400.0,y:47.5,bulge:0},{x:-400.0,y:47.5,bulge:0},{x:-400.0,y:-47.5,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:-336.0,y:-31.5,bulge:1.0},{x:-344.0,y:-31.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:-337.0,y:-31.5,bulge:1.0},{x:-343.0,y:-31.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:-336.0,y:31.5,bulge:1.0},{x:-344.0,y:31.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:-337.0,y:31.5,bulge:1.0},{x:-343.0,y:31.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:344.0,y:-31.5,bulge:1.0},{x:336.0,y:-31.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:343.0,y:-31.5,bulge:1.0},{x:337.0,y:-31.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:344.0,y:31.5,bulge:1.0},{x:336.0,y:31.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:343.0,y:31.5,bulge:1.0},{x:337.0,y:31.5,bulge:1.0}], layer: 'ELEMENTS_BACK' },
+    ] },
+  },
+});
+
+// ============================================================================
+// Element: Выдвижная подставка (pull-out stand). Physical outline is a
+// compound two-piece rectangle (housing wall + inner frame) plus 8
+// mounting-hole contours (4 physical holes, each a concentric pair,
+// matching the underframe's own hole convention). Local coordinates:
+// x=0 at horizontal center, y=0 at the shape's own BOTTOM edge — unlike
+// most other elements, the configurable inset here measures to that
+// bottom edge directly, not to the shape's center (per spec).
+//
+// When the tabletop's own ergo-notch (bottom trapezoid cutout) is on AND
+// its footprint overlaps the stand's horizontal span, the stand is
+// automatically shifted up so its bottom edge sits at the notch's own
+// flat top (notchH) instead of landing inside the cut-away material —
+// confirmed this is the wanted default behavior (auto-shift, not just a
+// warning) rather than assuming it. The shift only applies when there's
+// an actual horizontal overlap; a narrower/off-center notch that doesn't
+// reach the stand's footprint leaves the stand at its configured position.
+// The notch-overlap check below uses the final (insetX-shifted) position.
+// ============================================================================
+registerSimpleEmbeddable({
+  id: 'pullout',
+  paramsKey: 'pullouts',
+  defaultVariant: 'standard',
+  variants: {
+    standard: {
+      parts: [
+        { verts: [{x:242.5,y:0,bulge:0},{x:242.5,y:281,bulge:0},{x:-242.5,y:281,bulge:0},{x:-242.5,y:0,bulge:0}], layer: 'ELEMENTS' },
+        { verts: [{x:262.5,y:0,bulge:0},{x:262.5,y:281,bulge:0},{x:-262.5,y:281,bulge:0},{x:-262.5,y:0,bulge:0}], layer: 'ELEMENTS' },
+        { verts: [{x:-251,y:71,bulge:1},{x:-259,y:71,bulge:1}], layer: 'ELEMENTS_BACK' },
+        { verts: [{x:-252,y:71,bulge:1},{x:-258,y:71,bulge:1}], layer: 'ELEMENTS_BACK' },
+        { verts: [{x:-251,y:191,bulge:1},{x:-259,y:191,bulge:1}], layer: 'ELEMENTS_BACK' },
+        { verts: [{x:-252,y:191,bulge:1},{x:-258,y:191,bulge:1}], layer: 'ELEMENTS_BACK' },
+        { verts: [{x:259,y:191,bulge:1},{x:251,y:191,bulge:1}], layer: 'ELEMENTS_BACK' },
+        { verts: [{x:258,y:191,bulge:1},{x:252,y:191,bulge:1}], layer: 'ELEMENTS_BACK' },
+        { verts: [{x:259,y:71,bulge:1},{x:251,y:71,bulge:1}], layer: 'ELEMENTS_BACK' },
+        { verts: [{x:258,y:71,bulge:1},{x:252,y:71,bulge:1}], layer: 'ELEMENTS_BACK' }
+      ],
+    },
+  },
+});
+
+// ============================================================================
+// Element: Торцевая USB-зарядка (end-mounted USB charger). Two contours
+// from the source file — an outer schematic/mounting outline and an inner
+// rounded rectangle (the actual charger body).
+//
+// The source part data was drawn upside down relative to how it's actually
+// installed, so both contours are mirrored vertically (y -> TOTAL_H - y)
+// before use. After mirroring, the shape spans local y=[0, 48]. It is then
+// translated down by 4mm so it spans y=[-4, 44]. This makes its local
+// origin (0,0) sit exactly 4mm above the charger's physical bottom edge.
+// Placing the origin at the tabletop's bottom edge (via insetY=0 from a
+// bottom anchor) natively creates the 4mm overhang without any special
+// adjustPosition hacks.
+//
+// Only the HORIZONTAL position is configurable — the vertical position is
+// fixed by the part's own physical design. Default horizontal inset: the
+// underframe's own horizontal inset + 220mm (mirrors the pult's
+// "follow the underframe by default" pattern). Default anchor: bottom-right.
+// ============================================================================
+registerSimpleEmbeddable({
+  id: 'usbCharger',
+  paramsKey: 'usbChargers',
+  defaultVariant: 'standard',
+  variants: {
+    standard: { parts: [
+      { verts: [{x:29,y:0,bulge:0}, {x:20,y:0,bulge:0}, {x:20,y:20,bulge:0}, {x:-20,y:20,bulge:0}, {x:-20,y:0,bulge:0}, {x:-29,y:0,bulge:0}, {x:-29,y:-1,bulge:0.4142}, {x:-26,y:-4,bulge:0}, {x:26,y:-4,bulge:0.4142}, {x:29,y:-1,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:19.5,y:38,bulge:0.4142}, {x:13.5,y:44,bulge:0}, {x:0,y:44,bulge:0}, {x:-13.5,y:44,bulge:0.4142}, {x:-19.5,y:38,bulge:0}, {x:-19.5,y:20,bulge:0.4142}, {x:-13.5,y:14,bulge:0}, {x:13.5,y:14,bulge:0.4142}, {x:19.5,y:20,bulge:0}], layer: 'ELEMENTS' },
+    ] },
+  },
+});
+
+
+// ============================================================================
+// Drawing — composes every registered element's contours into one flat list
+// of { contour, layer } entries. This is the single artifact that both the
+// SVG preview and the DXF exporter consume; neither needs to know how many
+// elements exist or how each one builds its geometry.
+// ============================================================================
+const Drawing = (() => {
+  function build(params){
+    const entries = [];
+    for (const element of Elements.all()){
+      const parts = element.buildContours(params) || [];
+      for (const part of parts) entries.push(part);
+    }
+    return entries;
+  }
+  return { build };
+})();
+
+
+// ============================================================================
+// Dimensions — draws linear dimension lines (extension lines, a dimension
+// line, inward-pointing arrowheads, and a centered text label) for the
+// tabletop's overall width and height. Built from the same plain-line
+// contour primitives as everything else in this app (open, non-filled
+// contours on the DIMENSIONS layer) rather than DXF's native DIMENSION
+// entity — R12 doesn't support DIMENSION at all, and every other design
+// choice in this app already favors plain, universally-compatible
+// primitives over format-specific entity types.
+//
+// This only dimensions the overall tabletop for now; per-element
+// dimensions (individual cutout sizes, distances between elements) are a
+// natural next step on the same buildLinearDimension() primitive, not
+// built out yet since only the overall envelope was requested.
+// ============================================================================
+const Dimensions = (() => {
+  const EXT_GAP = 4;        // gap between the dimensioned feature and where its extension line starts
+  const EXT_OVERSHOOT = 4;  // how far the extension line extends past the dimension line itself
+  const ARROW_LEN = 16;      // distance from an arrowhead's tip back to its tail, along the dimension line
+  const ARROW_WIDTH = 6;
+  const TEXT_GAP = 18;       // distance from the dimension line to the text's own geometric CENTER (not its baseline/edge — see dominant-baseline="central" in RenderSVG/ExportSVG and DXF group code 73 in ExportDXF), so the visual gap reads the same whether the text ends up above or below the line
+
+  // Auto-stacking: every dimension call below picks a "desired" offset on
+  // the general vicinity of what it's measuring, but on a busy drawing
+  // several dimensions can legitimately want to sit at roughly the same
+  // distance from roughly the same span (e.g. two chargers placed near
+  // each other, or a tray next to the underframe), which used to just
+  // overlap. STACK_STEP is how far a dimension gets pushed out, on top of
+  // its own requested offset, for each already-placed dimension it would
+  // otherwise collide with — see placeDimension below for the actual
+  // collision search.
+  const STACK_STEP = 34; // TEXT_GAP*2-ish: enough for one line + label not to touch the next
+  const placedByAxis = { h: [], v: [] }; // reset per build() call, see resetStacking()
+
+  function resetStacking(){
+    placedByAxis.h.length = 0;
+    placedByAxis.v.length = 0;
+  }
+
+  // Finds the smallest offset (same sign and axis as requested, magnitude
+  // >= the requested one) whose dimension-line band doesn't overlap any
+  // previously placed dimension that shares its span AND its base
+  // coordinate. "Span" is the dimension's extent along its own direction
+  // (e.g. a horizontal dimension's x-range); "base" is the coordinate the
+  // offset is measured from (e.g. a horizontal dimension's own y, before
+  // the offset is applied) — two dimensions can only collide if their
+  // spans overlap, they're on the same side (same offset sign), AND they
+  // share the same base, since dimensions measured from different base
+  // lines (e.g. the underframe's own inset vs. the pult's own inset,
+  // which sit on different y-coordinates entirely) never visually
+  // interfere with each other regardless of offset.
+  function placeDimension(axis, base, spanMin, spanMax, desiredOffset){
+    const sign = desiredOffset >= 0 ? 1 : -1;
+    const placed = placedByAxis[axis];
+    let offset = desiredOffset;
+    // Re-check from scratch each time offset changes, since pushing past
+    // one collision can land inside another's band — a fixed-point loop
+    // (rather than a single pass) is what makes this correct for 3+
+    // overlapping dimensions stacked on the same side, not just 2.
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const entry of placed) {
+        if (entry.sign !== sign || entry.base !== base) continue;
+        const overlaps = spanMin < entry.spanMax && spanMax > entry.spanMin;
+        if (!overlaps) continue;
+        const tooClose = Math.abs(Math.abs(offset) - Math.abs(entry.offset)) < STACK_STEP;
+        if (tooClose) {
+          offset = sign * (Math.abs(entry.offset) + STACK_STEP);
+          changed = true;
+        }
+      }
+    }
+    placed.push({ spanMin, spanMax, offset, sign, base });
+    return offset;
+  }
+
+  // Builds one linear dimension between p1 and p2, offset perpendicular to
+  // the p1->p2 direction by `offset` (signed — sign picks which side the
+  // dimension line sits on). Returns entries (open contours for the
+  // extension lines, dimension line, and two arrowhead triangles) plus one
+  // text label.
+  //
+  // The requested `offset` is treated as a minimum/preferred distance —
+  // placeDimension may push it further out if it would otherwise overlap
+  // an already-placed dimension covering the same span on the same side,
+  // so two nearby measurements always end up stacked instead of on top of
+  // each other. This only works for axis-aligned dimensions (p1.x===p2.x
+  // or p1.y===p2.y), which covers every dimension this app draws.
+  function buildLinearDimension(p1, p2, offset, formatText){
+    const isHorizontal = p1.y === p2.y;
+    const isVertical = p1.x === p2.x;
+    if (isHorizontal || isVertical) {
+      const axis = isHorizontal ? 'h' : 'v';
+      const base = isHorizontal ? p1.y : p1.x;
+      const spanMin = isHorizontal ? Math.min(p1.x, p2.x) : Math.min(p1.y, p2.y);
+      const spanMax = isHorizontal ? Math.max(p1.x, p2.x) : Math.max(p1.y, p2.y);
+      offset = placeDimension(axis, base, spanMin, spanMax, offset);
+    }
+    // A genuinely diagonal dimension (p1.x!==p2.x && p1.y!==p2.y) skips
+    // stacking entirely and just uses its requested offset as-is — none
+    // of this app's own dimensions are diagonal today, but a future one
+    // shouldn't silently misbehave by being forced through the axis-only
+    // collision model above.
+
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len;   // unit vector along the dimension
+    const nx = -uy, ny = ux;              // unit vector perpendicular to it
+    const sign = offset >= 0 ? 1 : -1;
+    const absOffset = Math.abs(offset);
+
+    const d1 = { x: p1.x + nx * offset, y: p1.y + ny * offset };
+    const d2 = { x: p2.x + nx * offset, y: p2.y + ny * offset };
+
+    const e1Start = { x: p1.x + nx * EXT_GAP * sign, y: p1.y + ny * EXT_GAP * sign };
+    const e1End   = { x: p1.x + nx * (absOffset + EXT_OVERSHOOT) * sign, y: p1.y + ny * (absOffset + EXT_OVERSHOOT) * sign };
+    const e2Start = { x: p2.x + nx * EXT_GAP * sign, y: p2.y + ny * EXT_GAP * sign };
+    const e2End   = { x: p2.x + nx * (absOffset + EXT_OVERSHOOT) * sign, y: p2.y + ny * (absOffset + EXT_OVERSHOOT) * sign };
+
+    // The arrowhead's tip sits exactly at the dimension line's endpoint
+    // (d1 or d2) and points OUTWARD — away from the other endpoint, i.e.
+    // toward p1's/p2's own side. The tail (the wide base of the triangle)
+    // is ARROW_LEN back from the tip, toward the other endpoint. Passing
+    // each arrow its own outward direction (rather than reusing the
+    // line's own ux/uy for both ends) is what keeps the tip-vs-tail sides
+    // correct without needing a sign trick on ARROW_LEN.
+    function arrowTriangle(tip, dirOutward){
+      const backX = tip.x - ARROW_LEN * dirOutward.x, backY = tip.y - ARROW_LEN * dirOutward.y;
+      const perpX = -dirOutward.y, perpY = dirOutward.x;
+      return [
+        { x: tip.x, y: tip.y, bulge: 0 },
+        { x: backX + perpX * ARROW_WIDTH / 2, y: backY + perpY * ARROW_WIDTH / 2, bulge: 0 },
+        { x: backX - perpX * ARROW_WIDTH / 2, y: backY - perpY * ARROW_WIDTH / 2, bulge: 0 },
+      ];
+    }
+
+    const entries = [
+      { contour: [{ x: e1Start.x, y: e1Start.y, bulge: 0 }, { x: e1End.x, y: e1End.y, bulge: 0 }], layer: 'DIMENSIONS', closed: false },
+      { contour: [{ x: e2Start.x, y: e2Start.y, bulge: 0 }, { x: e2End.x, y: e2End.y, bulge: 0 }], layer: 'DIMENSIONS', closed: false },
+      { contour: [{ x: d1.x, y: d1.y, bulge: 0 }, { x: d2.x, y: d2.y, bulge: 0 }], layer: 'DIMENSIONS', closed: false },
+      { contour: arrowTriangle(d1, { x: -ux, y: -uy }), layer: 'DIMENSIONS', closed: true },
+      { contour: arrowTriangle(d2, { x: ux, y: uy }), layer: 'DIMENSIONS', closed: true },
+    ];
+
+    const midX = (d1.x + d2.x) / 2 + nx * TEXT_GAP * sign;
+    const midY = (d1.y + d2.y) / 2 + ny * TEXT_GAP * sign;
+    // Constrain the label's rotation to never read upside-down: a
+    // dimension can point in any of the 4 directions along its axis
+    // (e.g. the charger's inset dimension flips direction depending on
+    // which anchor is selected), but the text should always read normally
+    // left-to-right — so angles more than 90° from horizontal get flipped
+    // by 180°. This preserves intentional choices like the height
+    // dimension's bottom-to-top reading (90°) while fixing any dimension
+    // that happens to run right-to-left or top-to-bottom.
+    let textAngle = Math.atan2(dy, dx);
+    if (textAngle > Math.PI / 2 || textAngle <= -Math.PI / 2) {
+      textAngle += Math.PI;
+      if (textAngle > Math.PI) textAngle -= 2 * Math.PI;
+    }
+    const texts = [{ x: midX, y: midY, text: formatText(len), angle: textAngle }];
+
+    return { entries, texts };
+  }
+
+  function formatMm(len){
+    const rounded = Math.round(len * 10) / 10;
+    return (Number.isInteger(rounded) ? rounded : rounded.toFixed(1)) + ' мм';
+  }
+
+  // Builds the overall width/height dimensions for the tabletop, plus
+  // dimension lines for every other configurable measurement (notch
+  // widths/heights, element insets) except fillet radii, which the user
+  // asked to leave undimensioned. Offsets/insets that default to zero are
+  // only dimensioned when the person has actually set them to something
+  // else — a zero offset has nothing meaningful to measure.
+  function build(params){
+    if (!params.dimensionsOn) return { entries: [], texts: [] };
+    resetStacking(); // fresh collision state for this build — each call to Dimensions.build lays out an independent drawing
+    const { W, H } = params;
+    const gap = 30; // distance the overall dimension lines sit from the tabletop's own edge
+    const entries = [];
+    const texts = [];
+
+    function add(dim){ entries.push(...dim.entries); texts.push(...dim.texts); }
+
+    // Overall width (below) and height (left).
+    add(buildLinearDimension({ x: 0, y: 0 }, { x: W, y: 0 }, -gap, formatMm));
+    add(buildLinearDimension({ x: 0, y: 0 }, { x: 0, y: H }, gap, formatMm));
+
+    // Bottom trapezoid notch: width at the tabletop's bottom edge, width at
+    // the notch's own flat top, and its height.
+    if (params.notchOn) {
+      const cx = W / 2;
+      const nBL = { x: cx - params.notchBottom / 2, y: 0 };
+      const nBR = { x: cx + params.notchBottom / 2, y: 0 };
+      const nTL = { x: cx - params.notchTop / 2, y: params.notchH };
+      const nTR = { x: cx + params.notchTop / 2, y: params.notchH };
+      // Stacked further out (gap 60) than the overall width dimension
+      // (gap 30), since both sit on the same bottom edge.
+      add(buildLinearDimension(nBL, nBR, -60, formatMm));
+      // The notch's flat top isn't on the tabletop's own edge, so its
+      // width is dimensioned as an internal line just above that edge.
+      add(buildLinearDimension(nTL, nTR, 12, formatMm));
+      // Height: a local vertical dimension just to the right of the
+      // notch, inside the tabletop — the left side is already used by
+      // the overall height dimension.
+      add(buildLinearDimension({ x: nBR.x, y: 0 }, { x: nBR.x, y: params.notchH }, 15, formatMm));
+    }
+
+    // Top notch (T-slot or rectangular): width, and horizontal offset
+    // from center only when the person has actually shifted it.
+    if (params.topNotchType !== 'none') {
+      const cx = W / 2 + params.topNotchOffset;
+      const half = params.topNotchWidth / 2;
+      // Placed above the tabletop (mirrors the overall-width placement
+      // pattern, but on the opposite edge, so it never collides with the
+      // bottom-notch stack).
+      add(buildLinearDimension({ x: cx - half, y: H }, { x: cx + half, y: H }, gap, formatMm));
+      if (params.topNotchOffset !== 0) {
+        add(buildLinearDimension({ x: W / 2, y: H }, { x: cx, y: H }, gap + 25, formatMm));
+      }
+    }
+
+    // Shared per-instance dimensioning for anchor-based embeddable
+    // elements: draws a short local line from the resolved anchor point
+    // to the element's own center along each axis, skipping zero insets
+    // so nothing draws a zero-length "phantom" dimension. Both axes are
+    // always dimensioned now — insetX/insetY are always meaningful
+    // (directional distance for a corner axis, or a signed left/right or
+    // up/down shift for an edge-center/center axis), matching how
+    // Elements.resolveInset resolves the same instances' actual position.
+    function dimensionInstanceList(instances){
+      for (const instance of (instances || [])) {
+        if (instance.dimensionsOn === false) continue;
+        const bounds = { minX: 0, minY: 0, maxX: W, maxY: H };
+        const anchorPt = Elements.resolveAnchor(instance.anchor, { x: 0, y: 0 }, bounds);
+        const center = Elements.resolveInset(instance.anchor, instance.insetX, instance.insetY, bounds);
+        if (instance.insetX) {
+          add(buildLinearDimension({ x: anchorPt.x, y: center.y }, { x: center.x, y: center.y }, 10, formatMm));
+        }
+        if (instance.insetY) {
+          add(buildLinearDimension({ x: center.x, y: anchorPt.y }, { x: center.x, y: center.y }, 10, formatMm));
+        }
+      }
+    }
+
+    // All embeddable elements now share the same instance dimensioning,
+    // since resolveItems() in the UI managers already computed any
+    // dynamic defaults (e.g. USB/pult following the underframe).
+    dimensionInstanceList(params.chargers);
+    dimensionInstanceList(params.outletBlocks);
+    dimensionInstanceList(params.phoneStands);
+    dimensionInstanceList(params.trays);
+    dimensionInstanceList(params.pullouts);
+    dimensionInstanceList(params.usbChargers);
+    dimensionInstanceList(params.pults);
+
+    // Underframe: dimension each inset only when nonzero. The horizontal
+    // inset measures directly from the tabletop's left edge (its own
+    // definition). The vertical inset is a shift away from the frame's
+    // centered reference position, so it's dimensioned as that shift, not
+    // as the full distance from the tabletop's center.
+    if (params.underframeType !== 'none') {
+      const data = Elements.all().find(e => e.id === 'underframe').VARIANTS[params.underframeType];
+      if (data) {
+        const insetH = params.underframeInsetH;
+        const insetV = params.underframeInsetV || 0;
+        const centeredTopY = H / 2 + data.height / 2;
+        const actualTopY = centeredTopY + insetV;
+        if (insetH !== 0) {
+          add(buildLinearDimension({ x: 0, y: actualTopY + 10 }, { x: insetH, y: actualTopY + 10 }, 0, formatMm));
+        }
+        if (insetV !== 0) {
+          add(buildLinearDimension({ x: -15, y: centeredTopY }, { x: -15, y: actualTopY }, 0, formatMm));
+        }
+      }
+    }
+
+    return { entries, texts };
+  }
+
+  return { build, buildLinearDimension, formatMm };
+})();
+
+
+// ============================================================================
+// Render.SVG — Drawing -> <svg> markup for the preview pane. Draws every
+// contour with a style keyed by its layer, so future layers (underframe
+// holes, element cutouts) are visually distinguishable without extra work
+// per element.
+// ============================================================================
+const RenderSVG = (() => {
+  const LAYER_CLASS = {
+    OUTLINE: 'layer-outline',
+    UNDERFRAME: 'layer-underframe',
+    UNDERFRAME_HOLES: 'layer-underframe-holes',
+    ELEMENTS: 'layer-elements',
+    ELEMENTS_BACK: 'layer-elements-back',
+    DIMENSIONS: 'layer-dimensions',
+  };
+
+  function build(entries, W, H, texts = []){
+    const parts = entries.map(({ contour, layer, closed = true }) => {
+      const d = Geo.contourToSvgPath(contour, true, H, closed);
+      // A contour naming a layer that isn't in the registry gets flagged
+      // visually (layer-unknown, a blinking red outline — see its CSS)
+      // instead of silently falling back to layer-outline as this used
+      // to — that fallback was hiding the exact mistake this is meant to
+      // surface (an element referencing a layer id that doesn't exist).
+      const cls = LAYER_CLASS[layer] || 'layer-unknown';
+      const fillAttr = closed ? '' : ' style="fill:none"'; // open lines/arrowheads shouldn't inherit the layer's closed-shape fill
+      return `<path class="${cls}"${fillAttr} d="${d}"></path>`;
+    });
+    const textParts = texts.map(({ x, y, text, angle = 0 }) => {
+      const sy = H - y; // flip to SVG's Y-down space, matching contourToSvgPath's own flip
+      const deg = -angle * 180 / Math.PI; // SVG rotation is clockwise-positive in Y-down space, opposite of our CAD angle convention
+      return `<text class="layer-dimensions dim-text" x="${x}" y="${sy}" transform="rotate(${deg} ${x} ${sy})" text-anchor="middle" dominant-baseline="central">${text}</text>`;
+    });
+    return parts.join('\n') + (textParts.length ? '\n' + textParts.join('\n') : '');
+  }
+
+  return { build };
+})();
+
+
+// ============================================================================
+// Export.DXF — Drawing -> DXF R12 (AC1009) text. R12 was chosen (over the
+// newer LWPOLYLINE-based R2000+) because it only needs HEADER + TABLES +
+// ENTITIES with simple name references — no owner-handle bookkeeping — and
+// is read by effectively every DXF-capable tool. Each layer gets its own
+// POLYLINE per contour, grouped under a proper LAYER table so names/colors
+// appear correctly in any CAD layer manager, including layers with no
+// geometry yet (reserved for planned features).
+// ============================================================================
+const ExportDXF = (() => {
+  const ARC_SEGMENTS_PER_CIRCLE = 128; // keeps tessellated arcs visually smooth
+
+  function buildLayerTable(add){
+    const layers = Layers.all();
+    add(0,'SECTION'); add(2,'TABLES');
+    add(0,'TABLE'); add(2,'LAYER'); add(70, layers.length);
+    for (const layer of layers){
+      add(0,'LAYER');
+      add(2, layer.name);
+      add(70, 0);
+      add(62, layer.color);
+      add(6, 'CONTINUOUS');
+    }
+    add(0,'ENDTAB');
+    add(0,'ENDSEC');
+  }
+
+  function buildEntities(add, entries, texts){
+    add(0,'SECTION'); add(2,'ENTITIES');
+    for (const { contour, layer, closed = true } of entries){
+      // An entry referencing a layer not in the registry still gets
+      // written out (using the raw layer string as its DXF layer name)
+      // rather than silently reassigned to a known layer or dropped —
+      // the person sees this case highlighted in the on-screen preview
+      // (see RenderSVG's own unknown-layer handling) so they can fix the
+      // element that produced it; the export just needs to not crash.
+      const known = Layers.get(layer);
+      const layerName = known ? known.name : layer;
+      const points = Geo.tessellateContour(contour, ARC_SEGMENTS_PER_CIRCLE, closed);
+
+      add(0,'POLYLINE');
+      add(8, layerName);
+      add(66,1);   // "vertices follow" marker, required for POLYLINE
+      add(70, closed ? 1 : 0);
+      add(40,0);   // default start width
+      add(41,0);   // default end width
+
+      for (const pt of points){
+        add(0,'VERTEX');
+        add(8, layerName);
+        add(10, Geo.cleanRound(pt.x).toFixed(4));
+        add(20, Geo.cleanRound(pt.y).toFixed(4));
+        add(30, 0);
+      }
+
+      add(0,'SEQEND');
+      add(8, layerName);
+    }
+
+    const TEXT_HEIGHT_MM = 21;
+    for (const { x, y, text, angle = 0 } of (texts || [])){
+      const cx = Geo.cleanRound(x), cy = Geo.cleanRound(y);
+      add(0,'TEXT');
+      add(8, Layers.get('DIMENSIONS').name);
+      add(10, cx.toFixed(4));
+      add(20, cy.toFixed(4));
+      add(30, 0);
+      add(40, TEXT_HEIGHT_MM);
+      add(1, text);
+      add(50, (angle * 180 / Math.PI).toFixed(4)); // DXF rotation is degrees, CCW from X-axis — matches our CAD angle convention directly, no flip needed
+      add(72, 1); // horizontal alignment: center
+      add(73, 2); // vertical alignment: middle — matches the SVG side's dominant-baseline="central", so (x,y) means the text's true geometric center in both outputs, not its baseline
+      add(11, cx.toFixed(4)); // alignment point, required when 72/73 are nonzero
+      add(21, cy.toFixed(4));
+      add(31, 0);
+    }
+
+    add(0,'ENDSEC');
+  }
+
+  function build(entries, texts){
+    const lines = [];
+    const add = (code, value) => { lines.push(String(code)); lines.push(String(value)); };
+
+    add(0,'SECTION'); add(2,'HEADER');
+    add(9,'$ACADVER'); add(1,'AC1009');
+    add(0,'ENDSEC');
+
+    buildLayerTable(add);
+    buildEntities(add, entries, texts);
+
+    add(0,'EOF');
+    return lines.join('\r\n') + '\r\n';
+  }
+
+  function downloadAs(entries, filename, texts){
+    let name = (filename || 'panel').trim();
+    if (!name) name = 'panel';
+    if (!/\.dxf$/i.test(name)) name += '.dxf';
+
+    const dxfText = build(entries, texts);
+    const blob = new Blob([dxfText], { type: 'application/dxf' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  return { build, downloadAs };
+})();
+
+
+// ============================================================================
+// Export.SVG — Drawing -> a standalone, downloadable SVG file. Distinct from
+// RenderSVG (which builds inline preview markup styled by the app's own
+// CSS): an exported file has to carry its own styling, since it will be
+// opened outside this app. Uses the same per-layer color scheme as the
+// preview and the DXF layer table, so the exported file visually matches
+// what was on screen. Coordinates are written in real millimeters with an
+// explicit mm-based viewBox/width/height, and Y is flipped to match SVG's
+// native top-down convention (the same flip RenderSVG applies for on-screen
+// display) so the file opens right-side-up in any SVG viewer.
+// ============================================================================
+const ExportSVG = (() => {
+  const BBOX_MARGIN_MM = 6; // extra breathing room around the computed content bounds, beyond the geometry itself
+
+  // Computes the true bounding box across every entry's contour points and
+  // every text label's approximate footprint. Dimension lines/arrows/text
+  // routinely extend outside the tabletop's own [0,W]x[0,H] footprint, so
+  // sizing the export purely off W/H clips them — this walks the actual
+  // geometry instead of assuming any fixed extent.
+  function computeBounds(entries, texts, W, H){
+    let minX = 0, minY = 0, maxX = W, maxY = H; // tabletop itself is always included
+    for (const { contour } of entries){
+      for (const v of contour){
+        if (v.x < minX) minX = v.x;
+        if (v.x > maxX) maxX = v.x;
+        if (v.y < minY) minY = v.y;
+        if (v.y > maxY) maxY = v.y;
+      }
+    }
+    // Text labels aren't stored as contour points, so approximate each
+    // one's footprint from its position — rotated text can extend in
+    // either axis regardless of the label's own orientation, so a
+    // generous square margin around the anchor point is simpler and safer
+    // than trying to compute exact rotated-text extents.
+    const TEXT_FOOTPRINT_MM = 85; // half-width allowance for a realistic label (DIM_TEXT_HEIGHT_MM-tall monospace, ~7-8 characters like "1500 мм") — width dominates over height for these short numeric+unit labels
+    for (const { x, y } of texts){
+      if (x - TEXT_FOOTPRINT_MM < minX) minX = x - TEXT_FOOTPRINT_MM;
+      if (x + TEXT_FOOTPRINT_MM > maxX) maxX = x + TEXT_FOOTPRINT_MM;
+      if (y - TEXT_FOOTPRINT_MM < minY) minY = y - TEXT_FOOTPRINT_MM;
+      if (y + TEXT_FOOTPRINT_MM > maxY) maxY = y + TEXT_FOOTPRINT_MM;
+    }
+    return {
+      minX: minX - BBOX_MARGIN_MM, minY: minY - BBOX_MARGIN_MM,
+      maxX: maxX + BBOX_MARGIN_MM, maxY: maxY + BBOX_MARGIN_MM,
+    };
+  }
+
+  // Mirrors RenderSVG's LAYER_CLASS intent, but as concrete stroke/fill
+  // colors baked into the file instead of CSS classes, since an exported
+  // file can't depend on this app's stylesheet.
+  const LAYER_STYLE = {
+    OUTLINE:          { stroke: '#ff8a3d', fill: 'none' },
+    UNDERFRAME:       { stroke: '#4d8ff0', fill: 'none' },
+    UNDERFRAME_HOLES: { stroke: '#b06fe0', fill: 'none' },
+    ELEMENTS:         { stroke: '#4cc97c', fill: 'none' },
+    ELEMENTS_BACK:    { stroke: '#4dcfe0', fill: 'none' },
+    DIMENSIONS:       { stroke: '#e05a5a', fill: '#e05a5a' },
+  };
+  const BASE_STROKE_WIDTH_MM = 1; // stroke width in the drawing's own mm units — deliberately NOT vector-effect:non-scaling-stroke, since that keeps strokes hairline-thin in CSS pixels no matter how large the file is rasterized (e.g. for PNG export); specifying width in mm makes it scale naturally with resolution
+
+  // Dimension label text height, in the drawing's own mm units. The
+  // on-screen preview's text (see .dim-text in the stylesheet) is a FIXED
+  // number of screen pixels regardless of table size, so it always looks
+  // the same relative size on screen. Exported text is real mm on the
+  // drawing, so once rasterized to a typically much larger PNG (e.g.
+  // 3000px+ wide for a 1500mm table) and then viewed at reduced zoom in an
+  // image viewer, the same nominal size reads much smaller than the fixed-
+  // px preview. This value is deliberately large (much bigger than a
+  // literal drafting-standard text height) to compensate for that —
+  // tune it here if exports still look too small or too large relative to
+  // the preview.
+  const DIM_TEXT_HEIGHT_MM = 21;
+
+  // strokeWidthMultiplier scales BASE_STROKE_WIDTH_MM up or down — exposed
+  // as a parameter (rather than hardcoded) so line thickness can be tuned
+  // per export without hunting through the function body.
+  function build(entries, W, H, texts = [], strokeWidthMultiplier = 1){
+    const bounds = computeBounds(entries, texts, W, H);
+    const bw = bounds.maxX - bounds.minX, bh = bounds.maxY - bounds.minY;
+    // contourToSvgPath's Y-flip is anchored at H (world y=0 -> svg y=H,
+    // world y=H -> svg y=0); that formula stays correct for points outside
+    // [0,H] too, so only the viewBox's origin/size need to grow to reveal
+    // them — the flip math itself doesn't change.
+    const svgMinY = H - bounds.maxY;
+
+    const strokeWidth = BASE_STROKE_WIDTH_MM * strokeWidthMultiplier;
+    const paths = entries.map(({ contour, layer, closed = true }) => {
+      // Round each vertex before it hits the path string, same rationale
+      // as the DXF exporter's cleanRound — this is a final-output
+      // checkpoint (unlike the live on-screen preview via RenderSVG,
+      // which skips this for performance since it re-renders on every
+      // keystroke and doesn't need the extra decimal-place cleanup).
+      const roundedContour = contour.map(v => ({ x: Geo.cleanRound(v.x), y: Geo.cleanRound(v.y), bulge: v.bulge }));
+      const d = Geo.contourToSvgPath(roundedContour, true, H, closed);
+      const style = LAYER_STYLE[layer] || LAYER_STYLE.OUTLINE;
+      const fill = closed ? style.fill : 'none';
+      return `<path d="${d}" fill="${fill}" stroke="${style.stroke}" stroke-width="${strokeWidth}"/>`;
+    });
+    const textEls = texts.map(({ x, y, text, angle = 0 }) => {
+      const sy = H - y;
+      const deg = -angle * 180 / Math.PI;
+      const dimStyle = LAYER_STYLE.DIMENSIONS;
+      return `<text x="${x}" y="${sy}" transform="rotate(${deg} ${x} ${sy})" text-anchor="middle" dominant-baseline="central" font-family="monospace" font-weight="bold" font-size="${DIM_TEXT_HEIGHT_MM}" fill="${dimStyle.stroke}" stroke="none">${text}</text>`;
+    });
+    return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n` +
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${bw}mm" height="${bh}mm" viewBox="${bounds.minX} ${svgMinY} ${bw} ${bh}">\n` +
+      paths.join('\n') + '\n' +
+      textEls.join('\n') + '\n' +
+      `</svg>\n`;
+  }
+
+  function downloadAs(entries, W, H, filename, texts, strokeWidthMultiplier){
+    let name = (filename || 'panel').trim();
+    if (!name) name = 'panel';
+    if (!/\.svg$/i.test(name)) name += '.svg';
+
+    const svgText = build(entries, W, H, texts, strokeWidthMultiplier);
+    const blob = new Blob([svgText], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  return { build, downloadAs, computeBounds };
+})();
+
+
+// ============================================================================
+// Export.PNG — rasterizes the same drawing ExportSVG produces into a PNG
+// file, entirely in the browser (Image + Canvas, no server or library).
+// Since the drawing lives in millimeters with no inherent pixel size, the
+// caller supplies a scale in pixels-per-mm; the canvas is sized to
+// W*scale × H*scale so the exported bitmap has a predictable, consistent
+// resolution regardless of on-screen zoom. A solid white background is
+// painted first — the SVG itself has no background, and a transparent PNG
+// of thin colored lines is hard to read in most image viewers/printers.
+// ============================================================================
+const ExportPNG = (() => {
+  const DEFAULT_SCALE = 2;               // pixels per mm — the UI no longer exposes this, but it's easy to change here if a different default is ever needed
+  const DEFAULT_STROKE_WIDTH_MULTIPLIER = 1.5; // multiplies ExportSVG's base stroke width (see BASE_STROKE_WIDTH_MM there) — raise this if lines are still too thin
+  const BORDER_MARGIN_MM = 50;           // gap between the drawing's own edge and the border
+  const BORDER_WIDTH_MM = 0;           // border line thickness, in the same mm units as the drawing
+
+  function rasterize(entries, W, H, texts, scale = DEFAULT_SCALE, strokeWidthMultiplier = DEFAULT_STROKE_WIDTH_MULTIPLIER){
+    return new Promise((resolve, reject) => {
+      const svgText = ExportSVG.build(entries, W, H, texts, strokeWidthMultiplier);
+      const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
+      const svgUrl = URL.createObjectURL(svgBlob);
+
+      // The SVG's own content may extend beyond the tabletop's W×H (e.g.
+      // dimension lines) — size the canvas off the same bounding box
+      // ExportSVG.build used for its viewBox, not the raw tabletop
+      // dimensions, or anything outside W×H gets cropped off the PNG.
+      const bounds = ExportSVG.computeBounds(entries, texts, W, H);
+      const contentW = bounds.maxX - bounds.minX, contentH = bounds.maxY - bounds.minY;
+
+      const img = new Image();
+      img.onload = () => {
+        const margin = BORDER_MARGIN_MM * scale;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(contentW * scale + margin * 2));
+        canvas.height = Math.max(1, Math.round(contentH * scale + margin * 2));
+        const ctx = canvas.getContext('2d');
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, margin, margin, contentW * scale, contentH * scale);
+
+        const borderWidth = BORDER_WIDTH_MM * scale;
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = borderWidth;
+        ctx.strokeRect(borderWidth / 2, borderWidth / 2, canvas.width - borderWidth, canvas.height - borderWidth);
+
+        URL.revokeObjectURL(svgUrl);
+        canvas.toBlob((blob) => {
+          if (blob) resolve(blob); else reject(new Error('canvas.toBlob returned null'));
+        }, 'image/png');
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(svgUrl);
+        reject(new Error('Failed to rasterize SVG for PNG export'));
+      };
+      img.src = svgUrl;
+    });
+  }
+
+  async function downloadAs(entries, W, H, filename, texts, scale, strokeWidthMultiplier){
+    let name = (filename || 'panel').trim();
+    if (!name) name = 'panel';
+    if (!/\.png$/i.test(name)) name += '.png';
+
+    const blob = await rasterize(entries, W, H, texts, scale, strokeWidthMultiplier);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  return { rasterize, downloadAs };
+})();
+
+
+// ============================================================================
+// UI — wires the parameter form to Drawing / RenderSVG / ExportDXF. Kept
+// deliberately thin: it only reads inputs into a plain params object, asks
+// Drawing for the current geometry, and hands that to the renderer or
+// exporter. No geometry logic lives here.
+// ============================================================================
+(function UI(){
+  const el = id => document.getElementById(id);
+
+  // ---------- Generic instance-list manager ----------
+  // Every repeatable element (chargers, outlet blocks, phone stands,
+  // trays, pull-out stands, USB chargers) follows the same UI pattern: a
+  // JS array is the source of truth, rows are rebuilt into a DOM
+  // container whenever the array changes, and each row's inputs mutate
+  // their own instance object directly. This factory captures that
+  // pattern once instead of repeating it per element — `rowHtml` builds
+  // one row's inner markup from an instance + its index, `defaults`
+  // supplies a new instance's starting values, and `extraFieldNames`
+  // lists any select fields (besides the anchor field every list has)
+  // that need special "changing this repaints the whole row" handling,
+  // e.g. a variant/type selector.
+  function createInstanceListManager({ containerId, addBtnId, itemLabel, defaults, rowHtml, onChange, onFieldChange }){
+    // A new project starts with none of these instances — the user adds
+    // only what they actually need, rather than getting one by default
+    // and having to delete it. (Loading a saved project still restores
+    // whatever list that project had, via setItems below.)
+    let items = [];
+    // onFieldChange (defaults to onChange if not given separately) is
+    // what fires per keystroke on a row's own text/number field — kept
+    // distinguishable from add/remove's onChange so callers can debounce
+    // just the keystroke-driven path (see debouncedRender's own comment)
+    // without also delaying the instant feedback of clicking + Add or
+    // Remove, which aren't bursty and shouldn't feel laggy.
+    const fieldChange = onFieldChange || onChange;
+
+    function add(){
+      items.push({ ...defaults(), dimensionsOn: true });
+      renderList();
+      onChange();
+    }
+
+    function remove(idx){
+      items.splice(idx, 1);
+      renderList();
+      onChange();
+    }
+    function renderList(){
+      const container = el(containerId);
+      container.innerHTML = '';
+      items.forEach((instance, idx) => {
+        const row = document.createElement('div');
+        row.className = 'instance-row';
+        row.innerHTML = `
+          <div class="instance-row-header">
+            <span class="instance-row-title">${itemLabel} №${idx + 1}</span>
+            <button type="button" class="instance-remove-btn" data-idx="${idx}">Удалить</button>
+          </div>
+          <div class="toggle-row">
+            <span>Размерные линии</span>
+            <label class="switch">
+              <input type="checkbox" data-field="dimensionsOn" data-idx="${idx}">
+              <span class="track"></span>
+            </label>
+          </div>
+          ${rowHtml(instance, idx)}
+        `;
+        // Restore select values explicitly — setting them via the HTML
+        // string's `value` attribute doesn't reliably select the right
+        // <option> for dynamically-built markup, same as the charger's
+        // original list logic. Checkboxes need the same explicit restore
+        // treatment, since a `checked` attribute string in rowHtml can't
+        // carry boolean state reliably either. dimensionsOn defaults to
+        // true for instances saved before this field existed (undefined
+        // !== false), so old projects keep showing their dimensions on
+        // load rather than silently losing them.
+        row.querySelectorAll('select[data-field]').forEach(sel => {
+          sel.value = instance[sel.dataset.field];
+        });
+        row.querySelectorAll('input[type="checkbox"][data-field="dimensionsOn"]').forEach(cb => {
+          cb.checked = instance.dimensionsOn !== false;
+        });
+        row.querySelectorAll('input[type="checkbox"][data-field]:not([data-field="dimensionsOn"])').forEach(cb => {
+          cb.checked = !!instance[cb.dataset.field];
+        });
+        container.appendChild(row);
+      });
+
+      container.querySelectorAll('[data-field]:not(.anchor-grid-btn)').forEach(input => {
+        const handler = () => {
+          const idx = parseInt(input.dataset.idx, 10);
+          const field = input.dataset.field;
+          const isNumeric = input.type === 'number';
+          const isCheckbox = input.type === 'checkbox';
+          // A blank numeric field is kept as null (rather than coerced to
+          // 0) so fields with a computed placeholder default — like the
+          // USB charger's insetX — can fall back to that live default in
+          // buildContours instead of silently becoming a real zero inset.
+          items[idx][field] = isCheckbox ? input.checked
+            : isNumeric ? (input.value === '' ? null : (parseFloat(input.value) || 0))
+            : input.value;
+          if (input.tagName === 'SELECT') {
+            renderList(); // a select change may affect which fields this row shows (e.g. anchor axis visibility)
+          }
+          // Number/text fields fire on every keystroke — debounced, so
+          // typing "150" into an inset field re-renders once after the
+          // person pauses, not three times for "1", "15", "150". A select
+          // or checkbox change is a single discrete click, not a typing
+          // burst, so it stays instant.
+          if (isNumeric || input.type === 'text') fieldChange();
+          else onChange();
+        };
+        input.addEventListener('input', handler);
+        input.addEventListener('change', handler);
+      });
+      // Anchor-grid buttons aren't <select>/<input> so they don't fire
+      // input/change — handled separately via click. Same downstream
+      // effect as a select change (anchor affects which X/Y fields this
+      // row shows), so it re-renders the list the same way.
+      container.querySelectorAll('.anchor-grid-btn[data-field]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx, 10);
+          const field = btn.dataset.field;
+          items[idx][field] = btn.dataset.value;
+          renderList();
+          onChange();
+        });
+      });
+      container.querySelectorAll('.instance-remove-btn').forEach(btn => {
+        btn.addEventListener('click', () => remove(parseInt(btn.dataset.idx, 10)));
+      });
+    }
+
+    el(addBtnId).addEventListener('click', add);
+    renderList();
+
+    // setItems replaces the whole instance list wholesale (used by
+    // project load) — each loaded instance is merged over a fresh
+    // defaults() so a saved file from an older version of the app that's
+    // missing a newer field still gets that field's current default
+    // rather than ending up undefined. An empty saved list is kept
+    // empty — the user may have deliberately removed every instance of
+    // this element before saving, and that's exactly what a reload
+    // should restore, not silently re-add one with default values.
+    function setItems(newItems){
+      items = (newItems || []).map(it => ({ ...defaults(), ...it }));
+      renderList();
+    }
+
+    return { get items(){ return items; }, renderList, setItems };
+  }
+
+  // 3x3 grid layout order (row-major, matches how the buttons visually
+  // read left-to-right/top-to-bottom) mapped to each cell's anchor value
+  // and a title tooltip — same 9 anchors as Elements.ANCHOR_INSET, just
+  // presented spatially instead of as text. The center cell doubles as
+  // the tabletop's overall center reference.
+  const ANCHOR_GRID_CELLS = [
+    { anchor: 'topLeft',     title: 'Верхний левый угол' },
+    { anchor: 'top',         title: 'Центр верхней стороны' },
+    { anchor: 'topRight',    title: 'Верхний правый угол' },
+    { anchor: 'left',        title: 'Центр левой стороны' },
+    { anchor: 'center',      title: 'Центр столешницы' },
+    { anchor: 'right',       title: 'Центр правой стороны' },
+    { anchor: 'bottomLeft',  title: 'Нижний левый угол' },
+    { anchor: 'bottom',      title: 'Центр нижней стороны' },
+    { anchor: 'bottomRight', title: 'Нижний правый угол' },
+  ];
+
+  // Builds the anchor-grid markup for one instance row. Kept as a
+  // function (not a static string like the old ANCHOR_OPTIONS_ALL) since
+  // each button needs its own data-idx, and the active cell needs to be
+  // marked up-front so it's correct even before renderList's restore step
+  // runs (avoids a one-frame flash of no selection).
+  function anchorGridHtml(idx, currentAnchor){
+    const cells = ANCHOR_GRID_CELLS.map(({ anchor, title }) => `
+      <button type="button" class="anchor-grid-btn${anchor === currentAnchor ? ' active' : ''}"
+        data-field="anchor" data-idx="${idx}" data-value="${anchor}"
+        title="${title}" aria-label="${title}"></button>
+    `).join('');
+    return `<div class="anchor-grid">${cells}</div>`;
+  }
+
+  // Builds the "Повернуть" (rotation, degrees, counter-clockwise) +
+  // "Отразить" (mirror: none/horizontal/vertical) row shared by every
+  // embeddable element — both fields sit side by side, matching the
+  // anchor row's own two-column layout above, and both transforms are
+  // applied around the element's own anchor/reference point (see each
+  // element's own buildContours), not its visual center, so rotating or
+  // mirroring never moves the point the person actually positioned.
+  function transformFieldsHtml(idx, inst){
+    return `
+      <div class="row2">
+        <div class="field">
+          <label>Повернуть <span class="unit">°, CCW</span></label>
+          <input type="number" data-field="rotation" data-idx="${idx}" value="${inst.rotation || 0}" step="1">
+        </div>
+        <div class="field">
+          <label>Отразить</label>
+          <select data-field="mirror" data-idx="${idx}">
+            <option value="none">Нет</option>
+            <option value="vertical">По вертикали</option>
+            <option value="horizontal">По горизонтали</option>
+          </select>
+        </div>
+      </div>`;
+  }
+
+  // Builds the anchor-picker + insetX/insetY row shared by every anchor-
+  // based embeddable element (charger, outlet block, phone stand, tray,
+  // pull-out stand). Both fields are always shown with the same "Отступ
+  // по X"/"Отступ по Y" labels regardless of anchor — the two fields
+  // don't change meaning depending on what they're near, only their
+  // allowed range does: for a directional axis (corner-to-corner, or the
+  // "inward" axis of an edge-center anchor) a negative value doesn't mean
+  // anything so the field enforces min="0"; for a non-directional axis
+  // (the along-the-edge axis of an edge-center anchor, or either axis of
+  // 'center') the same field is a signed left/right or up/down shift, so
+  // negative values are allowed. This mirrors Elements.ANCHOR_INSET's own
+  // directionalX/directionalY exactly, so the UI's constraint always
+  // matches what resolveInset actually does with the number. Also
+  // includes the shared rotate/mirror row (transformFieldsHtml) below the
+  // anchor+inset row, since every element using this shares that too.
+  // Обновлённая функция insetFieldsHtml (добавлены плейсхолдеры для X и Y)
+  function insetFieldsHtml(idx, inst) {
+    const info = Elements.ANCHOR_INSET[inst.anchor] || Elements.ANCHOR_INSET.center;
+    const minX = info.directionalX ? ' min="0"' : '';
+    const minY = info.directionalY ? ' min="0"' : '';
+    const xVal = inst.insetX != null ? inst.insetX : '';
+    const yVal = inst.insetY != null ? inst.insetY : '';
+    return `
+      <div class="anchor-row">
+        <div class="field">
+          <label class="anchor-grid-label">Точка отсчёта</label>
+          ${anchorGridHtml(idx, inst.anchor)}
+        </div>
+        <div class="field-col">
+          <div class="field">
+            <label>Отступ по X <span class="unit">мм</span></label>
+            <input type="number" data-field="insetX" data-idx="${idx}" value="${xVal}"${minX} step="1">
+          </div>
+          <div class="field">
+            <label>Отступ по Y <span class="unit">мм</span></label>
+            <input type="number" data-field="insetY" data-idx="${idx}" value="${yVal}"${minY} step="1">
+          </div>
+        </div>
+      </div>
+      ${transformFieldsHtml(idx, inst)}`;
+  }
+
+
+  // Универсальный генератор менеджеров для встраиваемых элементов.
+  // Убирает дублирование onChange, дефолтных трансформаций и шаблонов rowHtml.
+  function createEmbeddableManager(cfg) {
+    const { container, btn, label, typeSelector = null } = cfg;
+    // Сохраняем дефолты как есть (они могут содержать функции)
+    const rawDefaults = { rotation: 0, mirror: 'none', ...cfg.defaults };
+    const showTypeSelector = typeSelector && typeSelector.options.length > 1;
+    
+    // Вспомогательная функция: если значение функция, вычисляем его
+    const evalVal = (val, inst, p) => typeof val === 'function' ? val(inst, p) : val;
+
+    const mgr = createInstanceListManager({
+      containerId: container,
+      addBtnId: btn,
+      itemLabel: label,
+      // При создании экземпляра всегда делаем inset поля null (пустыми)
+      defaults: () => ({ ...rawDefaults, insetX: null, insetY: null }),
+      onChange: () => render(),
+      onFieldChange: () => debouncedRender(),
+      rowHtml: (inst, idx) => {
+        let html = '';
+        if (showTypeSelector) {
+          html += `
+            <div class="field">
+              <label>${typeSelector.label}</label>
+              <select data-field="type" data-idx="${idx}">
+                ${typeSelector.options.map(o => `<option value="${o.value}">${o.text}</option>`).join('')}
+              </select>
+            </div>`;
+        }
+        html += insetFieldsHtml(idx, inst);
+        return html;
+      }
+    });
+
+    // Обновляем серые подсказки в UI
+    mgr.updatePlaceholders = (p) => {
+      const containerEl = document.getElementById(container);
+      if (!containerEl) return;
+      
+      containerEl.querySelectorAll('.instance-row').forEach((row, idx) => {
+        const inst = mgr.items[idx];
+        if (!inst) return;
+        
+        const defX = evalVal(rawDefaults.insetX, inst, p);
+        const defY = evalVal(rawDefaults.insetY, inst, p);
+        
+        const inpX = row.querySelector('input[data-field="insetX"]');
+        if (inpX && defX != null) inpX.placeholder = defX;
+        
+        const inpY = row.querySelector('input[data-field="insetY"]');
+        if (inpY && defY != null) inpY.placeholder = defY;
+      });
+    };
+
+    // Отдаём геометрии массив с уже вычисленными дефолтами
+    mgr.resolveItems = (p) => mgr.items.map(it => ({
+      ...it,
+      insetX: it.insetX != null ? it.insetX : evalVal(rawDefaults.insetX, it, p),
+      insetY: it.insetY != null ? it.insetY : evalVal(rawDefaults.insetY, it, p)
+    }));
+
+    return mgr;
+  }
+
+
+  // ---------- Instance-list managers ----------
+  // Each repeatable element gets one manager built on the shared factory
+  // above. insetFieldsHtml builds the anchor-picker + X/Y row shared by
+  // every anchor-based element; only what genuinely differs between
+  // elements (labels, default position, an optional type selector, or —
+  // for the USB charger — a completely different one-axis shape) lives
+  // in each manager below.
+
+  const chargerMgr = createEmbeddableManager({ 
+    container: 'chargerList', btn: 'addChargerBtn', label: 'Зарядка', 
+    defaults: { anchor: 'topRight', insetX: 225, insetY: 200 } 
+  });
+
+  const outletBlockMgr = createEmbeddableManager({ 
+    container: 'outletBlockList', btn: 'addOutletBlockBtn', label: 'Блок розеток', 
+    defaults: { anchor: 'topLeft', insetX: 300, insetY: 115 } 
+  });
+
+  const phoneStandMgr = createEmbeddableManager({ 
+    container: 'phoneStandList', btn: 'addPhoneStandBtn', label: 'Подставка для телефона', 
+    defaults: { anchor: 'topRight', insetX: 225, insetY: 105 } 
+  });
+
+  // Tray: same anchor-based insetX/insetY as every other element above —
+  // default anchor is the top edge, where insetY is the inward distance
+  // from the top and insetX is a left/right shift from horizontal center
+  // (see ANCHOR_INSET's own comment for why that's the same field rather
+  // than a separate one). Only extra markup here is the type selector.
+  const trayMgr = createEmbeddableManager({ 
+    container: 'trayList', btn: 'addTrayBtn', label: 'Лоток', 
+    defaults: { type: '60', anchor: 'top', insetX: 0, insetY: 115 },
+    typeSelector: { label: 'Тип лотка', options: [{value:'60', text:'Лоток 60 см'}, {value:'80', text:'Лоток 80 см'}] }
+  });
+
+  // Pull-out stand: same treatment as the tray — default anchor is the
+  // bottom edge, where insetY is the inward distance from the bottom
+  // (auto-adjusted for the ergo-notch in the element itself.
+  const pulloutMgr = createEmbeddableManager({ 
+    container: 'pulloutList', btn: 'addPulloutBtn', label: 'Выдвижная подставка', 
+    defaults: {
+	  anchor: 'bottom',
+	  insetX: 0,
+	  insetY: (inst, p) => (p.notchOn ? p.notchH : 0), } 
+  });
+
+  // USB charger: only the horizontal position is configurable — its
+  // vertical position is fixed by the part's own overhang design (see the
+  // usbCharger element's own comment), so it doesn't fit insetFieldsHtml's
+  // X/Y shape. insetX starts unset (null) so it follows the underframe's
+  // own horizontal inset + 220mm by default (see the element's
+  // buildContours), same "blank = follow the underframe" pattern as the
+  // pult's insets — the placeholder shows the live computed default and
+  // the field is only filled in once the user actually overrides it.
+  const usbChargerMgr = createEmbeddableManager({ 
+    container: 'usbChargerList', btn: 'addUsbChargerBtn', label: 'USB-зарядка', 
+    defaults: { 
+      anchor: 'bottomRight', 
+      insetX: (inst, p) => (p.underframeInsetH || 0) + 220, 
+      insetY: 0 
+    } 
+  });
+
+  // Pult: type selector (Стандартный / Встраиваемый с USB) plus X — Y only
+  // shows for Standard (embeddedUsb has no configurable vertical inset at
+  // all, always flush with the bottom edge by design — see the element's
+  // own comment). insetX starts unset (null), same "blank = follow the
+  // underframe" pattern as the USB charger, since the default bonus
+  // differs by type (110mm for Standard, 120mm for embeddedUsb — see
+  // resolveInsets) and render() keeps each row's placeholder current.
+  // Starts empty like every other instance list — historically Standard
+  // always appeared as an automatic left+right pair, but now the person
+  // adds each side as its own instance (e.g. bottomLeft + bottomRight),
+  // same as any other element.
+  const pultMgr = createEmbeddableManager({ 
+    container: 'pultList', btn: 'addPultBtn', label: 'Пульт', 
+    defaults: { 
+      type: 'standard', 
+      anchor: 'bottomRight', 
+      insetX: (inst, p) => (p.underframeInsetH || 0) + (inst.type === 'embeddedUsb' ? 120 : 110),
+      insetY: 0 
+    },
+    typeSelector: { 
+      label: 'Тип пульта', 
+      options: [{value:'standard', text:'Стандартный'}, {value:'embeddedUsb', text:'Встраиваемый с USB'}]
+    }
+  });
+
+  // ---------- Fixed (non-list) inputs ----------
+  const inputs = {
+    orderNumber: el('orderNumber'),
+    rectW: el('rectW'), rectH: el('rectH'), rectThickness: el('rectThickness'),
+    rTop: el('rTop'), rBottom: el('rBottom'), rNotch: el('rNotch'),
+    notchOn: el('notchOn'),
+    notchH: el('notchH'), notchBottom: el('notchBottom'), notchTop: el('notchTop'),
+    topNotchType: el('topNotchType'),
+    topNotchWidth: el('topNotchWidth'), topNotchOffset: el('topNotchOffset'),
+    rTopNotch: el('rTopNotch'),
+    underframeType: el('underframeType'),
+    underframeInsetH: el('underframeInsetH'), underframeInsetV: el('underframeInsetV'),
+    dimensionsOn: el('dimensionsOn'),
+  };
+  const notchFieldsWrap = el('notchFields');
+  const topNotchFieldsWrap = el('topNotchFields');
+  const underframeFieldsWrap = el('underframeFields');
+  const svg = el('stage');
+
+  // Sanitizes the order number into a filesystem-safe filename — the
+  // order number itself can contain characters a filename can't
+  // (slashes, quotes, etc), so this only affects what gets written to
+  // disk, not what's shown/edited in the field.
+  function sanitizeFilename(raw){
+    const cleaned = (raw || '').trim().replace(/[\\/:*?"<>|]+/g, '_');
+    return cleaned || 'panel';
+  }
+
+  function readParams(){
+    const underframeInsetH = parseFloat(inputs.underframeInsetH.value) || 0;
+    
+    // Сначала собираем базовые параметры
+    const p = {
+      W: parseFloat(inputs.rectW.value) || 0,
+      H: parseFloat(inputs.rectH.value) || 0,
+      thickness: parseFloat(inputs.rectThickness.value) || 0,
+      rTop: parseFloat(inputs.rTop.value) || 0,
+      rBottom: parseFloat(inputs.rBottom.value) || 0,
+      rNotch: parseFloat(inputs.rNotch.value) || 0,
+      notchOn: inputs.notchOn.checked,
+      notchH: parseFloat(inputs.notchH.value) || 0,
+      notchBottom: parseFloat(inputs.notchBottom.value) || 0,
+      notchTop: parseFloat(inputs.notchTop.value) || 0,
+      topNotchType: inputs.topNotchType.value,
+      topNotchWidth: parseFloat(inputs.topNotchWidth.value) || 0,
+      topNotchOffset: parseFloat(inputs.topNotchOffset.value) || 0,
+      rTopNotch: parseFloat(inputs.rTopNotch.value) || 0,
+      underframeType: inputs.underframeType.value,
+      underframeInsetH: underframeInsetH,
+      underframeInsetV: parseFloat(inputs.underframeInsetV.value) || 0,
+      dimensionsOn: inputs.dimensionsOn.checked,
+    };
+
+    // Теперь, когда p готов, передаем его в resolveItems, 
+    // чтобы менеджеры могли вычислить динамические дефолты (функции) 
+    // и вернуть готовые массивы с числами для геометрии.
+    p.chargers = chargerMgr.resolveItems(p);
+    p.outletBlocks = outletBlockMgr.resolveItems(p);
+    p.phoneStands = phoneStandMgr.resolveItems(p);
+    p.trays = trayMgr.resolveItems(p);
+    p.pullouts = pulloutMgr.resolveItems(p);
+    p.usbChargers = usbChargerMgr.resolveItems(p);
+    p.pults = pultMgr.resolveItems(p);
+
+    return p;
+  }
+
+  function render(){
+    // Включаем/выключаем блоки полей в UI
+    notchFieldsWrap.classList.toggle('disabled', !inputs.notchOn.checked);
+    topNotchFieldsWrap.classList.toggle('disabled', inputs.topNotchType.value === 'none');
+    underframeFieldsWrap.classList.toggle('disabled', inputs.underframeType.value === 'none');
+
+    const p = readParams();
+    if (p.W <= 0 || p.H <= 0) return;
+
+    // Обновляем серые подсказки (placeholders) для всех элементов
+    chargerMgr.updatePlaceholders(p);
+    outletBlockMgr.updatePlaceholders(p);
+    phoneStandMgr.updatePlaceholders(p);
+    trayMgr.updatePlaceholders(p);
+    pulloutMgr.updatePlaceholders(p);
+    usbChargerMgr.updatePlaceholders(p);
+    pultMgr.updatePlaceholders(p);
+
+    // Строим геометрию и размерные линии
+    const entries = Drawing.build(p);
+    const dims = Dimensions.build(p);
+    const allEntries = [...entries, ...dims.entries];
+    const svgMarkup = RenderSVG.build(allEntries, p.W, p.H, dims.texts);
+
+    // Рассчитываем границы для viewBox (чтобы влезли размерные линии)
+    const cosmeticPad = Math.max(p.W, p.H) * 0.08;
+    const bounds = ExportSVG.computeBounds(allEntries, dims.texts, p.W, p.H);
+    const minX = Math.min(bounds.minX, -cosmeticPad);
+    const minY = Math.min(bounds.minY, -cosmeticPad);
+    const maxX = Math.max(bounds.maxX, p.W + cosmeticPad);
+    const maxY = Math.max(bounds.maxY, p.H + cosmeticPad);
+    const vbX = minX, vbW = maxX - minX;
+    const svgMinY = p.H - maxY, vbH = maxY - minY;
+    svg.setAttribute('viewBox', `${vbX} ${svgMinY} ${vbW} ${vbH}`);
+    svg.innerHTML = svgMarkup;
+  }
+
+  // debouncedRender — same render(), just delayed by DEBOUNCE_MS after the
+  // last call. Every keystroke in a number/text field fires 'input', and
+  // render() rebuilds all geometry + re-serializes the whole SVG via
+  // innerHTML on every call — fine for a single call, wasteful when 5+
+  // keystrokes land within a few dozen milliseconds while someone's
+  // actively typing (e.g. widening a field from "50" to "150"). This
+  // collapses a fast burst of calls into just the last one. Only wired to
+  // user-input-triggered paths (see below); the very first render() call
+  // and the one after loading a saved project stay direct/instant, since
+  // those aren't bursts and a delay there would just look like lag on
+  // page load or after picking a file.
+  const DEBOUNCE_MS = 120;
+  let debounceTimer = null;
+  function debouncedRender(){
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(render, DEBOUNCE_MS);
+  }
+
+  function exportDxf(){
+    const p = readParams();
+    if (p.W <= 0 || p.H <= 0) { alert('Укажите положительные ширину и высоту.'); return; }
+    const entries = Drawing.build(p);
+    const dims = Dimensions.build(p);
+    ExportDXF.downloadAs([...entries, ...dims.entries], sanitizeFilename(inputs.orderNumber.value), dims.texts);
+  }
+
+  function exportSvg(){
+    const p = readParams();
+    if (p.W <= 0 || p.H <= 0) { alert('Укажите положительные ширину и высоту.'); return; }
+    const entries = Drawing.build(p);
+    const dims = Dimensions.build(p);
+    ExportSVG.downloadAs([...entries, ...dims.entries], p.W, p.H, sanitizeFilename(inputs.orderNumber.value), dims.texts);
+  }
+
+  async function exportPng(){
+    const p = readParams();
+    if (p.W <= 0 || p.H <= 0) { alert('Укажите положительные ширину и высоту.'); return; }
+    const entries = Drawing.build(p);
+    const dims = Dimensions.build(p);
+    const mainBtn = el('exportMainBtn');
+    const originalLabel = mainBtn.textContent;
+    mainBtn.disabled = true;
+    mainBtn.textContent = 'Рендеринг…';
+    try {
+      await ExportPNG.downloadAs([...entries, ...dims.entries], p.W, p.H, sanitizeFilename(inputs.orderNumber.value), dims.texts);
+    } catch (err) {
+      alert('Не удалось экспортировать PNG: ' + err.message);
+    } finally {
+      mainBtn.disabled = false;
+      mainBtn.textContent = originalLabel;
+    }
+  }
+
+  // The split-button's main action always exports PNG (the common case);
+  // DXF/SVG live in the dropdown next to it, opened via the chevron.
+  // EXPORT_FORMATS keys off data-format so both the main button and each
+  // dropdown entry can share one dispatch function instead of three
+  // separate listeners repeating the same lookup.
+  const EXPORT_FORMATS = { dxf: exportDxf, svg: exportSvg, png: exportPng };
+
+  function runExport(format){
+    closeExportMenu();
+    const fn = EXPORT_FORMATS[format];
+    if (fn) fn();
+  }
+
+  function openExportMenu(){
+    el('exportMenu').classList.add('open');
+    el('exportMenuToggle').setAttribute('aria-expanded', 'true');
+  }
+  function closeExportMenu(){
+    el('exportMenu').classList.remove('open');
+    el('exportMenuToggle').setAttribute('aria-expanded', 'false');
+  }
+  function toggleExportMenu(){
+    if (el('exportMenu').classList.contains('open')) closeExportMenu();
+    else openExportMenu();
+  }
+
+  // ---------- Project save/load ----------
+  // Serializes every raw form field plus each instance list's raw items —
+  // i.e. exactly what the user typed/selected, not the resolved geometry
+  // (positions, contours) that's derived from it — so a loaded project
+  // re-derives its drawing the same way a freshly-typed one would,
+  // including picking up any live defaults (underframe-linked insets etc)
+  // that were left blank on purpose.
+  const PROJECT_FILE_VERSION = 1;
+  const SIMPLE_INPUT_IDS = [
+    'orderNumber', 'rectW', 'rectH', 'rectThickness', 'rTop', 'rBottom', 'rNotch',
+    'notchOn', 'notchH', 'notchBottom', 'notchTop',
+    'topNotchType', 'topNotchWidth', 'topNotchOffset', 'rTopNotch',
+    'underframeType', 'underframeInsetH', 'underframeInsetV',
+    'dimensionsOn',
+  ];
+
+  function buildProjectData(){
+    const values = {};
+    for (const id of SIMPLE_INPUT_IDS) {
+      const input = el(id);
+      values[id] = input.type === 'checkbox' ? input.checked : input.value;
+    }
+    return {
+      fileType: 'tabletop-layout-project',
+      version: PROJECT_FILE_VERSION,
+      values,
+      instances: {
+        chargers: chargerMgr.items,
+        outletBlocks: outletBlockMgr.items,
+        phoneStands: phoneStandMgr.items,
+        trays: trayMgr.items,
+        pullouts: pulloutMgr.items,
+        usbChargers: usbChargerMgr.items,
+        pults: pultMgr.items,
+      },
+    };
+  }
+
+  function saveProject(){
+    const data = buildProjectData();
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = sanitizeFilename(inputs.orderNumber.value) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function applyProjectData(data){
+    if (!data || data.fileType !== 'tabletop-layout-project' || !data.values) {
+      throw new Error('Файл не похож на проект столешницы.');
+    }
+    for (const id of SIMPLE_INPUT_IDS) {
+      if (!(id in data.values)) continue;
+      const input = el(id);
+      const val = data.values[id];
+      if (input.type === 'checkbox') input.checked = !!val;
+      else input.value = val === null || val === undefined ? '' : val;
+    }
+    const inst = data.instances || {};
+    chargerMgr.setItems(inst.chargers);
+    outletBlockMgr.setItems(inst.outletBlocks);
+    phoneStandMgr.setItems(inst.phoneStands);
+    trayMgr.setItems(inst.trays);
+    pulloutMgr.setItems(inst.pullouts);
+    usbChargerMgr.setItems(inst.usbChargers);
+    pultMgr.setItems(inst.pults);
+    render();
+  }
+
+  function loadProject(file){
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        applyProjectData(data);
+      } catch (err) {
+        alert('Не удалось загрузить проект: ' + err.message);
+      }
+    };
+    reader.onerror = () => alert('Не удалось прочитать файл.');
+    reader.readAsText(file);
+  }
+
+  Object.values(inputs).forEach(inp => {
+    inp.addEventListener('input', debouncedRender);
+    inp.addEventListener('change', debouncedRender);
+  });
+  el('exportMainBtn').addEventListener('click', () => runExport('png'));
+  el('exportMenuToggle').addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleExportMenu();
+  });
+  el('exportMenu').querySelectorAll('button[data-format]').forEach(btn => {
+    btn.addEventListener('click', () => runExport(btn.dataset.format));
+  });
+  document.addEventListener('click', (e) => {
+    if (!el('exportSplit').contains(e.target)) closeExportMenu();
+  });
+  el('saveProjectBtn').addEventListener('click', saveProject);
+  el('loadProjectBtn').addEventListener('click', () => el('loadProjectInput').click());
+  el('loadProjectInput').addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (file) loadProject(file);
+    e.target.value = ''; // allow re-selecting the same file later
+  });
+
+  render();
+})();
+})();
+</script>
+</body>
+</html>
