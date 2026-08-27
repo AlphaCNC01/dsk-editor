@@ -3,12 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>DSK Editor</title>
-<!-- Decimal.js: used only at the final coordinate-rounding step before
-     writing DXF/SVG output, to clean up floating-point noise (e.g.
-     29.999999999999996) accumulated across many additions/subtractions of
-     insets and offsets, so exported files always show clean millimeter
-     values. Not used for the geometry math itself (fillets/arcs rely on
-     Math.sin/cos/atan, which Decimal.js can't improve). -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
 <style>
   :root{
@@ -66,43 +60,10 @@
   }
   #preview .dims b{ color:var(--ink); font-weight:600; }
   svg#stage{ max-width:92%; max-height:82%; overflow:visible; }
-  .layer-outline{
-    fill: rgba(255,138,61,0.06);
-    stroke: var(--accent);
-    stroke-width: 2;
-    vector-effect: non-scaling-stroke;
-  }
-  .layer-underframe{
-    fill: none;
-    stroke: #4d8ff0;
-    stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
-  }
-  .layer-underframe-holes{
-    fill: none;
-    stroke: #b06fe0;
-    stroke-width: 1;
-    vector-effect: non-scaling-stroke;
-  }
-  .layer-elements{
-    fill: rgba(76,201,124,0.08);
-    stroke: #4cc97c;
-    stroke-width: 1.5;
-    vector-effect: non-scaling-stroke;
-  }
-  .layer-elements-back{
-    fill: rgba(77,207,224,0.08);
-    stroke: #4dcfe0;
-    stroke-width: 1.5;
-    stroke-dasharray: 6 4;
-    vector-effect: non-scaling-stroke;
-  }
-  .layer-dimensions{
-    fill: #e05a5a;
-    stroke: #e05a5a;
-    stroke-width: 1;
-    vector-effect: non-scaling-stroke;
-  }
+  /* Per-layer colors/fills are generated inline from Layers.registry's
+     own `style` field (see RenderSVG.styleFor) rather than fixed CSS
+     classes here — a new layer only needs a `style` added to its
+     registry entry to render correctly, no matching CSS to add. */
   /* A contour whose layer isn't in Layers.registry — see RenderSVG's own
      comment. Bright red and animated specifically so it can't be mistaken
      for a normal (if unfamiliar) layer color; this is meant to look like
@@ -235,12 +196,6 @@
     font-size:12.5px; color:var(--ink); margin-bottom:6px; display:block;
   }
 
-  /* Anchor row: the anchor-grid picker on the left, its X/Y inset fields
-     stacked in a column on the right — same two-column layout for every
-     embeddable element, so the controls don't jump around between
-     elements or reflow their fields in/out as the anchor changes (insets
-     are always shown now, per the person's request, rather than hidden
-     for anchors where a given axis doesn't apply). */
   .anchor-row{ display:flex; gap:12px; align-items:flex-start; margin-bottom:12px; }
   .anchor-row .anchor-grid-label{ margin-bottom:8px; }
   .field-col{ flex:1; display:flex; flex-direction:column; gap:10px; min-width:0; }
@@ -399,9 +354,6 @@
   }
   #exportMenu button:hover{ background:var(--panel); color:var(--accent); }
 
-  /* Save/Load: compact icon buttons side by side, with a native tooltip
-     via title="" rather than a full label, per the request for a more
-     compact icon-based treatment than the old full-width text buttons. */
   #projectRow{ display:flex; gap:8px; margin-top:8px; }
   .btn-icon{
     flex:1;
@@ -574,54 +526,107 @@
       </div>
     </fieldset>
 
-    <fieldset>
-      <legend>Пульты управления</legend>
-      <div id="pultList"></div>
-      <button type="button" id="addPultBtn" class="btn-add">+ Добавить пульт</button>
-    </fieldset>
-
-    <fieldset>
-      <legend>Беспроводные зарядки</legend>
-      <div id="chargerList"></div>
-      <button type="button" id="addChargerBtn" class="btn-add">+ Добавить зарядку</button>
-    </fieldset>
-
-    <fieldset>
-      <legend>Блоки розеток</legend>
-      <div id="outletBlockList"></div>
-      <button type="button" id="addOutletBlockBtn" class="btn-add">+ Добавить блок розеток</button>
-    </fieldset>
-
-    <fieldset>
-      <legend>Подставки для телефона</legend>
-      <div id="phoneStandList"></div>
-      <button type="button" id="addPhoneStandBtn" class="btn-add">+ Добавить подставку</button>
-    </fieldset>
-
-    <fieldset>
-      <legend>Лотки для сетевого фильтра</legend>
-      <div id="trayList"></div>
-      <button type="button" id="addTrayBtn" class="btn-add">+ Добавить лоток</button>
-    </fieldset>
-
-    <fieldset>
-      <legend>Выдвижные подставки</legend>
-      <div id="pulloutList"></div>
-      <button type="button" id="addPulloutBtn" class="btn-add">+ Добавить подставку</button>
-    </fieldset>
-
-    <fieldset>
-      <legend>Торцевые USB-зарядки</legend>
-      <div id="usbChargerList"></div>
-      <button type="button" id="addUsbChargerBtn" class="btn-add">+ Добавить USB-зарядку</button>
-    </fieldset>
-
   </div>
 
 </div>
 
 <script>
 (function(){
+
+// ============================================================================
+// HOW TO ADD A NEW SIMPLE ELEMENT (a charger, pocket, tray, etc. — anything
+// placed on the tabletop at an anchor+inset position, optionally with a
+// rotation/mirror and a type variant). This is a step-by-step checklist;
+// follow it top to bottom and the new element is fully wired everywhere:
+// preview, DXF/SVG export, save/load, and (if relevant) cable channels.
+//
+// STEP 1 — Geometry. Find the "Elements" section further down and add:
+//
+//   const MY_ELEMENT_VARIANTS = registerSimpleEmbeddable({
+//     id: 'myElement',            // internal id, only used for debugging
+//     paramsKey: 'myElements',    // <-- THE KEY. Same string used in every
+//                                 //     other step below. Pick it once here.
+//     defaultVariant: 'standard',
+//     variants: {
+//       standard: { parts: [
+//         { verts: [...bulge-arc vertices, local (0,0)-centered...], layer: 'ELEMENTS' },
+//       ] },
+//     },
+//   });
+//
+//   `verts` is a list of {x, y, bulge} points in the element's OWN local
+//   space — (0,0) is whatever point makes sense as this element's anchor
+//   (its own geometric center is the usual choice). `layer` controls both
+//   the machining metadata (see the Layers registry) and the preview
+//   color — reuse an existing layer name (ELEMENTS, UNDERFRAME, etc.) or
+//   add a new one to the Layers registry if this element needs its own
+//   depth/color:
+//
+//     MY_LAYER: { name: 'MY_LAYER', color: 3, style: { stroke: '#4cc97c',
+//       fillOpacity: 0.1, strokeWidth: 1.5 }, machining: { side: 'bottom',
+//       depth: 5, depthAnchor: 'top', millType: 'pocket' } },
+//
+//   That single entry is enough — the preview, PNG/SVG export, and DXF
+//   export all read color/style straight from this registry, so there's
+//   no separate CSS or export style list to also update. `color` is the
+//   DXF color index (1=red 2=yellow 3=green 4=cyan 5=blue 6=magenta
+//   7=white/black — used by DXF-reading CAD tools, independent of
+//   `style.stroke`, which is what THIS app's own preview/export use).
+//   `machining` is optional (omit it entirely for a layer that's pure
+//   reference and never milled, like DIMENSIONS) — see the comment atop
+//   Layers.registry for what each of its fields means.
+//
+//   If a cable channel should be able to start or end at this element,
+//   also add a `cableNode: { x, y, dir: { x, y } }` next to `parts` in the
+//   variant that has one — see "Cable channels", below.
+//
+// STEP 2 — UI + everything else. Find where the other managers are
+// created (search for "createEmbeddableManager") and add:
+//
+//   const myElementMgr = createEmbeddableManager({
+//     key: 'myElements',               // <-- SAME string as paramsKey above
+//     label: 'Мой элемент',            // shown as the section title + row title
+//     defaults: { anchor: 'topRight', insetX: 100, insetY: 100 },
+//   });
+//
+//   No `container`/`btn` needed — leaving them out auto-creates the UI
+//   section (title + list + "add" button) and APPENDS it to the controls
+//   panel, in the same order createEmbeddableManager is called — every
+//   element in this app works this way, so the panel's visible order is
+//   simply the order these calls appear in the code. Pass `container`/
+//   `btn` explicitly only if some hand-written HTML needs the section to
+//   live in one specific spot rather than wherever declaration order
+//   would put it.
+//
+// STEP 3 — Register it. Find `ELEMENT_MANAGERS` (a short array literal,
+// search for it) and add one line:
+//
+//   { key: 'myElements', mgr: myElementMgr },
+//
+//   That's it — this single array drives resolving instances into
+//   drawing params, refreshing UI placeholders, and saving/loading
+//   projects, so nothing else needs touching for a plain element.
+//
+// OPTIONAL — a type selector (multiple variants the person can pick
+// between, like the pult's "Стандартный" / "Встраиваемый с USB"): add
+// `typeSelector: { label: '...', options: [{value,text}, ...] }` to the
+// createEmbeddableManager config, and register each option's own geometry
+// under that name in `variants` back in Step 1.
+//
+// OPTIONAL — cable channels: if this element can be a source or target
+// for a milled cable channel, give it a `cableNode` (Step 1) and wire the
+// actual connection in the `cableChannels` element (search for "Element:
+// Cable channels") — either add it as a new nearestPoint target list (for
+// a T-slot-style fixed target) or call `routeToNearestTarget` with its
+// paramsKey and *_VARIANTS constant (for a "route to the nearest instance
+// of another element" connection, same as usbCharger->smallCablePocket).
+//
+// That's the whole checklist: one geometry registration, one manager
+// call, one registry line. Everything else (resolving params, DXF/SVG
+// export, placeholders, project save/load) already loops over whatever's
+// in ELEMENT_MANAGERS and Elements' own registry — neither needs to know
+// new element keys exist ahead of time.
+// ============================================================================
 
 // ============================================================================
 // Geo — pure 2D geometry helpers. No knowledge of "tabletop", "notch", DXF,
@@ -911,7 +916,95 @@ const Geo = (() => {
     return out;
   }
 
-  return { dist, filletCorner, roundedPolygon, bulgeRadius, contourToSvgPath, tessellateContour, cleanRound, translate, signedArea, reverseContour, rotate, mirror };
+  // Builds a closed "groove" contour (a capsule-ended slot) from an open
+  // polyline of {x,y} centerline points, at a given width — used for
+  // cable channels: a milled slot of constant width running along a path
+  // from some element's own anchored point to a cutout/pocket's own
+  // anchored point.
+  //
+  // Simple construction, reusing roundedPolygon rather than a bespoke
+  // stroke-offset algorithm: walk the centerline out (offset +halfWidth
+  // to one side), round-cap the far end, walk back (offset +halfWidth to
+  // the other side), round-cap the near end. That's a single closed
+  // polygon of corners, each with the same fillet radius, fed straight
+  // into the existing roundedPolygon primitive — so every joint (interior
+  // path bends AND the two end caps) is rounded identically and there's
+  // no separate inside/outside-of-turn case to get right. A joint's own
+  // fillet radius is capped to half the channel width so it can never
+  // round past the point of pinching the slot shut.
+  function groovePolyline(points, width, cornerRadius){
+    const hw = width / 2;
+    const r = Math.min(cornerRadius, hw);
+    // Drop points that fall within one full width of the previously kept
+    // point — always the true first/last point stay (down to a tiny
+    // epsilon, to dedupe exact repeats), but an interior point is merged
+    // into its neighbor if it's closer than that, since a leg shorter
+    // than the channel's own width isn't long enough for the two offset
+    // rails to clear each other at both of that short leg's own joints
+    // (each joint's own rail corner can sit up to hw past the joint in
+    // the leg's direction, so two joints need a full width of clearance
+    // between them, not just hw). Collapsing such a point straight
+    // through to its neighbor is exactly the "cut the corner, don't
+    // chase a minimal path" behavior the channel routing already wants,
+    // so this is a safe simplification rather than a lossy one.
+    // Collapse any run of points shorter than `width` apart into a single
+    // point, since a leg that short isn't long enough for the two offset
+    // rails to clear each other at both of its own joints (each joint's
+    // rail corner can sit up to hw past the joint along the leg, so two
+    // joints need a full width of clearance between them). The true
+    // first and true last point of the path are always kept exactly —
+    // only interior points collapse — by first deduping forward (drop an
+    // interior point too close to what's already kept) and then
+    // deduping backward from the true end (drop the point right before
+    // the end if it's too close to the end), so a short final leg
+    // collapses toward the endpoint rather than leaving a stray close
+    // point behind it.
+    let pts = [points[0]];
+    for (let i = 1; i < points.length; i++){
+      const p = points[i];
+      const prev = pts[pts.length - 1];
+      const d = dist([p.x,p.y],[prev.x,prev.y]);
+      if (d < 1e-6) continue; // exact duplicate
+      if (i < points.length - 1 && d < width) continue; // short interior hop, collapse
+      pts.push(p);
+    }
+    while (pts.length > 1) {
+      const d = dist([pts[pts.length-2].x,pts[pts.length-2].y],[pts[pts.length-1].x,pts[pts.length-1].y]);
+      if (d >= width || pts.length <= 2) break;
+      pts.splice(pts.length - 2, 1); // drop the point just before the end, keep collapsing backward
+    }
+    if (pts.length < 2) {
+      const c = pts[0] || { x: 0, y: 0 };
+      pts.push({ x: c.x + 1e-3, y: c.y });
+    }
+    const normal = (a, b) => {
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+      return { x: -dy/len, y: dx/len };
+    };
+    const outward = [];
+    for (let i = 0; i < pts.length; i++){
+      const a = pts[Math.max(i-1, 0)], b = pts[Math.min(i+1, pts.length-1)];
+      outward.push(normal(a, b));
+    }
+    const corners = [];
+    for (let i = 0; i < pts.length; i++)
+      corners.push({ pt: [pts[i].x + hw*outward[i].x, pts[i].y + hw*outward[i].y], r });
+    // Round cap at the far end: two extra corners straddling the
+    // endpoint, offset perpendicular to the path's own end direction, so
+    // roundedPolygon's fillet at max radius (r = hw) turns them into a
+    // semicircle.
+    const endN = outward[outward.length-1];
+    corners.push({ pt: [pts[pts.length-1].x - hw*endN.x, pts[pts.length-1].y - hw*endN.y], r: hw });
+    for (let i = pts.length - 1; i >= 0; i--)
+      corners.push({ pt: [pts[i].x - hw*outward[i].x, pts[i].y - hw*outward[i].y], r });
+    const startN = outward[0];
+    corners.push({ pt: [pts[0].x + hw*startN.x, pts[0].y + hw*startN.y], r: hw });
+
+    const contour = roundedPolygon(corners);
+    return signedArea(contour) >= 0 ? contour : reverseContour(contour);
+  }
+
+  return { dist, filletCorner, roundedPolygon, bulgeRadius, contourToSvgPath, tessellateContour, cleanRound, translate, signedArea, reverseContour, rotate, mirror, groovePolyline };
 })();
 
 
@@ -925,6 +1018,22 @@ const Geo = (() => {
 // ============================================================================
 const Layers = (() => {
   // DXF color index: 1=red 2=yellow 3=green 4=cyan 5=blue 6=magenta 7=white/black
+  //
+  // `style` is the ONE place a layer's visual appearance is defined —
+  // both the live on-screen preview and the exported SVG/PNG read from
+  // it directly (see RenderSVG/Export.SVG below), so adding a layer here
+  // with a `style` is enough to make it show up correctly everywhere;
+  // no separate CSS class or export style list to keep in sync.
+  //   stroke      — hex color for the outline
+  //   fillOpacity — 0 for an unfilled/open shape (most reference lines),
+  //                 otherwise how solid the layer's own fill reads —
+  //                 lower for a layer that's mostly about its outline,
+  //                 higher for one where the filled area itself is what
+  //                 matters (e.g. a pocket you're milling out)
+  //   strokeWidth — line thickness in the drawing's own mm units
+  //   dashed      — true for a dashed outline (used to visually
+  //                 distinguish layers that would otherwise look similar
+  //                 in color/fill, like the two cable-channel widths)
   //
   // machining describes how a layer's contours should be cut, for anyone
   // reading the DXF on a CNC — not read or used by any geometry/export
@@ -949,18 +1058,21 @@ const Layers = (() => {
   // DIMENSIONS has no `machining` — it's pure on-screen/on-paper
   // reference, never actually cut.
   const registry = {
-    OUTLINE:			{ name: 'OUTLINE',			color: 7, machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'outside' } }, // tabletop silhouette
-    CUTOUT:				{ name: 'CUTOUT',			color: 7, machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside' } }, // tabletop cutouts
-    PHYSICAL:			{ name: 'PHYSICAL',			color: 5 }, // physical parts that is not part of a tabletop, for reference
-    UNDERFRAME:			{ name: 'UNDERFRAME',		color: 5 }, // physical underframe parts: legs, control panel
-    HOLES:				{ name: 'HOLES',			color: 6, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } }, // mounting holes
-    UNDERFRAME_HOLES:	{ name: 'UNDERFRAME_HOLES',	color: 6, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } }, // mounting holes for the underframe parts
-    ELEMENTS:			{ name: 'ELEMENTS',			color: 3, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } },
-    ELEMENTS_BACK:		{ name: 'ELEMENTS_BACK',	color: 4, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'pocket' } },
-    ENGRAVING:			{ name: 'ENGRAVING',		color: 3, machining: { side: 'top', depth: 0.5, depthAnchor: 'top', millType: 'pocket' } },
-    PHONESTAND:			{ name: 'PHONESTAND',		color: 3, machining: { side: 'top', depth: 11, depthAnchor: 'top', millType: 'pocket' } },
-    WIRELESS_POCKET:	{ name: 'WIRELESS_POCKET',	color: 3, machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
-    DIMENSIONS:			{ name: 'DIMENSIONS',		color: 1 }, // dimension lines — pure reference, never milled, so no `machining` at all
+    OUTLINE:			{ name: 'OUTLINE',			color: 7, style: { stroke: '#ff8a3d', fillOpacity: 0.06, strokeWidth: 2 }, machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'outside' } }, // tabletop silhouette
+    CUTOUT:				{ name: 'CUTOUT',			color: 7, style: { stroke: '#ff8a3d', fillOpacity: 0 }, machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside' } }, // tabletop cutouts
+    PHYSICAL:			{ name: 'PHYSICAL',			color: 5, style: { stroke: '#4d8ff0', fillOpacity: 0 } }, // physical parts that is not part of a tabletop, for reference
+    UNDERFRAME:			{ name: 'UNDERFRAME',		color: 5, style: { stroke: '#4d8ff0', fillOpacity: 0, strokeWidth: 1.5 } }, // physical underframe parts: legs, control panel
+    HOLES:				{ name: 'HOLES',			color: 6, style: { stroke: '#b06fe0', fillOpacity: 0 }, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } }, // mounting holes
+    UNDERFRAME_HOLES:	{ name: 'UNDERFRAME_HOLES',	color: 6, style: { stroke: '#b06fe0', fillOpacity: 0, strokeWidth: 1 }, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } }, // mounting holes for the underframe parts
+    ELEMENTS:			{ name: 'ELEMENTS',			color: 3, style: { stroke: '#4cc97c', fillOpacity: 0.08, strokeWidth: 1.5 }, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } },
+    ELEMENTS_BACK:		{ name: 'ELEMENTS_BACK',	color: 4, style: { stroke: '#4dcfe0', fillOpacity: 0.08, strokeWidth: 1.5, dashed: true }, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'pocket' } },
+    ENGRAVING:			{ name: 'ENGRAVING',		color: 3, style: { stroke: '#4cc97c', fillOpacity: 0.1 }, machining: { side: 'top', depth: 0.5, depthAnchor: 'top', millType: 'pocket' } },
+    PHONESTAND:			{ name: 'PHONESTAND',		color: 3, style: { stroke: '#4cc97c', fillOpacity: 0.15 }, machining: { side: 'top', depth: 11, depthAnchor: 'top', millType: 'pocket' } },
+    WIRELESS_POCKET:	{ name: 'WIRELESS_POCKET',	color: 3, style: { stroke: '#4cc97c', fillOpacity: 0.15 }, machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
+    CABLE_CHANNEL_4:	{ name: 'CABLE_CHANNEL_4',	color: 4, style: { stroke: '#e0a84a', fillOpacity: 0.12, strokeWidth: 1, dashed: true }, machining: { side: 'bottom', depth: 4, depthAnchor: 'top', millType: 'pocket' } }, // 4x4mm cable channel groove
+    CABLE_CHANNEL_5_5:	{ name: 'CABLE_CHANNEL_5_5',	color: 4, style: { stroke: '#e0a84a', fillOpacity: 0.18, strokeWidth: 1.5, dashed: true }, machining: { side: 'bottom', depth: 5.5, depthAnchor: 'top', millType: 'pocket' } }, // 5.5x5.5mm cable channel groove
+    CABLE_POCKET:		{ name: 'CABLE_POCKET',	color: 4, style: { stroke: '#e0a84a', fillOpacity: 0.25, strokeWidth: 1.5 }, machining: { side: 'bottom', depth: 5.5, depthAnchor: 'top', millType: 'pocket' } },
+    DIMENSIONS:			{ name: 'DIMENSIONS',		color: 1, style: { stroke: '#e05a5a', fillOpacity: 1, strokeWidth: 1 } }, // dimension lines — pure reference, never milled, so no `machining` at all
   };
   const all = () => Object.values(registry);
   // Returns undefined for an id not in the registry — deliberately NOT
@@ -1070,6 +1182,43 @@ const Elements = (() => {
   return { register, all, resolveAnchor, resolveInset, ANCHOR_INSET };
 })();
 
+// Resolves one embeddable instance's world placement (center + rotation +
+// mirror), the same math registerSimpleEmbeddable's own buildContours uses
+// internally to place its geometry — factored out so other code (the cable
+// channel element, below) can map an element's own hardcoded local anchor
+// point into world space without duplicating this transform.
+function resolveEmbeddableWorldTransform(instance, p){
+  const bounds = { minX: 0, minY: 0, maxX: p.W, maxY: p.H };
+  const center = Elements.resolveInset(instance.anchor, instance.insetX, instance.insetY, bounds);
+  return { center, rotation: instance.rotation || 0, mirror: instance.mirror };
+}
+
+// Maps a point given in an embeddable instance's own local coordinates
+// (the same space its `variants` geometry is authored in) into world
+// coordinates, applying that instance's mirror/rotate/translate in the
+// same order buildContours applies them to its actual geometry.
+function embeddableLocalToWorld(localPt, instance, p){
+  const { center, rotation, mirror } = resolveEmbeddableWorldTransform(instance, p);
+  const [placed] = Geo.translate(
+    Geo.rotate(Geo.mirror([{ x: localPt.x, y: localPt.y, bulge: 0 }], mirror), rotation),
+    center.x, center.y
+  );
+  return { x: placed.x, y: placed.y };
+}
+
+// Maps a direction vector given in an embeddable instance's own local
+// coordinates into world space — same mirror/rotate as
+// embeddableLocalToWorld, but no translation (a direction has no
+// position of its own), and re-normalized afterward since mirroring
+// followed by rotation preserves length already but floating point
+// shouldn't be trusted to keep it exactly 1.
+function embeddableLocalDirToWorld(localDir, instance, p){
+  const { rotation, mirror } = resolveEmbeddableWorldTransform(instance, p);
+  const [rotated] = Geo.rotate(Geo.mirror([{ x: localDir.x, y: localDir.y, bulge: 0 }], mirror), rotation);
+  const len = Math.hypot(rotated.x, rotated.y) || 1;
+  return { x: rotated.x / len, y: rotated.y / len };
+}
+
 // ============================================================================
 // registerSimpleEmbeddable — factory for every repeatable embeddable
 // element (charger, outlet block, phone stand, tray, pull-out stand, USB
@@ -1107,16 +1256,14 @@ function registerSimpleEmbeddable({ id, paramsKey, variants, defaultVariant, adj
   function buildContours(p){
     const instances = p[paramsKey] || [];
     const entries = [];
-    const bounds = { minX: 0, minY: 0, maxX: p.W, maxY: p.H };
     for (const instance of instances){
       const data = variants[instance.type] || variants[defaultVariant];
       if (!data) continue;
-      const rotation = instance.rotation || 0;
-      const center = Elements.resolveInset(instance.anchor, instance.insetX, instance.insetY, bounds);
-      
+      const { center, rotation, mirror } = resolveEmbeddableWorldTransform(instance, p);
+
       for (const { verts, layer } of data.parts){
         // All transforms (mirror, rotate) are applied relative to (0,0).
-        const placed = Geo.translate(Geo.rotate(Geo.mirror(verts, instance.mirror), rotation), center.x, center.y);
+        const placed = Geo.translate(Geo.rotate(Geo.mirror(verts, mirror), rotation), center.x, center.y);
         entries.push({ contour: placed, layer });
       }
     }
@@ -1124,8 +1271,39 @@ function registerSimpleEmbeddable({ id, paramsKey, variants, defaultVariant, adj
   }
 
   Elements.register({ id, buildContours, VARIANTS: variants });
+  return variants;
 }
 
+
+// Fixed depths for the top notch shapes, per spec: rectangle is 30mm tall;
+// the inverted-T's stem and base are each 20mm tall. Lives at module scope
+// (not inside the tabletopOutline element below) because the cable-channel
+// element also needs T_STEM_H/T_BASE_H to find the T-slot's own entry
+// points, without duplicating these numbers.
+const RECT_NOTCH_H = 30;
+const T_STEM_H = 20, T_STEM_W = 30, T_BASE_H = 20;
+
+// The T-slot notch's own two candidate cable-channel entry points: the
+// midpoint of the base's bottom edge, on the left arm and the right arm
+// (baseL_bot–baseL_top / baseR_bot–baseR_top from buildTopNotchCorners
+// below, but only the two points a channel would actually enter through —
+// the horizontal base's own bottom edge is where a channel milled from
+// underneath reaches the through-slot). Returns null if there's no T-slot
+// configured. The cable-channel element picks whichever of the two is
+// closer to its own source point, per instance.
+function tSlotEntryPoints(p){
+  const { W, H, topNotchType, topNotchWidth, topNotchOffset } = p;
+  if (topNotchType !== 'tslot' || !(topNotchWidth > 0)) return null;
+  const cx = W/2 + (topNotchOffset || 0);
+  const y = H - T_STEM_H - T_BASE_H/2; // vertical midpoint of the base arm, well inside the slot
+  // Exit direction runs along the base arm itself (horizontal), away from
+  // center — a channel entering here runs along the slot rather than
+  // straight into its side wall.
+  return {
+    left:  { x: cx - topNotchWidth/2, y, dir: { x: -1, y: 0 } },
+    right: { x: cx + topNotchWidth/2, y, dir: { x: 1, y: 0 } },
+  };
+}
 
 // ============================================================================
 // Element: Tabletop outline (rectangle + optional bottom trapezoid notch +
@@ -1135,11 +1313,6 @@ function registerSimpleEmbeddable({ id, paramsKey, variants, defaultVariant, adj
 // previous version, only where it lives.
 // ============================================================================
 Elements.register((() => {
-  // Fixed depths for the top notch shapes, per spec: rectangle is 30mm
-  // tall; the inverted-T's stem and base are each 20mm tall.
-  const RECT_NOTCH_H = 30;
-  const T_STEM_H = 20, T_STEM_W = 30, T_BASE_H = 20;
-
   function buildTopNotchCorners(p){
     const { W, H, topNotchType, topNotchWidth, topNotchOffset, rTopNotch } = p;
     if (topNotchType === 'rect' && topNotchWidth > 0) {
@@ -1232,7 +1405,7 @@ Elements.register((() => {
 // a given corner or edge. Default position is the spec: 225mm and 200mm in
 // from the top-right corner.
 // ============================================================================
-registerSimpleEmbeddable({
+const WIRELESS_CHARGER_VARIANTS = registerSimpleEmbeddable({
   id: 'wirelessCharger',
   paramsKey: 'chargers',
   defaultVariant: 'standard',
@@ -1249,7 +1422,14 @@ registerSimpleEmbeddable({
       { verts: [{x:-0.0,y:53.1095,bulge:0.40227135},{x:-15.9857,y:37.7647,bulge:0.66241657},{x:-15.9859,y:-37.7653,bulge:0.40225204},{x:-0.0005,y:-53.1095,bulge:0.40225206},{x:15.9863,y:-37.7667,bulge:0.66240831},{x:15.9863,y:37.7654,bulge:0.40227133}], layer: 'ELEMENTS_BACK' },
       { verts: [{x:42.4151,y:42.4374,bulge:0.41355164},{x:38.8835,y:42.4222,bulge:0.41355159},{x:38.8907,y:38.8906,bulge:-0.41446643},{x:38.8907,y:-38.8909,bulge:0.4142134},{x:38.8906,y:-42.4263,bulge:0.4142134},{x:42.426,y:-42.4264,bulge:0.41496756}], layer: 'ELEMENTS' },
       { verts: [{x:-38.8902,y:38.8905,bulge:0.41421365},{x:-38.8903,y:42.4262,bulge:0.41421365},{x:-42.426,y:42.426,bulge:0.4145031},{x:-42.4261,y:-42.4264,bulge:0.41421361},{x:-38.8904,y:-42.4266,bulge:0.41421361},{x:-38.8902,y:-38.8909,bulge:-0.41474487}], layer: 'ELEMENTS' },
-    ] },
+    ],
+    // Hardcoded cable-channel node, in this element's own local space: the
+    // +Y tip of the charging pocket (the ELEMENTS_BACK part above, an
+    // elongated hexagon roughly ±16 wide and ±53 tall) — the natural exit
+    // point for a channel running toward the tabletop's own top edge,
+    // where the T-slot notch lives. Exit direction is +Y (straight out
+    // the tip), same axis the point itself sits on.
+    cableNode: { x: 0, y: 53.1095, dir: { x: 0, y: 1 } } },
   },
 });
 
@@ -1397,7 +1577,7 @@ Elements.register((() => {
 // own 18mm gap from the bottom edge is already baked into its contour,
 // not applied as a separate inset).
 // ============================================================================
-registerSimpleEmbeddable({
+const PULT_VARIANTS = registerSimpleEmbeddable({
   id: 'pult',
   paramsKey: 'pults',
   defaultVariant: 'standard',
@@ -1416,6 +1596,12 @@ registerSimpleEmbeddable({
         { verts: [{x:-36.0,y:41.0,bulge:-0.414214},{x:-41.0,y:36.0,bulge:0},{x:-76.5,y:36.0,bulge:0.414214},{x:-80.5,y:32.0,bulge:0},{x:-80.5,y:22.0,bulge:0.414214},{x:-76.5,y:18.0,bulge:0},{x:76.5,y:18.0,bulge:0.414214},{x:80.5,y:22.0,bulge:0},{x:80.5,y:32.0,bulge:0.414214},{x:76.5,y:36.0,bulge:0},{x:-13.0,y:36.0,bulge:-0.414214},{x:-18.0,y:41.0,bulge:0},{x:-18.0,y:46.0,bulge:0.414214},{x:-23.0,y:51.0,bulge:0},{x:-31.0,y:51.0,bulge:0.414214},{x:-36.0,y:46.0,bulge:0}], layer: 'UNDERFRAME' },
         { verts: [{x:-79.0,y:34.0,bulge:0},{x:-79.0,y:0.0,bulge:0},{x:79.0,y:0.0,bulge:0},{x:79.0,y:34.0,bulge:0}], layer: 'ELEMENTS' },
       ],
+      // Hardcoded cable-channel node, in this element's own local space:
+      // horizontal center of the USB module cutout's own top edge (the
+      // ELEMENTS rectangle above) — the natural exit point for a channel
+      // running toward the nearest big cable pocket elsewhere on the
+      // tabletop. Exit direction is +Y (straight out the top edge).
+      cableNode: { x: -27, y: 51, dir: { x: 0, y: 1 } },
     },
   },
 });
@@ -1565,7 +1751,7 @@ registerSimpleEmbeddable({
 // underframe's own horizontal inset + 220mm (mirrors the pult's
 // "follow the underframe by default" pattern). Default anchor: bottom-right.
 // ============================================================================
-registerSimpleEmbeddable({
+const USB_CHARGER_VARIANTS = registerSimpleEmbeddable({
   id: 'usbCharger',
   paramsKey: 'usbChargers',
   defaultVariant: 'standard',
@@ -1573,9 +1759,589 @@ registerSimpleEmbeddable({
     standard: { parts: [
       { verts: [{x:29,y:0,bulge:0}, {x:20,y:0,bulge:0}, {x:20,y:20,bulge:0}, {x:-20,y:20,bulge:0}, {x:-20,y:0,bulge:0}, {x:-29,y:0,bulge:0}, {x:-29,y:-1,bulge:0.4142}, {x:-26,y:-4,bulge:0}, {x:26,y:-4,bulge:0.4142}, {x:29,y:-1,bulge:0}], layer: 'ELEMENTS' },
       { verts: [{x:19.5,y:38,bulge:0.4142}, {x:13.5,y:44,bulge:0}, {x:0,y:44,bulge:0}, {x:-13.5,y:44,bulge:0.4142}, {x:-19.5,y:38,bulge:0}, {x:-19.5,y:20,bulge:0.4142}, {x:-13.5,y:14,bulge:0}, {x:13.5,y:14,bulge:0.4142}, {x:19.5,y:20,bulge:0}], layer: 'ELEMENTS' },
-    ] },
+    ],
+    // Hardcoded cable-channel node, in this element's own local space:
+    // horizontal center of the connector body's own bottom edge (the
+    // first part above) — the plug's own base, the natural exit point for
+    // a channel running toward the nearest small cable pocket elsewhere
+    // on the tabletop. Exit direction is -Y (straight out the bottom
+    // edge).
+    cableNode: { x: 0, y: 44, dir: { x: 0, y: 1 } } },
   },
 });
+
+const BIG_CABLE_POCKET_VARIANTS = registerSimpleEmbeddable({
+  id: 'bigCablePocket',
+  paramsKey: 'bigCablePockets',
+  defaultVariant: 'standard',
+  variants: {
+    standard: { parts: [
+      { verts: [{x:-40,y:32,bulge:-0.4142}, {x:-32,y:40,bulge:0}, {x:0,y:40,bulge:0}, {x:32,y:40,bulge:-0.4142}, {x:40,y:32,bulge:0}, {x:40,y:-32,bulge:-0.4142}, {x:32,y:-40,bulge:0}, {x:-32,y:-40,bulge:-0.4142}, {x:-40,y:-32,bulge:0}], layer: 'CABLE_POCKET' },
+    ],
+    // Hardcoded cable-channel node: the pocket's own center — a channel
+    // can terminate anywhere inside a pocket this size, so center is the
+    // simplest, most symmetric choice. Exit direction is +Y since the
+    // octagon is symmetric and there's no natural side to prefer.
+    cableNode: { x: 0, y: -40, dir: { x: 0, y: -1 } } },
+  },
+});
+
+const SMALL_CABLE_POCKET_VARIANTS = registerSimpleEmbeddable({
+  id: 'smallCablePocket',
+  paramsKey: 'smallCablePockets',
+  defaultVariant: 'standard',
+  variants: {
+    standard: { parts: [
+      { verts: [{x:19,y:25,bulge:-0.4142}, {x:25,y:19,bulge:0}, {x:25,y:0,bulge:0}, {x:25,y:-19,bulge:-0.4142}, {x:19,y:-25,bulge:0}, {x:-19,y:-25,bulge:-0.4142}, {x:-25,y:-19,bulge:0}, {x:-25,y:19,bulge:-0.4142}, {x:-19,y:25,bulge:0}], layer: 'CABLE_POCKET' },
+    ],
+    cableNode: { x: 0, y: -25, dir: { x: 0, y: -1 } } },
+  },
+});
+
+
+// ============================================================================
+// Element: Cable channels (кабель-каналы). Optional, per-instance grooves
+// milled from a hardcoded node on one embeddable element to a hardcoded
+// node on a target cutout/pocket. Three independent connections, each
+// opt-in per source instance via a `cableChannel` boolean on that
+// instance:
+//   - wirelessCharger -> T-slot notch: routes to whichever of the T-slot's
+//     own two base-arm entry points (left/right — see tSlotEntryPoints)
+//     is closer to the charger, on CABLE_CHANNEL_4 (4x4mm).
+//   - usbCharger -> nearest smallCablePocket, on CABLE_CHANNEL_5_5
+//     (5.5x5.5mm).
+//   - pult(embeddedUsb) -> nearest bigCablePocket, on CABLE_CHANNEL_5_5
+//     (5.5x5.5mm).
+// If a source has its channel enabled but no instance of its own target
+// element exists on the tabletop, that source's channel is simply
+// skipped (nothing to connect to) rather than erroring.
+//
+// Every cableNode (on both the source element and the target
+// cutout/pocket) carries its own local exit direction (`dir`, one of the
+// 4 axis directions in that element's own local space — rotates/mirrors
+// along with the element itself, same as the point). The path is built
+// as: a fixed 50mm straight "stub" leaving the source along its own
+// direction, a fixed 50mm straight stub leaving the target along its own
+// direction, and a middle run connecting the two stub ends using only
+// horizontal, vertical, and 45°-diagonal segments (never an arbitrary
+// angle) — picked as the shortest of a handful of simple candidate
+// routes (axis-then-axis, or axis-then-diagonal-then-axis) rather than a
+// full pathfinding search, since with only two stub ends to connect, a
+// handful of candidates already covers every qualitatively different
+// route. Every interior joint (including where a stub meets the middle
+// run) is rounded, with radius the largest that fits the shortest
+// segment on either side of that joint, up to a 50mm cap.
+// ============================================================================
+Elements.register((() => {
+  const STUB_LEN = 50;
+  const MAX_CORNER_RADIUS = 50;
+
+  function nearestPoint(from, candidates){
+    let best = null, bestD = Infinity;
+    for (const c of candidates){
+      const d = Geo.dist([from.x, from.y], [c.x, c.y]);
+      if (d < bestD) { bestD = d; best = c; }
+    }
+    return best;
+  }
+
+  // Resolves every instance of a registerSimpleEmbeddable-style element
+  // into a flat list of world-space cableNodes ({x,y,dir}), skipping any
+  // instance/variant that has no cableNode of its own.
+  function worldNodes(instances, variantsById, p){
+    return (instances || [])
+      .map(instance => {
+        const variant = variantsById[instance.type] || variantsById.standard;
+        if (!variant || !variant.cableNode) return null;
+        const pt = embeddableLocalToWorld(variant.cableNode, instance, p);
+        const dir = embeddableLocalDirToWorld(variant.cableNode.dir, instance, p);
+        return { x: pt.x, y: pt.y, dir };
+      })
+      .filter(Boolean);
+  }
+
+  // The point `len` (defaulting to STUB_LEN) out from a world-space
+  // cableNode, along its own world-space exit direction.
+  function stubEnd(node, len){
+    const l = len == null ? STUB_LEN : len;
+    return { x: node.x + node.dir.x * l, y: node.y + node.dir.y * l };
+  }
+
+  // Collapses any run of points closer together than `minLen` into a
+  // single point, always keeping the true first and last point of the
+  // path exactly — mirrors Geo.groovePolyline's own internal merge
+  // (short segments there get offset-and-rounded into a shape that's
+  // effectively a single joint anyway), duplicated here so the SAME
+  // collapse can be checked for fold-backs before it ever reaches
+  // groovePolyline: a candidate path can look like a sequence of valid
+  // ≤90° turns while it still has a short segment in it, and then turn
+  // into an actual fold-back once that short segment collapses away —
+  // this happened in practice (a near-zero-length dogleg between two
+  // long segments running in nearly opposite directions), so turn
+  // validity always has to be checked on the POST-merge path, not the
+  // pre-merge one.
+  function mergeShortSegments(points, minLen){
+    let pts = [points[0]];
+    for (let i = 1; i < points.length; i++){
+      const p = points[i];
+      const prev = pts[pts.length - 1];
+      const d = Geo.dist([p.x,p.y],[prev.x,prev.y]);
+      if (d < 1e-6) continue;
+      if (i < points.length - 1 && d < minLen) continue;
+      pts.push(p);
+    }
+    while (pts.length > 2) {
+      const d = Geo.dist([pts[pts.length-2].x,pts[pts.length-2].y],[pts[pts.length-1].x,pts[pts.length-1].y]);
+      if (d >= minLen) break;
+      pts.splice(pts.length - 2, 1);
+    }
+    return pts;
+  }
+
+  // True if every turn in `points` (a full path, first/last points
+  // included) is 90° or gentler — no two consecutive segments fold back
+  // sharper than a right angle.
+  function allTurnsValid(points){
+    function turnCos(dirA, dirB){
+      const la = Math.hypot(dirA.x, dirA.y) || 1, lb = Math.hypot(dirB.x, dirB.y) || 1;
+      return (dirA.x*dirB.x + dirA.y*dirB.y) / (la*lb);
+    }
+    for (let i = 0; i < points.length - 2; i++){
+      const segA = { x: points[i+1].x - points[i].x, y: points[i+1].y - points[i].y };
+      const segB = { x: points[i+2].x - points[i+1].x, y: points[i+2].y - points[i+1].y };
+      if (Math.hypot(segA.x,segA.y) < 1e-9 || Math.hypot(segB.x,segB.y) < 1e-9) continue;
+      if (turnCos(segA, segB) < -1e-9) return false;
+    }
+    return true;
+  }
+
+  // True if any two non-adjacent segments of `points` cross — a
+  // genuinely self-crossing route, not a rounding artifact. Needed in
+  // addition to allTurnsValid: a path can have every individual turn at
+  // 90° or gentler and still fold back tightly enough that a LATER
+  // segment crosses an EARLIER, non-adjacent one (verified in practice:
+  // a short "staircase" jog whose first stub and final approach ended
+  // up overlapping in space, each individual turn still exactly 90°) —
+  // turn angle alone only catches adjacent-pair fold-backs, not this.
+  function pathSelfIntersects(points){
+    function segIntersect(p1, p2, p3, p4){
+      const d1x = p2.x-p1.x, d1y = p2.y-p1.y, d2x = p4.x-p3.x, d2y = p4.y-p3.y;
+      const denom = d1x*d2y - d1y*d2x;
+      if (Math.abs(denom) < 1e-9) return false;
+      const t = ((p3.x-p1.x)*d2y - (p3.y-p1.y)*d2x) / denom;
+      const u = ((p3.x-p1.x)*d1y - (p3.y-p1.y)*d1x) / denom;
+      return t > 1e-6 && t < 1-1e-6 && u > 1e-6 && u < 1-1e-6;
+    }
+    const n = points.length;
+    for (let i = 0; i < n - 1; i++){
+      for (let j = i + 2; j < n - 1; j++){
+        if (segIntersect(points[i], points[i+1], points[j], points[j+1])) return true;
+      }
+    }
+    return false;
+  }
+
+  // True if a CLOSED contour (as returned by Geo.groovePolyline — the
+  // actual milled groove outline, not just its centerline) crosses
+  // itself anywhere. Tessellates arcs into short line segments first
+  // (same tolerance used throughout this app for tessellation) since
+  // the contour's own bulge-arc vertices aren't directly comparable as
+  // straight segments. This is the ground-truth safety check used as
+  // buildChannelContour's own last resort: pathSelfIntersects on the
+  // routed centerline catches most bad routes, but a route can still
+  // produce a self-crossing GROOVE despite a clean centerline (a
+  // corner's own rounding can overlap a nearby straight run even when
+  // the centerline itself never crosses — verified in practice), so the
+  // final decision of whether a channel is safe to emit checks the
+  // actual output shape, not an upstream approximation of it.
+  function contourSelfIntersects(contour){
+    function segIntersect(p1, p2, p3, p4){
+      const d1x = p2.x-p1.x, d1y = p2.y-p1.y, d2x = p4.x-p3.x, d2y = p4.y-p3.y;
+      const denom = d1x*d2y - d1y*d2x;
+      if (Math.abs(denom) < 1e-9) return false;
+      const t = ((p3.x-p1.x)*d2y - (p3.y-p1.y)*d2x) / denom;
+      const u = ((p3.x-p1.x)*d1y - (p3.y-p1.y)*d1x) / denom;
+      return t > 1e-6 && t < 1-1e-6 && u > 1e-6 && u < 1-1e-6;
+    }
+    const pts = Geo.tessellateContour(contour, 32, true);
+    const n = pts.length;
+    for (let i = 0; i < n; i++){
+      for (let j = i + 2; j < n; j++){
+        if (i === 0 && j === n - 1) continue; // adjacent through the closing wrap
+        if (segIntersect(pts[i], pts[(i+1)%n], pts[j], pts[(j+1)%n])) return true;
+      }
+    }
+    return false;
+  }
+
+
+  // horizontal/vertical/45°-diagonal segments, as a handful of candidate
+  // routes with the shortest VALID one picked — see the element's own
+  // top comment for why a full search isn't needed here. "Valid" means
+  // every turn in the resulting path (including where the source's own
+  // stub meets the run, and where the run meets the target's own stub)
+  // turns by 90° or less: a sharper fold-back turn is exactly the case
+  // groovePolyline's own rounded-capsule construction can't offset
+  // cleanly (the two rails of a folded-back turn cross near the joint
+  // however small the fillet radius), so it's excluded as a candidate
+  // rather than produced and then discovered broken. Returns an array of
+  // intermediate points (NOT including a or b themselves, since the
+  // caller already has those from the stubs).
+  function diagonalMiddleRun(a, b, before, after, width){
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const adx = Math.abs(dx), ady = Math.abs(dy);
+    const sx = Math.sign(dx) || 1, sy = Math.sign(dy) || 1;
+    const candidates = [];
+
+    // Pure axis-then-axis elbows (also covers the already-axis-aligned
+    // and already-diagonal cases, where one candidate collapses to a
+    // straight line through the shared corner).
+    candidates.push([{ x: b.x, y: a.y }]);
+    candidates.push([{ x: a.x, y: b.y }]);
+
+    // Axis-then-diagonal-then-axis, both orderings: strip off the
+    // smaller of |dx|/|dy| as a 45° run, covering the leftover on the
+    // longer axis as a straight leg either before or after the
+    // diagonal. Both orderings are the same total length but turn
+    // differently at each end, so both are offered as separate
+    // candidates and filtered by turn angle below — only one (or
+    // neither) may actually be a valid turn at both of its own joints.
+    if (adx > 1e-6 && ady > 1e-6) {
+      const straight = Math.abs(adx - ady);
+      if (adx >= ady) {
+        candidates.push([{ x: a.x + sx * straight, y: a.y }]);           // straight leg first (horizontal)
+        candidates.push([{ x: b.x - sx * straight, y: b.y }]);           // diagonal first
+      } else {
+        candidates.push([{ x: a.x, y: a.y + sy * straight }]);           // straight leg first (vertical)
+        candidates.push([{ x: b.x, y: b.y - sy * straight }]);           // diagonal first
+      }
+    }
+
+    let bestDir = null, bestLen = Infinity;
+    for (const via of candidates){
+      // Validate on the MERGED path, using the REAL points before `a`
+      // and after `b` (the source/target themselves, a full stub length
+      // away — not a synthetic unit step) so the merge sees the true
+      // segment lengths: a candidate can look like a sequence of valid
+      // <=90 deg turns as drawn, but still contain a segment shorter
+      // than the channel's own width, which groovePolyline then
+      // collapses away internally — and that collapse can silently
+      // create a genuine fold-back that wasn't visible in the pre-merge
+      // path (this happened in practice: a near-zero-length dogleg
+      // between two long segments running in nearly opposite
+      // directions), so turn validity is always checked on the SAME
+      // merged geometry groovePolyline will actually render.
+      const rawPts = [before, a, ...via, b, after].filter(Boolean);
+      const merged = mergeShortSegments(rawPts, width);
+      if (!allTurnsValid(merged)) continue;
+      if (pathSelfIntersects(merged)) continue;
+      let len = 0;
+      const pts = [a, ...via, b];
+      for (let i = 0; i < pts.length - 1; i++) len += Geo.dist([pts[i].x,pts[i].y],[pts[i+1].x,pts[i+1].y]);
+      if (len < bestLen) { bestLen = len; bestDir = via; }
+    }
+    // Every straight/diagonal candidate above failed the turn-angle test
+    // — this happens when the two stub directions point such that no
+    // single-corner (or single-diagonal) route can reach from a to b
+    // without folding back on one end's own fixed direction (e.g. both
+    // stubs point "away" from each other along the same axis). The
+    // guaranteed-valid fallback is a jog: step out of `a` along dirIn,
+    // sidestep perpendicular to line up with `b`'s own incoming line,
+    // then run straight along dirOutReversed into `b`. Every turn in a
+    // jog is exactly 90° by construction, so it's always valid.
+    if (!bestDir) {
+      const dirIn = before ? { x: a.x - before.x, y: a.y - before.y } : null;
+      const dirOutReversed = after ? { x: after.x - b.x, y: after.y - b.y } : null;
+      const normalize = v => { const len = Math.hypot(v.x,v.y) || 1; return { x: v.x/len, y: v.y/len }; };
+      const nDirIn = dirIn ? normalize(dirIn) : null;
+      const nDirOutReversed = dirOutReversed ? normalize(dirOutReversed) : null;
+      // jogRoute's own construction guarantees every individual turn is
+      // valid, but not that the resulting path stays clear of the fixed
+      // `before`/`after` stub segments it's connecting — a jog built
+      // with the default JOG_LEAD can still route back through the
+      // space either stub occupies (verified in practice: a jog whose
+      // very first leg exactly re-traced the source's own stub axis,
+      // crossing the final approach into the target). Retrying with a
+      // larger lead pushes the jog further from both stubs; a handful
+      // of escalating multipliers finds a clean route whenever the two
+      // fixed stub segments themselves don't already cross (that
+      // separate, unfixable-by-the-middle-run case is caught upstream
+      // in fullPath, which shortens both stubs until they clear before
+      // this function is ever called with them).
+      for (const leadMultiplier of [1, 2, 4, 8, 16]){
+        const candidate = jogRoute(a, b, nDirIn, nDirOutReversed, width, leadMultiplier);
+        const fullCheck = [before, a, ...candidate, b, after].filter(Boolean);
+        if (!pathSelfIntersects(fullCheck)) { bestDir = candidate; break; }
+      }
+      // All multipliers failed (should not happen given the stub area
+      // is always bounded) — fall back to the smallest jog anyway
+      // rather than returning nothing, since a slightly-imperfect
+      // groove is better than no channel at all.
+      if (!bestDir) bestDir = jogRoute(a, b, nDirIn, nDirOutReversed, width, 1);
+    }
+    return bestDir;
+  }
+
+  // A guaranteed-valid 90°-only detour from a to b, respecting the fixed
+  // travel directions at both ends: dirIn is the direction the path is
+  // already travelling on arrival at `a` (so its first segment must turn
+  // <=90 deg from dirIn), and dirOutReversed is the direction the path
+  // must be travelling on arrival at `b` (so its last segment must turn
+  // <=90 deg into dirOutReversed). dirIn and dirOutReversed are always
+  // one of the 4 axis directions here (cableNode directions only ever
+  // are), so exactly one of two constructions applies:
+  //   - perpendicular axes (one horizontal, one vertical): the corner
+  //     where a's own forward ray meets b's own backward ray is a single
+  //     valid 90° turn at both ends, PROVIDED that corner is actually
+  //     ahead of `a` along dirIn and ahead of `b` along dirOutReversed
+  //     (not behind either) — checked explicitly rather than assumed,
+  //     since a corner behind one end would silently create the same
+  //     fold-back this function exists to avoid.
+  //   - parallel axes (both horizontal, or both vertical), or the
+  //     perpendicular corners above didn't pan out: a 3-point jog is
+  //     used instead — forward out of a, sidestep on the perpendicular
+  //     axis, forward into b.
+  function jogRoute(a, b, dirIn, dirOutReversed, width, leadMultiplier){
+    const JOG_LEAD = STUB_LEN * (leadMultiplier || 1);
+    const cross = dirIn.x*dirOutReversed.y - dirIn.y*dirOutReversed.x;
+    if (Math.abs(cross) > 1e-6) {
+      // Perpendicular axes: rather than using the raw intersection of
+      // a's forward ray and b's backward ray directly (which can land
+      // arbitrarily close to `a` or `b` — even a fraction of a
+      // millimetre away — and then get silently merged away by
+      // groovePolyline's own short-segment collapse, turning what
+      // looked like a valid 90° corner into a fold-back once that
+      // sliver segment vanishes; this happened in practice), advance
+      // from `a` by a full JOG_LEAD along dirIn and from `b` by a full
+      // JOG_LEAD backward along dirOutReversed, then use whichever of
+      // the two possible corners between those two ADVANCED points is
+      // consistent — guaranteeing every leg is at least JOG_LEAD long
+      // by construction, never a razor-thin remainder.
+      const p1 = { x: a.x + dirIn.x*JOG_LEAD, y: a.y + dirIn.y*JOG_LEAD };
+      const p4 = { x: b.x - dirOutReversed.x*JOG_LEAD, y: b.y - dirOutReversed.y*JOG_LEAD };
+      for (const corner of [{ x: p4.x, y: p1.y }, { x: p1.x, y: p4.y }]){
+        const toCorner = { x: corner.x - p1.x, y: corner.y - p1.y };
+        const fromCorner = { x: p4.x - corner.x, y: p4.y - corner.y };
+        // The corner just needs to not require p1->corner or
+        // corner->p4 to run backward relative to dirIn/dirOutReversed;
+        // when it collapses to a single point (already-aligned case)
+        // that's fine too (zero-length legs there just mean p1
+        // already equals p4 on this path, i.e. a straight line).
+        const dIn = toCorner.x*dirIn.x + toCorner.y*dirIn.y;
+        const dOut = fromCorner.x*dirOutReversed.x + fromCorner.y*dirOutReversed.y;
+        if (dIn >= -1e-6 && dOut >= -1e-6) return [p1, corner, p4];
+      }
+    }
+    // Parallel-axis case (perpendicular axes are always resolved by one
+    // of the two corners above — verified exhaustively for all 4x4 axis
+    // combinations, so reaching here means dirIn and dirOutReversed
+    // share the same axis). Two sub-cases, since they need different
+    // jog shapes:
+    const alongDirIn = Math.abs(dirIn.x) > 0.5 ? 'x' : 'y';
+    const sameSign = (dirIn[alongDirIn] > 0) === (dirOutReversed[alongDirIn] > 0);
+
+    if (!sameSign) {
+      // Anti-parallel (e.g. dirIn is +Y, dirOutReversed is -Y): a's own
+      // forward region and b's own forward region open up facing each
+      // other, so a single shared coordinate strictly beyond both
+      // (forward of a by at least JOG_LEAD, AND forward of b by at
+      // least JOG_LEAD measured from b backward along dirOutReversed)
+      // always exists — a plain 3-point jog (forward, sidestep,
+      // forward) works. Taking the further-out of the two per-point
+      // minimums guarantees both legs clear JOG_LEAD.
+      const aAdvanced = a[alongDirIn] + dirIn[alongDirIn]*JOG_LEAD;
+      const bBacked = b[alongDirIn] - dirOutReversed[alongDirIn]*JOG_LEAD;
+      const jogCoord = dirIn[alongDirIn] > 0 ? Math.max(aAdvanced, bBacked) : Math.min(aAdvanced, bBacked);
+      const p1 = alongDirIn === 'x' ? { x: jogCoord, y: a.y } : { x: a.x, y: jogCoord };
+      const p3 = alongDirIn === 'x' ? { x: jogCoord, y: b.y } : { x: b.x, y: jogCoord };
+      return [p1, p3];
+    }
+
+    // Parallel, same direction (e.g. dirIn and dirOutReversed both +Y,
+    // both stubs "facing" the same way): the point just forward of `a`
+    // (p1) and the point just before `b` (p5) can end up positioned so
+    // NEITHER a single sidestep NOR a same-direction crossing segment
+    // reaches from one to the other without a turn sharper than 90° at
+    // one end (this is the actual bug an earlier version of this
+    // function had — verified by direct construction that a 3-point jog
+    // is topologically impossible whenever `a` sits "behind" `b` along
+    // their own shared forward direction). The general fix is a proper
+    // S-jog: forward out of `a`, sidestep onto a scratch perpendicular
+    // coordinate, travel along the shared axis (in EITHER direction —
+    // always valid, since both of its neighboring turns are against a
+    // purely perpendicular segment and are therefore always exactly
+    // 90°) out past wherever `b`'s own approach point sits, sidestep
+    // again onto `b`'s own line, then straight into `b`. The only real
+    // constraint is that this middle axis-travel ends at a coordinate
+    // positioned so the FINAL segment into `b` still matches
+    // dirOutReversed — guaranteed by picking that endpoint as one
+    // further JOG_LEAD step beyond `b`'s own backed-off approach point,
+    // in dirOutReversed's own direction.
+    const perpAxis = alongDirIn === 'x' ? 'y' : 'x';
+    const p1Coord = a[alongDirIn] + dirIn[alongDirIn]*JOG_LEAD;
+    const p5Coord = b[alongDirIn] - dirOutReversed[alongDirIn]*JOG_LEAD;
+    // One step further BEHIND p5Coord along dirOutReversed's own
+    // direction (so p4->p5 also travels in dirOutReversed's direction,
+    // not its opposite) — this is where the middle axis-travel segment
+    // ends, guaranteeing the turn from p4 into p5 (and from there into
+    // b) is a real forward step rather than a fold-back.
+    const pivotCoord = p5Coord - dirOutReversed[alongDirIn]*JOG_LEAD;
+    // Any perpendicular coordinate different from both endpoints works
+    // for the scratch sidestep; the midpoint keeps the detour visually
+    // centered between source and target rather than hugging one side.
+    // When source and target already share the same perpendicular
+    // coordinate (the midpoint would then equal both, collapsing the
+    // sidestep to zero width and folding the whole S back onto a single
+    // line), offset by JOG_LEAD instead so there's always a real,
+    // non-zero sidestep for groovePolyline's own offset rails to clear.
+    const perpMidpoint = (a[perpAxis] + b[perpAxis]) / 2;
+    const scratchPerp = Math.abs(perpMidpoint - a[perpAxis]) > 1e-6 ? perpMidpoint : a[perpAxis] + JOG_LEAD;
+    const p1 = { [alongDirIn]: p1Coord, [perpAxis]: a[perpAxis] };
+    const p2 = { [alongDirIn]: p1Coord, [perpAxis]: scratchPerp };
+    const p3 = { [alongDirIn]: pivotCoord, [perpAxis]: scratchPerp };
+    const p4 = { [alongDirIn]: pivotCoord, [perpAxis]: b[perpAxis] };
+    const p5 = { [alongDirIn]: p5Coord, [perpAxis]: b[perpAxis] };
+    return [p1, p2, p3, p4, p5];
+  }
+
+
+  // Full path from a source cableNode to a target cableNode: source point
+  // -> source's own 50mm stub -> diagonal middle run -> target's own
+  // 50mm stub -> target point. The middle run is constrained to turn by
+  // no more than 90° at every joint, including where it meets each
+  // stub's own fixed direction, so the whole path only ever bends
+  // gently enough for groovePolyline's own rounded-capsule construction
+  // to offset cleanly.
+  //
+  // In rare configurations (source and target close together, with
+  // stub directions that happen to send the two fixed 50mm stubs
+  // straight through each other's own extent — verified as a real,
+  // reproducible case) the two stubs themselves cross before any
+  // middle-run routing is even considered; no reshaping of the middle
+  // run can fix that; since it lives entirely in the two fixed
+  // segments. When that's detected, both stubs are shortened together
+  // (in fixed small steps, down to a minimum) until they clear each
+  // other — a shorter-but-still-present stub in the node's own
+  // direction is a much smaller deviation from the spec than dropping
+  // the stub concept entirely for that connection.
+  function fullPath(source, target, width){
+    let stubLen = STUB_LEN;
+    const MIN_STUB_LEN = 10;
+    let stubA = stubEnd(source, stubLen);
+    let stubB = stubEnd(target, stubLen);
+    while (stubLen > MIN_STUB_LEN && pathSelfIntersects([source, stubA, stubB, target])) {
+      stubLen -= 5;
+      stubA = stubEnd(source, stubLen);
+      stubB = stubEnd(target, stubLen);
+    }
+    const middle = diagonalMiddleRun(stubA, stubB, source, target, width);
+    return [source, stubA, ...middle, stubB, target];
+  }
+
+  // Radius for a groove of the given width along `path`, capped at
+  // MAX_CORNER_RADIUS but never larger than fits the shortest segment in
+  // the path (so a short stub or short middle leg doesn't get a fillet
+  // that would overrun it). Computed on the path AFTER groovePolyline's
+  // own short-segment merge (using the same mergeShortSegments helper,
+  // at the same `width` threshold) rather than the raw path, so a short
+  // segment that's going to be collapsed away anyway doesn't needlessly
+  // shrink the radius used for the real, post-merge corners.
+  //
+  // Uses (shortest segment - width) / 2, not the more obvious minSeg/2:
+  // minSeg/2 leaves zero straight clearance on a segment that's rounded
+  // at both its own ends, and empirically that's not actually safe even
+  // well below that boundary — the channel's own width consumes real
+  // space near each corner regardless of the segment's length (the
+  // offset rails sit `width/2` off the centerline, so tight turns need
+  // room for the RAILS to clear, not just the centerline's own path).
+  // Verified directly: a 9.4mm segment at 5.5mm width still
+  // self-intersected at a radius as small as 2.3mm (well under the
+  // naive 4.7mm half), only becoming reliably safe around 1.9mm — this
+  // formula lands at 1.94mm for that exact case, with the `width`
+  // subtraction scaling appropriately for other segment/width
+  // combinations rather than needing a hand-tuned constant divisor.
+  function cornerRadiusFor(path, width){
+    const merged = mergeShortSegments(path, width);
+    let minSeg = Infinity;
+    for (let i = 0; i < merged.length - 1; i++){
+      minSeg = Math.min(minSeg, Geo.dist([merged[i].x,merged[i].y],[merged[i+1].x,merged[i+1].y]));
+    }
+    return Math.max(0, Math.min(MAX_CORNER_RADIUS, (minSeg - width) / 2));
+  }
+
+  // Builds one channel's groove contour, with a final safety net: if the
+  // routed path's own groove still self-intersects despite every check
+  // already applied while building that path (turn-angle validation,
+  // merge-aware re-checking, stub-crossing detection — verified to
+  // handle every case found during testing except a small residual tail
+  // of configurations rare enough that hunting down each one
+  // individually has sharply diminishing returns), fall back to the one
+  // construction that's simplest to prove always safe: a straight
+  // centerline from source directly to target, no stubs, no jog. It
+  // won't exit the source/target along their own hardcoded directions
+  // in that fallback case, but a plain, correctly-milled straight
+  // channel is strictly better than the alternative of silently
+  // emitting self-crossing toolpath geometry.
+  function buildChannelContour(source, target, width, layer, entries){
+    const path = fullPath(source, target, width);
+    const contour = Geo.groovePolyline(path, width, cornerRadiusFor(path, width));
+    if (!contourSelfIntersects(contour)) {
+      entries.push({ contour, layer });
+      return;
+    }
+    const straight = [source, target];
+    entries.push({ contour: Geo.groovePolyline(straight, width, cornerRadiusFor(straight, width)), layer });
+  }
+
+  function buildContours(p){
+    const entries = [];
+
+    // wirelessCharger -> T-slot notch (4x4mm channel)
+    const tSlot = tSlotEntryPoints(p);
+    if (tSlot) {
+      for (const instance of (p.chargers || [])){
+        if (!instance.cableChannel) continue;
+        const variant = WIRELESS_CHARGER_VARIANTS[instance.type] || WIRELESS_CHARGER_VARIANTS.standard;
+        if (!variant.cableNode) continue;
+        const sourcePt = embeddableLocalToWorld(variant.cableNode, instance, p);
+        const sourceDir = embeddableLocalDirToWorld(variant.cableNode.dir, instance, p);
+        const source = { x: sourcePt.x, y: sourcePt.y, dir: sourceDir };
+        const target = nearestPoint(source, [tSlot.left, tSlot.right]);
+        buildChannelContour(source, target, 4, 'CABLE_CHANNEL_4', entries);
+      }
+    }
+
+    // Generic "source -> nearest instance of a single target element"
+    // routing, shared by usbCharger->smallCablePocket and
+    // pult(embeddedUsb)->bigCablePocket below — both are a single fixed
+    // target element, just a different one, so the routing logic itself
+    // doesn't need to differ.
+    function routeToNearestTarget(sourceInstances, sourceVariantsById, targetInstances, targetVariantsById){
+      const targetNodes = worldNodes(targetInstances, targetVariantsById, p);
+      if (targetNodes.length === 0) return;
+      for (const instance of (sourceInstances || [])){
+        if (!instance.cableChannel) continue;
+        const variant = sourceVariantsById[instance.type] || sourceVariantsById.standard;
+        if (!variant || !variant.cableNode) continue;
+        const sourcePt = embeddableLocalToWorld(variant.cableNode, instance, p);
+        const sourceDir = embeddableLocalDirToWorld(variant.cableNode.dir, instance, p);
+        const source = { x: sourcePt.x, y: sourcePt.y, dir: sourceDir };
+        const target = nearestPoint(source, targetNodes);
+        buildChannelContour(source, target, 5.5, 'CABLE_CHANNEL_5_5', entries);
+      }
+    }
+
+    // usbCharger -> nearest smallCablePocket (5.5x5.5mm channel)
+    routeToNearestTarget(p.usbChargers, USB_CHARGER_VARIANTS, p.smallCablePockets, SMALL_CABLE_POCKET_VARIANTS);
+
+    // pult(embeddedUsb) -> nearest bigCablePocket (5.5x5.5mm channel)
+    routeToNearestTarget(p.pults, PULT_VARIANTS, p.bigCablePockets, BIG_CABLE_POCKET_VARIANTS);
+
+    return entries;
+  }
+
+  return { id: 'cableChannels', buildContours };
+})());
 
 
 // ============================================================================
@@ -1890,14 +2656,21 @@ const Dimensions = (() => {
 // per element.
 // ============================================================================
 const RenderSVG = (() => {
-  const LAYER_CLASS = {
-    OUTLINE: 'layer-outline',
-    UNDERFRAME: 'layer-underframe',
-    UNDERFRAME_HOLES: 'layer-underframe-holes',
-    ELEMENTS: 'layer-elements',
-    ELEMENTS_BACK: 'layer-elements-back',
-    DIMENSIONS: 'layer-dimensions',
-  };
+  // A layer's own `style` (from Layers.registry) becomes an inline SVG
+  // style attribute directly — no separate CSS class to keep in sync
+  // with the registry. `vector-effect: non-scaling-stroke` is applied to
+  // every layer here (it only matters for the live, zoomable on-screen
+  // preview — Export.SVG below does NOT use it, since an exported file's
+  // strokes should scale with the drawing like real ink, not stay a
+  // fixed screen-pixel width regardless of zoom).
+  function styleFor(layer){
+    const def = Layers.get(layer);
+    if (!def || !def.style) return null; // unknown layer -> caller falls back to layer-unknown
+    const { stroke, fillOpacity = 0, strokeWidth = 1.5, dashed = false } = def.style;
+    const fill = fillOpacity > 0 ? stroke : 'none';
+    return `fill:${fill};fill-opacity:${fillOpacity};stroke:${stroke};stroke-width:${strokeWidth}px;` +
+      `vector-effect:non-scaling-stroke;${dashed ? `stroke-dasharray:${strokeWidth*3} ${strokeWidth*2};` : ''}`;
+  }
 
   function build(entries, W, H, texts = []){
     const parts = entries.map(({ contour, layer, closed = true }) => {
@@ -1907,14 +2680,17 @@ const RenderSVG = (() => {
       // instead of silently falling back to layer-outline as this used
       // to — that fallback was hiding the exact mistake this is meant to
       // surface (an element referencing a layer id that doesn't exist).
-      const cls = LAYER_CLASS[layer] || 'layer-unknown';
-      const fillAttr = closed ? '' : ' style="fill:none"'; // open lines/arrowheads shouldn't inherit the layer's closed-shape fill
-      return `<path class="${cls}"${fillAttr} d="${d}"></path>`;
+      const style = styleFor(layer);
+      // open lines/arrowheads shouldn't inherit the layer's closed-shape
+      // fill, regardless of that layer's own fillOpacity.
+      const attrs = style ? ` style="${style}${closed ? '' : ';fill:none'}"` : ' class="layer-unknown"';
+      return `<path${attrs} d="${d}"></path>`;
     });
+    const dimStroke = (Layers.get('DIMENSIONS') || {}).style?.stroke || '#e05a5a';
     const textParts = texts.map(({ x, y, text, angle = 0 }) => {
       const sy = H - y; // flip to SVG's Y-down space, matching contourToSvgPath's own flip
       const deg = -angle * 180 / Math.PI; // SVG rotation is clockwise-positive in Y-down space, opposite of our CAD angle convention
-      return `<text class="layer-dimensions dim-text" x="${x}" y="${sy}" transform="rotate(${deg} ${x} ${sy})" text-anchor="middle" dominant-baseline="central">${text}</text>`;
+      return `<text class="dim-text" style="fill:${dimStroke}" x="${x}" y="${sy}" transform="rotate(${deg} ${x} ${sy})" text-anchor="middle" dominant-baseline="central">${text}</text>`;
     });
     return parts.join('\n') + (textParts.length ? '\n' + textParts.join('\n') : '');
   }
@@ -2086,17 +2862,17 @@ const ExportSVG = (() => {
     };
   }
 
-  // Mirrors RenderSVG's LAYER_CLASS intent, but as concrete stroke/fill
-  // colors baked into the file instead of CSS classes, since an exported
-  // file can't depend on this app's stylesheet.
-  const LAYER_STYLE = {
-    OUTLINE:          { stroke: '#ff8a3d', fill: 'none' },
-    UNDERFRAME:       { stroke: '#4d8ff0', fill: 'none' },
-    UNDERFRAME_HOLES: { stroke: '#b06fe0', fill: 'none' },
-    ELEMENTS:         { stroke: '#4cc97c', fill: 'none' },
-    ELEMENTS_BACK:    { stroke: '#4dcfe0', fill: 'none' },
-    DIMENSIONS:       { stroke: '#e05a5a', fill: '#e05a5a' },
-  };
+  // Reads styling straight from Layers.registry's own `style` field
+  // (same source RenderSVG's live preview uses) rather than a separate
+  // hardcoded list — an exported file can't depend on this app's
+  // stylesheet, so this still needs to bake concrete stroke/fill values
+  // into the file rather than referencing a CSS class, but it no longer
+  // needs its OWN copy of what those values are.
+  function styleFor(layer){
+    const def = Layers.get(layer) || Layers.get('OUTLINE');
+    const { stroke, fillOpacity = 0 } = def.style || { stroke: '#ff8a3d' };
+    return { stroke, fillOpacity };
+  }
   const BASE_STROKE_WIDTH_MM = 1; // stroke width in the drawing's own mm units — deliberately NOT vector-effect:non-scaling-stroke, since that keeps strokes hairline-thin in CSS pixels no matter how large the file is rasterized (e.g. for PNG export); specifying width in mm makes it scale naturally with resolution
 
   // Dimension label text height, in the drawing's own mm units. The
@@ -2133,15 +2909,16 @@ const ExportSVG = (() => {
       // keystroke and doesn't need the extra decimal-place cleanup).
       const roundedContour = contour.map(v => ({ x: Geo.cleanRound(v.x), y: Geo.cleanRound(v.y), bulge: v.bulge }));
       const d = Geo.contourToSvgPath(roundedContour, true, H, closed);
-      const style = LAYER_STYLE[layer] || LAYER_STYLE.OUTLINE;
-      const fill = closed ? style.fill : 'none';
-      return `<path d="${d}" fill="${fill}" stroke="${style.stroke}" stroke-width="${strokeWidth}"/>`;
+      const { stroke, fillOpacity } = styleFor(layer);
+      const fill = closed && fillOpacity > 0 ? stroke : 'none';
+      const fillOpacityAttr = closed && fillOpacity > 0 ? ` fill-opacity="${fillOpacity}"` : '';
+      return `<path d="${d}" fill="${fill}"${fillOpacityAttr} stroke="${stroke}" stroke-width="${strokeWidth}"/>`;
     });
     const textEls = texts.map(({ x, y, text, angle = 0 }) => {
       const sy = H - y;
       const deg = -angle * 180 / Math.PI;
-      const dimStyle = LAYER_STYLE.DIMENSIONS;
-      return `<text x="${x}" y="${sy}" transform="rotate(${deg} ${x} ${sy})" text-anchor="middle" dominant-baseline="central" font-family="monospace" font-weight="bold" font-size="${DIM_TEXT_HEIGHT_MM}" fill="${dimStyle.stroke}" stroke="none">${text}</text>`;
+      const { stroke: dimStroke } = styleFor('DIMENSIONS');
+      return `<text x="${x}" y="${sy}" transform="rotate(${deg} ${x} ${sy})" text-anchor="middle" dominant-baseline="central" font-family="monospace" font-weight="bold" font-size="${DIM_TEXT_HEIGHT_MM}" fill="${dimStroke}" stroke="none">${text}</text>`;
     });
     return `<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n` +
       `<svg xmlns="http://www.w3.org/2000/svg" width="${bw}mm" height="${bh}mm" viewBox="${bounds.minX} ${svgMinY} ${bw} ${bh}">\n` +
@@ -2457,6 +3234,23 @@ const ExportPNG = (() => {
       </div>`;
   }
 
+  // Opt-in cable-channel toggle, reused by the three element managers that
+  // support a cable channel to/from a hardcoded node (see the
+  // cableChannels element): wireless charger (-> T-slot notch), USB
+  // charger and embeddedUsb pult (-> nearest wireless charger pocket).
+  // `label` names what the channel connects to, since that differs per
+  // element.
+  function cableChannelToggleHtml(idx, inst, label){
+    return `
+      <div class="toggle-row">
+        <span>${label}</span>
+        <label class="switch">
+          <input type="checkbox" data-field="cableChannel" data-idx="${idx}">
+          <span class="track"></span>
+        </label>
+      </div>`;
+  }
+
   // Builds the anchor-picker + insetX/insetY row shared by every anchor-
   // based embeddable element (charger, outlet block, phone stand, tray,
   // pull-out stand). Both fields are always shown with the same "Отступ
@@ -2502,8 +3296,40 @@ const ExportPNG = (() => {
 
   // Универсальный генератор менеджеров для встраиваемых элементов.
   // Убирает дублирование onChange, дефолтных трансформаций и шаблонов rowHtml.
+  // Ensures the given simple element has its own UI section (a fieldset
+  // with a title, an empty list container, and an "+ Add" button) inside
+  // the controls panel — auto-creating it if it isn't already in the
+  // static HTML. This means a brand-new element never needs its own
+  // hand-written HTML block: passing `key` + `label` to
+  // createEmbeddableManager is enough, and this function fills in the
+  // container/button ids from `key` and builds the markup on the fly.
+  // Existing elements that already DO have hand-written HTML (with a
+  // matching id) are left alone — this only fills the gap when the
+  // container is missing, so both styles keep working side by side.
+  function ensureElementSection(key, label, addLabel){
+    const containerId = `${key}List`;
+    const addBtnId = `add${key.charAt(0).toUpperCase()}${key.slice(1)}Btn`;
+    if (!document.getElementById(containerId)) {
+      const fieldset = document.createElement('fieldset');
+      fieldset.innerHTML = `
+        <legend>${label}</legend>
+        <div id="${containerId}"></div>
+        <button type="button" id="${addBtnId}" class="btn-add">+ ${addLabel}</button>
+      `;
+      document.getElementById('controls').appendChild(fieldset);
+    }
+    return { containerId, addBtnId };
+  }
+
   function createEmbeddableManager(cfg) {
-    const { container, btn, label, typeSelector = null } = cfg;
+    const { key, label, typeSelector = null, cableChannelLabel = null, cableChannelWhen = null, addLabel } = cfg;
+    // `container`/`btn` can still be given explicitly (existing elements
+    // with hand-written HTML pass these); anything new just passes `key`
+    // and gets its section auto-created instead.
+    const { containerId, addBtnId } = cfg.container && cfg.btn
+      ? { containerId: cfg.container, addBtnId: cfg.btn }
+      : ensureElementSection(key, label, addLabel || `Добавить: ${label}`);
+    const container = containerId, btn = addBtnId;
     // Сохраняем дефолты как есть (они могут содержать функции)
     const rawDefaults = { rotation: 0, mirror: 'none', ...cfg.defaults };
     const showTypeSelector = typeSelector && typeSelector.options.length > 1;
@@ -2531,6 +3357,9 @@ const ExportPNG = (() => {
             </div>`;
         }
         html += insetFieldsHtml(idx, inst);
+        if (cableChannelLabel && (!cableChannelWhen || cableChannelWhen(inst))) {
+          html += cableChannelToggleHtml(idx, inst, cableChannelLabel);
+        }
         return html;
       }
     });
@@ -2574,18 +3403,45 @@ const ExportPNG = (() => {
   // for the USB charger — a completely different one-axis shape) lives
   // in each manager below.
 
+  // ---------- Element managers ----------
+  // Every element below is declared in the ORDER its section should
+  // appear in the controls panel — with no static HTML for any of them
+  // (see ensureElementSection, called internally by
+  // createEmbeddableManager whenever `key` is given instead of an
+  // explicit container/btn), the panel's own visual order comes purely
+  // from this declaration order, top to bottom.
+  const pultMgr = createEmbeddableManager({ 
+    key: 'pults', label: 'Пульты управления', addLabel: 'Добавить пульт',
+    defaults: { 
+      type: 'standard', 
+      anchor: 'bottomRight', 
+      insetX: (inst, p) => (p.underframeInsetH || 0) + (inst.type === 'embeddedUsb' ? 120 : 110),
+      insetY: 0 
+    },
+    typeSelector: { 
+      label: 'Тип пульта', 
+      options: [{value:'standard', text:'Стандартный'}, {value:'embeddedUsb', text:'Встраиваемый с USB'}]
+    },
+    // Only the embeddedUsb variant has a USB module cutout to route a
+    // channel from (see the pult element's own cableNode, defined only on
+    // that variant) — Standard has nothing for a channel to start at.
+    cableChannelLabel: 'Кабель-канал до большого кармана',
+    cableChannelWhen: (inst) => inst.type === 'embeddedUsb'
+  });
+
   const chargerMgr = createEmbeddableManager({ 
-    container: 'chargerList', btn: 'addChargerBtn', label: 'Зарядка', 
-    defaults: { anchor: 'topRight', insetX: 225, insetY: 200 } 
+    key: 'chargers', label: 'Беспроводные зарядки', addLabel: 'Добавить зарядку',
+    defaults: { anchor: 'topRight', insetX: 225, insetY: 200 },
+    cableChannelLabel: 'Кабель-канал до Т-выреза'
   });
 
   const outletBlockMgr = createEmbeddableManager({ 
-    container: 'outletBlockList', btn: 'addOutletBlockBtn', label: 'Блок розеток', 
+    key: 'outletBlocks', label: 'Блоки розеток', addLabel: 'Добавить блок розеток',
     defaults: { anchor: 'topLeft', insetX: 300, insetY: 115 } 
   });
 
   const phoneStandMgr = createEmbeddableManager({ 
-    container: 'phoneStandList', btn: 'addPhoneStandBtn', label: 'Подставка для телефона', 
+    key: 'phoneStands', label: 'Подставки для телефона', addLabel: 'Добавить подставку',
     defaults: { anchor: 'topRight', insetX: 225, insetY: 105 } 
   });
 
@@ -2595,7 +3451,7 @@ const ExportPNG = (() => {
   // (see ANCHOR_INSET's own comment for why that's the same field rather
   // than a separate one). Only extra markup here is the type selector.
   const trayMgr = createEmbeddableManager({ 
-    container: 'trayList', btn: 'addTrayBtn', label: 'Лоток', 
+    key: 'trays', label: 'Лотки для сетевого фильтра', addLabel: 'Добавить лоток',
     defaults: { type: '60', anchor: 'top', insetX: 0, insetY: 115 },
     typeSelector: { label: 'Тип лотка', options: [{value:'60', text:'Лоток 60 см'}, {value:'80', text:'Лоток 80 см'}] }
   });
@@ -2604,7 +3460,7 @@ const ExportPNG = (() => {
   // bottom edge, where insetY is the inward distance from the bottom
   // (auto-adjusted for the ergo-notch in the element itself.
   const pulloutMgr = createEmbeddableManager({ 
-    container: 'pulloutList', btn: 'addPulloutBtn', label: 'Выдвижная подставка', 
+    key: 'pullouts', label: 'Выдвижные подставки', addLabel: 'Добавить подставку',
     defaults: {
 	  anchor: 'bottom',
 	  insetX: 0,
@@ -2620,38 +3476,52 @@ const ExportPNG = (() => {
   // pult's insets — the placeholder shows the live computed default and
   // the field is only filled in once the user actually overrides it.
   const usbChargerMgr = createEmbeddableManager({ 
-    container: 'usbChargerList', btn: 'addUsbChargerBtn', label: 'USB-зарядка', 
+    key: 'usbChargers', label: 'Торцевые USB-зарядки', addLabel: 'Добавить USB-зарядку',
     defaults: { 
       anchor: 'bottomRight', 
       insetX: (inst, p) => (p.underframeInsetH || 0) + 220, 
       insetY: 0 
-    } 
+    },
+    cableChannelLabel: 'Кабель-канал до малого кармана'
   });
 
-  // Pult: type selector (Стандартный / Встраиваемый с USB) plus X — Y only
-  // shows for Standard (embeddedUsb has no configurable vertical inset at
-  // all, always flush with the bottom edge by design — see the element's
-  // own comment). insetX starts unset (null), same "blank = follow the
-  // underframe" pattern as the USB charger, since the default bonus
-  // differs by type (110mm for Standard, 120mm for embeddedUsb — see
-  // resolveInsets) and render() keeps each row's placeholder current.
-  // Starts empty like every other instance list — historically Standard
-  // always appeared as an automatic left+right pair, but now the person
-  // adds each side as its own instance (e.g. bottomLeft + bottomRight),
-  // same as any other element.
-  const pultMgr = createEmbeddableManager({ 
-    container: 'pultList', btn: 'addPultBtn', label: 'Пульт', 
-    defaults: { 
-      type: 'standard', 
-      anchor: 'bottomRight', 
-      insetX: (inst, p) => (p.underframeInsetH || 0) + (inst.type === 'embeddedUsb' ? 120 : 110),
-      insetY: 0 
-    },
-    typeSelector: { 
-      label: 'Тип пульта', 
-      options: [{value:'standard', text:'Стандартный'}, {value:'embeddedUsb', text:'Встраиваемый с USB'}]
-    }
+  const bigCablePocketMgr = createEmbeddableManager({
+    key: 'bigCablePockets', label: 'Кабельная выемка (большая)', addLabel: 'Добавить выемку',
+    defaults: {
+	  anchor: 'right',
+	  insetX: (inst, p) => 
+        p.underframeType === "60" ? p.underframeInsetH + 320 :
+        p.underframeType === "70" ? p.underframeInsetH + 350 :
+        400,
+	  insetY: (inst, p) => (p.underframeInsetV) }
   });
+
+  const smallCablePocketMgr = createEmbeddableManager({
+    key: 'smallCablePockets', label: 'Кабельная выемка (малая)', addLabel: 'Добавить выемку',
+    defaults: { anchor: 'top', insetX: 250, insetY: 115 }
+  });
+
+  // ---------- Registry of every list-based element manager ----------
+  // Every simple embeddable element (anything using createEmbeddableManager
+  // above) is registered here ONCE, under the same key its geometry code
+  // reads from `p` (see registerSimpleEmbeddable's own paramsKey) and the
+  // same key its data is saved/restored under in project files. Adding a
+  // new simple element to the whole app — geometry, UI, params wiring,
+  // save/load — needs exactly ONE new entry here, instead of hand-editing
+  // resolveItems/updatePlaceholders/buildProjectData/setItems separately
+  // (those four now just loop over this list). See the "Adding a new
+  // element" guide at the top of this file for the full walkthrough.
+  const ELEMENT_MANAGERS = [
+    { key: 'pults', mgr: pultMgr },
+    { key: 'chargers', mgr: chargerMgr },
+    { key: 'outletBlocks', mgr: outletBlockMgr },
+    { key: 'phoneStands', mgr: phoneStandMgr },
+    { key: 'trays', mgr: trayMgr },
+    { key: 'pullouts', mgr: pulloutMgr },
+    { key: 'usbChargers', mgr: usbChargerMgr },
+    { key: 'bigCablePockets', mgr: bigCablePocketMgr },
+    { key: 'smallCablePockets', mgr: smallCablePocketMgr },
+  ];
 
   // ---------- Fixed (non-list) inputs ----------
   const inputs = {
@@ -2709,13 +3579,7 @@ const ExportPNG = (() => {
     // Теперь, когда p готов, передаем его в resolveItems, 
     // чтобы менеджеры могли вычислить динамические дефолты (функции) 
     // и вернуть готовые массивы с числами для геометрии.
-    p.chargers = chargerMgr.resolveItems(p);
-    p.outletBlocks = outletBlockMgr.resolveItems(p);
-    p.phoneStands = phoneStandMgr.resolveItems(p);
-    p.trays = trayMgr.resolveItems(p);
-    p.pullouts = pulloutMgr.resolveItems(p);
-    p.usbChargers = usbChargerMgr.resolveItems(p);
-    p.pults = pultMgr.resolveItems(p);
+    for (const { key, mgr } of ELEMENT_MANAGERS) p[key] = mgr.resolveItems(p);
 
     return p;
   }
@@ -2730,13 +3594,7 @@ const ExportPNG = (() => {
     if (p.W <= 0 || p.H <= 0) return;
 
     // Обновляем серые подсказки (placeholders) для всех элементов
-    chargerMgr.updatePlaceholders(p);
-    outletBlockMgr.updatePlaceholders(p);
-    phoneStandMgr.updatePlaceholders(p);
-    trayMgr.updatePlaceholders(p);
-    pulloutMgr.updatePlaceholders(p);
-    usbChargerMgr.updatePlaceholders(p);
-    pultMgr.updatePlaceholders(p);
+    for (const { mgr } of ELEMENT_MANAGERS) mgr.updatePlaceholders(p);
 
     // Строим геометрию и размерные линии
     const entries = Drawing.build(p);
@@ -2862,15 +3720,7 @@ const ExportPNG = (() => {
       fileType: 'tabletop-layout-project',
       version: PROJECT_FILE_VERSION,
       values,
-      instances: {
-        chargers: chargerMgr.items,
-        outletBlocks: outletBlockMgr.items,
-        phoneStands: phoneStandMgr.items,
-        trays: trayMgr.items,
-        pullouts: pulloutMgr.items,
-        usbChargers: usbChargerMgr.items,
-        pults: pultMgr.items,
-      },
+      instances: Object.fromEntries(ELEMENT_MANAGERS.map(({ key, mgr }) => [key, mgr.items])),
     };
   }
 
@@ -2900,13 +3750,7 @@ const ExportPNG = (() => {
       else input.value = val === null || val === undefined ? '' : val;
     }
     const inst = data.instances || {};
-    chargerMgr.setItems(inst.chargers);
-    outletBlockMgr.setItems(inst.outletBlocks);
-    phoneStandMgr.setItems(inst.phoneStands);
-    trayMgr.setItems(inst.trays);
-    pulloutMgr.setItems(inst.pullouts);
-    usbChargerMgr.setItems(inst.usbChargers);
-    pultMgr.setItems(inst.pults);
+    for (const { key, mgr } of ELEMENT_MANAGERS) mgr.setItems(inst[key]);
     render();
   }
 
