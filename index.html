@@ -935,49 +935,61 @@ const Geo = (() => {
     return out;
   }
 
-  // Builds a closed "groove" contour (a capsule-ended slot) from an open
-  // polyline of {x,y} centerline points, at a given width — used for
-  // cable channels: a milled slot of constant width running along a path
-  // from some element's own anchored point to a cutout/pocket's own
-  // anchored point.
+  // Builds a closed "groove" contour (a constant-width channel, capped
+  // with a semicircle at each open end) from an open polyline of {x,y}
+  // centerline points, at a given width — used for cable channels: a
+  // milled slot running along a path from some element's own anchored
+  // point to a cutout/pocket's own anchored point.
   //
-  // Simple construction, reusing roundedPolygon rather than a bespoke
-  // stroke-offset algorithm: walk the centerline out (offset +halfWidth
-  // to one side), round-cap the far end, walk back (offset +halfWidth to
-  // the other side), round-cap the near end. That's a single closed
-  // polygon of corners, each with the same fillet radius, fed straight
-  // into the existing roundedPolygon primitive — so every joint (interior
-  // path bends AND the two end caps) is rounded identically and there's
-  // no separate inside/outside-of-turn case to get right. A joint's own
-  // fillet radius is capped to half the channel width so it can never
-  // round past the point of pinching the slot shut.
-  function groovePolyline(points, width, cornerRadius){
+  // The turn at each interior point is rounded on the CENTERLINE itself
+  // (via filletCorner, same primitive used for a polygon's own corners)
+  // BEFORE the channel's own width is applied — not by rounding the
+  // corners of the two already-offset rails, the way a naive
+  // stroke-a-polyline construction would. That distinction is the whole
+  // point: rounding the offset rails caps the achievable radius at
+  // width/2 (round it any more and the rails would cross), which for a
+  // narrow channel (4-5.5mm) means a radius of only 2-2.75mm — visually
+  // indistinguishable from a sharp corner at any normal zoom level, even
+  // though it IS technically rounded. Rounding the centerline first, at
+  // a much larger radius (up to maxCornerRadius, typically 50mm), and
+  // THEN offsetting that already-curved line by hw on each side gives a
+  // constant-width channel that visibly curves through the turn — the
+  // channel's own width can locally read as slightly wider than nominal
+  // on the outside of a tight turn (a plain per-side offset of a curve
+  // by a constant distance isn't itself a curve of exactly the same
+  // radius, but for these dimensions — a large fillet vs. a narrow
+  // channel — the difference is negligible and never approaches
+  // pinching shut, so it's not worth a more elaborate true-parallel-curve
+  // construction here).
+  //
+  // A rounded centerline segment is either a straight line (bulge 0) or
+  // a circular arc (bulge != 0, from filletCorner) — offsetting a
+  // straight segment by a constant distance gives another straight
+  // segment; offsetting an arc by a constant distance gives a
+  // concentric arc (same center, radius R∓hw depending on which side).
+  // Both cases are handled uniformly below by tracking, for each
+  // centerline vertex, its own arc center/radius when it's part of a
+  // fillet (null when it's a straight corner) and offsetting from that
+  // center rather than by a fixed perpendicular direction when present.
+  function groovePolyline(points, width, maxCornerRadius){
     const hw = width / 2;
-    const r = Math.min(cornerRadius, hw);
     // Drop points that fall within one full width of the previously kept
     // point — always the true first/last point stay (down to a tiny
     // epsilon, to dedupe exact repeats), but an interior point is merged
     // into its neighbor if it's closer than that, since a leg shorter
     // than the channel's own width isn't long enough for the two offset
-    // rails to clear each other at both of that short leg's own joints
-    // (each joint's own rail corner can sit up to hw past the joint in
-    // the leg's direction, so two joints need a full width of clearance
-    // between them, not just hw). Collapsing such a point straight
-    // through to its neighbor is exactly the "cut the corner, don't
-    // chase a minimal path" behavior the channel routing already wants,
-    // so this is a safe simplification rather than a lossy one.
-    // Collapse any run of points shorter than `width` apart into a single
-    // point, since a leg that short isn't long enough for the two offset
-    // rails to clear each other at both of its own joints (each joint's
-    // rail corner can sit up to hw past the joint along the leg, so two
-    // joints need a full width of clearance between them). The true
-    // first and true last point of the path are always kept exactly —
-    // only interior points collapse — by first deduping forward (drop an
-    // interior point too close to what's already kept) and then
-    // deduping backward from the true end (drop the point right before
-    // the end if it's too close to the end), so a short final leg
-    // collapses toward the endpoint rather than leaving a stray close
-    // point behind it.
+    // rails to clear each other at both of that short leg's own joints.
+    // Collapsing such a point straight through to its neighbor is
+    // exactly the "cut the corner, don't chase a minimal path" behavior
+    // the channel routing already wants, so this is a safe
+    // simplification rather than a lossy one. The true first and true
+    // last point of the path are always kept exactly — only interior
+    // points collapse — by first deduping forward (drop an interior
+    // point too close to what's already kept) and then deduping
+    // backward from the true end (drop the point right before the end
+    // if it's too close to the end), so a short final leg collapses
+    // toward the endpoint rather than leaving a stray close point
+    // behind it.
     let pts = [points[0]];
     for (let i = 1; i < points.length; i++){
       const p = points[i];
@@ -996,30 +1008,146 @@ const Geo = (() => {
       const c = pts[0] || { x: 0, y: 0 };
       pts.push({ x: c.x + 1e-3, y: c.y });
     }
-    const normal = (a, b) => {
-      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
-      return { x: -dy/len, y: dx/len };
-    };
-    const outward = [];
-    for (let i = 0; i < pts.length; i++){
-      const a = pts[Math.max(i-1, 0)], b = pts[Math.min(i+1, pts.length-1)];
-      outward.push(normal(a, b));
-    }
-    const corners = [];
-    for (let i = 0; i < pts.length; i++)
-      corners.push({ pt: [pts[i].x + hw*outward[i].x, pts[i].y + hw*outward[i].y], r });
-    // Round cap at the far end: two extra corners straddling the
-    // endpoint, offset perpendicular to the path's own end direction, so
-    // roundedPolygon's fillet at max radius (r = hw) turns them into a
-    // semicircle.
-    const endN = outward[outward.length-1];
-    corners.push({ pt: [pts[pts.length-1].x - hw*endN.x, pts[pts.length-1].y - hw*endN.y], r: hw });
-    for (let i = pts.length - 1; i >= 0; i--)
-      corners.push({ pt: [pts[i].x - hw*outward[i].x, pts[i].y - hw*outward[i].y], r });
-    const startN = outward[0];
-    corners.push({ pt: [pts[0].x + hw*startN.x, pts[0].y + hw*startN.y], r: hw });
 
-    const contour = roundedPolygon(corners);
+    // Radius for the fillet at interior point i, capped at
+    // maxCornerRadius but never larger than half of either adjacent
+    // segment's own length (so two fillets on a short middle leg can
+    // never overlap each other) — no dependency on the channel's own
+    // width here at all, unlike the old offset-rail approach, since the
+    // centerline's own fillet doesn't need to leave the channel's rails
+    // room to clear each other (that's handled separately, by the
+    // per-side offset below).
+    function centerlineFilletRadius(i){
+      if (i <= 0 || i >= pts.length - 1) return 0;
+      const segIn = dist([pts[i-1].x,pts[i-1].y],[pts[i].x,pts[i].y]);
+      const segOut = dist([pts[i].x,pts[i].y],[pts[i+1].x,pts[i+1].y]);
+      return Math.min(maxCornerRadius, segIn / 2, segOut / 2);
+    }
+
+    // Rounds the centerline itself into a list of {x, y, arc} vertices —
+    // `arc` is null for a straight corner, or {cx, cy, r} (the fillet's
+    // own circle) for a rounded one — walking each original interior
+    // point and either keeping it as-is (straight, no room to fillet:
+    // collinear points, or a first/last point) or replacing it with the
+    // fillet's own two tangent points plus that arc's center/radius.
+    const rounded = [pts[0]];
+    for (let i = 1; i < pts.length - 1; i++){
+      const r = centerlineFilletRadius(i);
+      if (r < 1e-6) { rounded.push(pts[i]); continue; }
+      const [tIn, tOut, bulge] = filletCorner(
+        [pts[i-1].x, pts[i-1].y], [pts[i].x, pts[i].y], [pts[i+1].x, pts[i+1].y], r
+      );
+      if (Math.abs(bulge) < 1e-9) { rounded.push(pts[i]); continue; } // collinear, filletCorner declined
+      // filletCorner already used radius `r` to build this fillet, so
+      // the arc's own radius is exactly `r` — no need to recover it from
+      // the bulge. Only the center is unknown: it sits on the chord's
+      // own perpendicular bisector, offset by however far a chord of
+      // this length needs to reach radius `r` from its midpoint, on
+      // whichever side the bulge's own sign indicates. Verified directly
+      // against filletCorner's own worked example (a 90° corner at
+      // (200,0) turning from (0,0) toward (200,200), fillet radius 50):
+      // that call returns bulge > 0, and the fillet's own correct center
+      // is (150,50) — which matches perp=(dy,-dx) at bulge>0 below, not
+      // the other sign (an earlier version of this code had the two
+      // swapped, verified by checking that the "wrong" perp choice
+      // placed the center ON the corner's own second edge line, which is
+      // geometrically impossible for a genuine tangent circle).
+      const mid = { x: (tIn[0]+tOut[0])/2, y: (tIn[1]+tOut[1])/2 };
+      const chordLen = dist(tIn, tOut);
+      const h = Math.sqrt(Math.max(0, r*r - (chordLen/2)*(chordLen/2)));
+      const dx = (tOut[0]-tIn[0])/chordLen, dy = (tOut[1]-tIn[1])/chordLen;
+      const perp = bulge > 0 ? { x: -dy, y: dx } : { x: dy, y: -dx };
+      const center = { x: mid.x + perp.x*h, y: mid.y + perp.y*h };
+      // Both endpoints of this fillet share the SAME arc object (by
+      // reference, not just equal values) — buildRail below relies on
+      // `a._arc === b._arc` to recognize when two adjacent offset
+      // vertices came from one continuous arc (vs. two straight
+      // corners that just happen to have identical center/radius,
+      // which can't actually happen here, but relying on value equality
+      // instead of reference equality would be fragile either way).
+      const arc = { cx: center.x, cy: center.y, r, ccw: bulge > 0 };
+      rounded.push({ x: tIn[0], y: tIn[1], arc });
+      rounded.push({ x: tOut[0], y: tOut[1], arc });
+    }
+    rounded.push(pts[pts.length - 1]);
+
+    // Builds one offset rail (side = +1 or -1) as a list of {x,y,bulge}
+    // vertices, walking `rounded` in order. A straight vertex offsets by
+    // hw along its own local perpendicular (averaged from its
+    // neighbors, same as the old normal() helper); a vertex that's part
+    // of an arc offsets by staying on the SAME arc's own center, at
+    // radius r∓hw — the sign (which side gets the smaller radius)
+    // depends on the arc's own CCW/CW direction, verified directly
+    // against a worked example rather than assumed (see buildRail's own
+    // dirSign comment below).
+    function buildRail(side){
+      const verts = [];
+      for (let i = 0; i < rounded.length; i++){
+        const v = rounded[i];
+        if (v.arc) {
+          const dxc = v.x - v.arc.cx, dyc = v.y - v.arc.cy;
+          const distFromCenter = Math.hypot(dxc, dyc) || 1;
+          // Verified directly against the same worked example as the
+          // center-sign fix above: for that CCW turn, the LEFT rail
+          // (side=+1) is the turn's own inside, which needs the SMALLER
+          // radius (r-hw) — i.e. dirSign=-1 when ccw is true and side=+1.
+          const dirSign = v.arc.ccw ? -1 : 1;
+          const newR = v.arc.r + side*dirSign*hw;
+          const ux = dxc/distFromCenter, uy = dyc/distFromCenter;
+          verts.push({ x: v.arc.cx + ux*newR, y: v.arc.cy + uy*newR, _arc: v.arc, _side: side });
+        } else {
+          const prevPt = rounded[Math.max(i-1,0)], nextPt = rounded[Math.min(i+1,rounded.length-1)];
+          const dx = nextPt.x - prevPt.x, dy = nextPt.y - prevPt.y, len = Math.hypot(dx,dy) || 1;
+          const nx = -dy/len, ny = dx/len;
+          verts.push({ x: v.x + side*hw*nx, y: v.y + side*hw*ny, _arc: null });
+        }
+      }
+      // Assign bulge to each vertex for the segment TO the next vertex:
+      // 0 for a straight run, or the arc's own bulge (same center/radius
+      // pair shared by both this vertex and the next, when both belong
+      // to the same source arc) recomputed for the offset radius.
+      const out = [];
+      for (let i = 0; i < verts.length; i++){
+        const a = verts[i], b = verts[i+1];
+        let bulgeVal = 0;
+        if (b && a._arc && b._arc && a._arc === b._arc) {
+          const r = dist([a.x,a.y],[a._arc.cx,a._arc.cy]);
+          const chord = dist([a.x,a.y],[b.x,b.y]);
+          const sweepHalf = Math.asin(Math.min(1, chord/(2*r || 1)));
+          bulgeVal = Math.tan(sweepHalf/2) * (a._arc.ccw ? 1 : -1);
+        }
+        out.push({ x: a.x, y: a.y, bulge: bulgeVal });
+      }
+      return out;
+    }
+
+    const leftRail = buildRail(1);
+    const rightRail = buildRail(-1);
+
+    // Assemble the closed contour: left rail forward (each vertex
+    // already carries the bulge for ITS OWN segment to the next left
+    // vertex), a semicircular cap at the far end (bulge tan(90°/2)=1,
+    // sweeping from the left rail's own last point directly to the
+    // right rail's own last point — no intermediate vertex, the arc
+    // itself IS the transition), right rail backward (walking it in
+    // reverse means each vertex's own forward-direction bulge belongs
+    // to the segment BEHIND it now, i.e. vertex k's bulge moves to
+    // vertex k-1 once reversed, with its sign flipped since the
+    // direction of travel through that arc is now reversed too), and a
+    // matching cap back to the left rail's own start.
+    const contour = [];
+    for (const v of leftRail) contour.push({ x: v.x, y: v.y, bulge: v.bulge });
+    contour[contour.length - 1].bulge = 1; // far-end cap: sweeps from here straight to rightRail's own last point
+    for (let i = rightRail.length - 1; i >= 0; i--){
+      // Reversed traversal: this vertex's own segment (to the NEXT
+      // vertex in reversed order, i.e. rightRail[i-1]) carries whatever
+      // bulge rightRail[i-1] originally had for ITS forward segment
+      // (rightRail[i-1] -> rightRail[i]) — same arc, opposite direction
+      // of travel, so the sign flips.
+      const bulge = i > 0 ? -rightRail[i-1].bulge : 1; // the last vertex (i=0) is itself the near-end cap
+      contour.push({ x: rightRail[i].x, y: rightRail[i].y, bulge });
+    }
+
     return signedArea(contour) >= 0 ? contour : reverseContour(contour);
   }
 
@@ -2256,37 +2384,6 @@ Elements.register((() => {
     return [source, stubA, ...middle, stubB, target];
   }
 
-  // Radius for a groove of the given width along `path`, capped at
-  // MAX_CORNER_RADIUS but never larger than fits the shortest segment in
-  // the path (so a short stub or short middle leg doesn't get a fillet
-  // that would overrun it). Computed on the path AFTER groovePolyline's
-  // own short-segment merge (using the same mergeShortSegments helper,
-  // at the same `width` threshold) rather than the raw path, so a short
-  // segment that's going to be collapsed away anyway doesn't needlessly
-  // shrink the radius used for the real, post-merge corners.
-  //
-  // Uses (shortest segment - width) / 2, not the more obvious minSeg/2:
-  // minSeg/2 leaves zero straight clearance on a segment that's rounded
-  // at both its own ends, and empirically that's not actually safe even
-  // well below that boundary — the channel's own width consumes real
-  // space near each corner regardless of the segment's length (the
-  // offset rails sit `width/2` off the centerline, so tight turns need
-  // room for the RAILS to clear, not just the centerline's own path).
-  // Verified directly: a 9.4mm segment at 5.5mm width still
-  // self-intersected at a radius as small as 2.3mm (well under the
-  // naive 4.7mm half), only becoming reliably safe around 1.9mm — this
-  // formula lands at 1.94mm for that exact case, with the `width`
-  // subtraction scaling appropriately for other segment/width
-  // combinations rather than needing a hand-tuned constant divisor.
-  function cornerRadiusFor(path, width){
-    const merged = mergeShortSegments(path, width);
-    let minSeg = Infinity;
-    for (let i = 0; i < merged.length - 1; i++){
-      minSeg = Math.min(minSeg, Geo.dist([merged[i].x,merged[i].y],[merged[i+1].x,merged[i+1].y]));
-    }
-    return Math.max(0, Math.min(MAX_CORNER_RADIUS, (minSeg - width) / 2));
-  }
-
   // Builds one channel's groove contour, with a final safety net: if the
   // routed path's own groove still self-intersects despite every check
   // already applied while building that path (turn-angle validation,
@@ -2300,15 +2397,22 @@ Elements.register((() => {
   // in that fallback case, but a plain, correctly-milled straight
   // channel is strictly better than the alternative of silently
   // emitting self-crossing toolpath geometry.
+  //
+  // MAX_CORNER_RADIUS is passed straight through as groovePolyline's own
+  // ceiling — groovePolyline itself works out each joint's own actual
+  // radius (capped by ITS two adjacent segments, not the whole path's
+  // shortest one), so there's nothing left for this function to
+  // pre-compute; a single short leg anywhere in the route no longer
+  // flattens every other corner in the same path to a point.
   function buildChannelContour(source, target, width, layer, entries){
     const path = fullPath(source, target, width);
-    const contour = Geo.groovePolyline(path, width, cornerRadiusFor(path, width));
+    const contour = Geo.groovePolyline(path, width, MAX_CORNER_RADIUS);
     if (!contourSelfIntersects(contour)) {
       entries.push({ contour, layer });
       return;
     }
     const straight = [source, target];
-    entries.push({ contour: Geo.groovePolyline(straight, width, cornerRadiusFor(straight, width)), layer });
+    entries.push({ contour: Geo.groovePolyline(straight, width, MAX_CORNER_RADIUS), layer });
   }
 
   function buildContours(p){
