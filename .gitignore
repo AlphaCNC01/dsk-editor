@@ -1,0 +1,6 @@
+(js/ui/element-managers.js
+js/ui/embeddable-manager.js
+js/ui/html-helpers.js
+js/ui/instance-list-manager.js
+js/ui/ui-main.js
+index.html)
