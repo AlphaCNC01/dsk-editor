@@ -64,6 +64,9 @@
     const inst = data.instances || {};
     for (const { key, mgr } of UI.ELEMENT_MANAGERS) mgr.setItems(inst[key]);
     UI.render();
+    // A loaded project is a new drawing — any zoom/pan left over from
+    // whatever was on screen before shouldn't carry over onto it.
+    if (UI.resetZoom) UI.resetZoom();
   }
 
   function loadProject(file){
