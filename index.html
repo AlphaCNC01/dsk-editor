@@ -11,6 +11,11 @@
 
   <div id="preview">
     <svg id="stage" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="zoomControls">
+      <button type="button" id="zoomOutBtn" class="zoom-btn" title="Уменьшить" aria-label="Уменьшить">−</button>
+      <button type="button" id="zoomResetBtn" class="zoom-btn zoom-percent" title="Сбросить масштаб">100%</button>
+      <button type="button" id="zoomInBtn" class="zoom-btn" title="Увеличить" aria-label="Увеличить">+</button>
+    </div>
   </div>
 
   <div id="controls">
@@ -193,6 +198,7 @@
 <script src="js/ui/field-helpers.js"></script>
 <script src="js/ui/element-managers.js"></script>
 <script src="js/ui/app-render.js"></script>
+<script src="js/ui/zoom.js"></script>
 <script src="js/ui/app-project.js"></script>
 
 </body>

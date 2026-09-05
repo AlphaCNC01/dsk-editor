@@ -52,7 +52,43 @@
     line-height:1.6;
   }
   #preview .dims b{ color:var(--ink); font-weight:600; }
-  svg#stage{ max-width:92%; max-height:82%; overflow:visible; }
+  svg#stage{ max-width:92%; max-height:82%; overflow:visible; transform-origin:0 0; }
+  #preview.zoomed svg#stage{ cursor:grab; }
+  #preview.zoomed.panning svg#stage{ cursor:grabbing; }
+
+  /* Zoom controls: a small pill of icon buttons pinned to the bottom-right
+     of the preview pane, kept visually consistent with .btn-icon
+     elsewhere. zoomResetBtn doubles as the live percentage readout — its
+     own label is set from JS (see zoom.js) rather than fixed markup,
+     since it always shows the CURRENT zoom level, not a static "Reset"
+     caption. */
+  #zoomControls{
+    position:absolute;
+    bottom:16px; right:20px;
+    display:flex;
+    align-items:stretch;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    overflow:hidden;
+    font-family:var(--mono);
+    z-index:5;
+  }
+  .zoom-btn{
+    background:transparent;
+    color:var(--ink);
+    border:none;
+    border-left:1px solid var(--line);
+    padding:8px 12px;
+    font-family:var(--mono);
+    font-size:14px;
+    line-height:1;
+    cursor:pointer;
+  }
+  .zoom-btn:first-child{ border-left:none; }
+  .zoom-btn:hover{ background:var(--panel); color:var(--accent); }
+  .zoom-btn:active{ transform:translateY(1px); }
+  .zoom-percent{ font-size:11px; min-width:52px; }
   /* Per-layer colors/fills are generated inline from Layers.registry's
      own `style` field (see RenderSVG.styleFor) rather than fixed CSS
      classes here — a new layer only needs a `style` added to its
