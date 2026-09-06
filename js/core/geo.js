@@ -460,25 +460,41 @@ const Geo = (() => {
 
     // Assemble the closed contour: left rail forward (each vertex
     // already carries the bulge for ITS OWN segment to the next left
-    // vertex), a semicircular cap at the far end (bulge tan(90°/2)=1,
-    // sweeping from the left rail's own last point directly to the
-    // right rail's own last point — no intermediate vertex, the arc
+    // vertex), a semicircular cap at the far end (bulge -1, i.e. a 90°
+    // sweep bulging AWAY from the channel — see the cap-sign note below
+    // — sweeping from the left rail's own last point directly to the
+    // right rail's own last point, no intermediate vertex, the arc
     // itself IS the transition), right rail backward (walking it in
     // reverse means each vertex's own forward-direction bulge belongs
     // to the segment BEHIND it now, i.e. vertex k's bulge moves to
     // vertex k-1 once reversed, with its sign flipped since the
     // direction of travel through that arc is now reversed too), and a
     // matching cap back to the left rail's own start.
+    //
+    // Cap sign: the contour is assembled walking the LEFT rail forward
+    // (source -> target) then the RIGHT rail backward (target ->
+    // source) — i.e. CCW around the channel as drawn here (confirmed by
+    // signedArea being positive for this un-reversed ordering, checked
+    // directly). A semicircular cap that bulges OUTWARD, away from the
+    // channel's own centerline (the only correct shape for a milled
+    // slot's rounded end — it must clear the full width, not carve back
+    // into it), is therefore a CW turn relative to the direction of
+    // travel at each end, i.e. bulge = -1, not +1. Bulge +1 here was
+    // verified directly (via tessellation) to draw the cap bulging
+    // INWARD instead — a semicircle biting back into the channel's own
+    // interior by a full hw at both ends rather than rounding its
+    // exterior — which is the wrong-way-round cap this comment used to
+    // describe as correct.
     const contour = [];
     for (const v of leftRail) contour.push({ x: v.x, y: v.y, bulge: v.bulge });
-    contour[contour.length - 1].bulge = 1; // far-end cap: sweeps from here straight to rightRail's own last point
+    contour[contour.length - 1].bulge = -1; // far-end cap: bulges outward, away from the channel
     for (let i = rightRail.length - 1; i >= 0; i--){
       // Reversed traversal: this vertex's own segment (to the NEXT
       // vertex in reversed order, i.e. rightRail[i-1]) carries whatever
       // bulge rightRail[i-1] originally had for ITS forward segment
       // (rightRail[i-1] -> rightRail[i]) — same arc, opposite direction
       // of travel, so the sign flips.
-      const bulge = i > 0 ? -rightRail[i-1].bulge : 1; // the last vertex (i=0) is itself the near-end cap
+      const bulge = i > 0 ? -rightRail[i-1].bulge : -1; // near-end cap, same outward-bulging cap as the far end
       contour.push({ x: rightRail[i].x, y: rightRail[i].y, bulge });
     }
 

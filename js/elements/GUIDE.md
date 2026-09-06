@@ -304,48 +304,24 @@ If the element can be a **source or target for a milled cable channel**, two thi
 
 ### 1. Add a `cableNode`
 
-Add the `cableNode` in **Step 1**.
+Add the `cableNode` in **Step 1**. This works the same whether the element is a source, a target, or both.
 
-### 2. Wire the connection
+### 2a. Wiring a new TARGET element
 
-Find the `cableChannels` element by searching for:
+Every source's `cableTarget` field is resolved by `resolveCableTarget` inside the `cableChannels` element (search for `Element: Cable channels`). It currently understands three target kinds: `'none'`, `'tslot'` (the T-slot notch, a fixed single target — see `tSlotEntryPoints`), and `'smallPocket:<n>'` / `'bigPocket:<n>'` (the n-th instance, 0-based in creation order, of that `cablePocket` type — see `worldNodes`).
 
-```text
-Element: Cable channels
-```
+To add a brand-new TARGET element (not just another `cablePocket` type), extend `resolveCableTarget` with one more branch that resolves your element's own key/prefix into a world-space node the same way the pocket branch does — filter that element's own instances (by type, if it has variants), call `worldNodes` on them, and index into the result.
 
-Then wire the actual connection there.
+### 2b. Wiring a new SOURCE element
 
-There are two approaches:
+A source just needs:
 
-#### Fixed target
+1. Its own `cableTarget` field on each instance (a plain string, defaulting to `'none'`), driven by `UI.cableTargetSelectHtml`/`cableTargetLabel` in its manager config (see `chargerMgr`/`usbChargerMgr`/`pultMgr` in `element-managers.js`) — **every** source offers the exact same target vocabulary (T-slot + every pocket of every type), so there is nothing element-specific to configure there beyond the label.
+2. One `routeToChosenTarget(instances, variantsById, width, layer, p, entries)` call added to `buildContours`, alongside the existing three.
 
-Add the element as a new `nearestPoint` target list, similar to a T-slot-style fixed target.
+### Target no longer exists
 
-#### Nearest instance
-
-Call:
-
-```js
-routeToNearestTarget
-```
-
-with the element's:
-
-- `paramsKey`
-- `*_VARIANTS` constant
-
-This is suitable for connections such as:
-
-```text
-usbCharger -> cablePocket
-```
-
-### Multiple element types
-
-If a single element has multiple types, such as `cablePocket`, filter `targetInstances` to the correct `type` **before** passing it in.
-
-This ensures that the channel routes only to the matching variant.
+If a source's chosen `cableTarget` no longer resolves (pocket deleted, its type changed, or the T-slot removed), `resolveCableTarget` returns `null` and that source's channel is silently skipped — it does **not** fall back to some other target. This is a deliberate choice: the person picked a specific target, so silently rerouting to a different one would be a surprise, not a convenience.
 
 ---
 
