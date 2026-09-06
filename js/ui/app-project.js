@@ -17,7 +17,6 @@
   const SIMPLE_INPUT_IDS = [
     'orderNumber', 'rectW', 'rectH', 'rectThickness', 'rTop', 'rBottom', 'rNotch',
     'notchOn', 'notchH', 'notchBottom', 'notchTop',
-    'topNotchType', 'topNotchWidth', 'topNotchOffset', 'rTopNotch',
     'underframeType', 'underframeInsetH', 'underframeInsetV',
     'dimensionsOn',
   ];
@@ -62,6 +61,27 @@
       else input.value = val === null || val === undefined ? '' : val;
     }
     const inst = data.instances || {};
+    // Migrate pre-list top-notch projects: older files (before top
+    // notches became a repeatable list) stored a single notch as plain
+    // fields on `values` (topNotchType/topNotchWidth/topNotchOffset/
+    // rTopNotch) instead of an `instances.topNotches` array. If this file
+    // predates the list (no topNotches array present at all) but has a
+    // real configured notch in the old fields, turn it into a one-item
+    // list so the loaded drawing matches what the old file actually
+    // showed, instead of silently losing that notch.
+    if (!inst.topNotches) {
+      const v = data.values;
+      const oldType = v && v.topNotchType;
+      const oldWidth = v && parseFloat(v.topNotchWidth);
+      if ((oldType === 'tslot' || oldType === 'rect') && oldWidth > 0) {
+        inst.topNotches = [{
+          type: oldType,
+          width: oldWidth,
+          offset: parseFloat(v.topNotchOffset) || 0,
+          r: parseFloat(v.rTopNotch) || 0,
+        }];
+      }
+    }
     for (const { key, mgr } of UI.ELEMENT_MANAGERS) mgr.setItems(inst[key]);
     UI.render();
     // A loaded project is a new drawing — any zoom/pan left over from

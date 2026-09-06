@@ -300,6 +300,22 @@ This prevents a stale anchor from being carried over from another type.
 
 ---
 
+# Non-Embeddable Lists — Top Notches
+
+Not every repeatable element fits the anchor-positioned embeddable pattern above. `topNotches` (the T-slot/rectangular cutouts milled into the tabletop's own top edge — see `tabletop.js`'s `buildTopNotchCorners`) is one: a notch isn't a separate part placed at an anchor + inset, it's a piece cut directly out of the tabletop's own outline contour, positioned by a center offset along that one edge, with no anchor grid, rotation, or mirror.
+
+For this kind of element, skip `createEmbeddableManager` and use `UI.createInstanceListManager` directly (see `topNotchMgr` in `element-managers.js` for the full example):
+
+1. Call `UI.ensureElementSection(key, label, addLabel)` yourself to get a `containerId`/`addBtnId`.
+2. Write `rowHtml` by hand — whatever fields this element actually needs, with no anchor/inset/transform markup assumed.
+3. Call `UI.createInstanceListManager({ containerId, addBtnId, itemLabel, defaults, rowHtml, onChange, onFieldChange })`.
+4. If the element has nothing to resolve against other params (no placeholder-driven defaults), set `mgr.resolveItems = (p) => mgr.items` and `mgr.updatePlaceholders = () => {}` so it still plugs into the shared `ELEMENT_MANAGERS` loop (save/load, `readParams`) without special-casing anywhere else.
+5. Register it in `ELEMENT_MANAGERS` exactly like any other element — that part doesn't change.
+
+Because a notch cuts into the tabletop's own contour rather than sitting inside its own closed shape, its own geometry code (`tabletop.js`) is what iterates the list and inserts every notch's own corners into the outline — not a generic per-instance `buildContours` call like every embeddable element gets from `registerSimpleEmbeddable`.
+
+---
+
 # Optional — Cable Channels
 
 If the element can be a **source or target for a milled cable channel**, two things are required.
@@ -310,7 +326,7 @@ Add the `cableNode` in **Step 1**. This works the same whether the element is a 
 
 ### 2a. Wiring a new TARGET element
 
-Every source's `cableTarget` field is resolved by `resolveCableTarget` inside the `cableChannels` element (search for `Element: Cable channels`). It currently understands three target kinds: `'none'`, `'tslot'` (the T-slot notch, a fixed single target — see `tSlotEntryPoints`), and `'smallPocket:<n>'` / `'bigPocket:<n>'` (the n-th instance, 0-based in creation order, of that `cablePocket` type — see `worldNodes`).
+Every source's `cableTarget` field is resolved by `resolveCableTarget` inside the `cableChannels` element (search for `Element: Cable channels`). It currently understands three target kinds: `'none'`, `'tslot:<n>'` (the n-th instance, 0-based in creation order, of the `topNotches` list whose type is `'tslot'` — see `allTSlotEntryPoints`), and `'smallPocket:<n>'` / `'bigPocket:<n>'` (the n-th instance, 0-based in creation order, of that `cablePocket` type — see `worldNodes`).
 
 To add a brand-new TARGET element (not just another `cablePocket` type), extend `resolveCableTarget` with one more branch that resolves your element's own key/prefix into a world-space node the same way the pocket branch does — filter that element's own instances (by type, if it has variants), call `worldNodes` on them, and index into the result.
 

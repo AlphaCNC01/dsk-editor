@@ -54,7 +54,7 @@
       <input type="file" id="loadProjectInput" accept="application/json,.json" style="display:none;">
     </fieldset>
 
-    <fieldset>
+    <fieldset id="tabletopSizeSection">
       <legend>Столешница</legend>
       <div class="row2">
         <div class="field">
@@ -111,34 +111,6 @@
             <label>Скругление углов <span class="unit">мм</span></label>
             <input type="number" id="rNotch" value="50" min="0" step="1">
           </div>
-        </div>
-      </div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Вырез для проводов</legend>
-      <div class="field">
-        <label>Тип выреза</label>
-        <select id="topNotchType">
-          <option value="none">Нет выреза</option>
-          <option value="tslot">Т-образный</option>
-          <option value="rect">Прямоугольный</option>
-        </select>
-      </div>
-      <div id="topNotchFields" style="margin-top:12px;">
-        <div class="row2">
-          <div class="field">
-            <label>Ширина выреза <span class="unit">мм</span></label>
-            <input type="number" id="topNotchWidth" value="300" min="0" step="1">
-          </div>
-          <div class="field">
-            <label>Смещение <span class="unit">мм</span></label>
-            <input type="number" id="topNotchOffset" value="0" step="1">
-          </div>
-        </div>
-        <div class="field">
-          <label>Скругление углов <span class="unit">мм</span></label>
-          <input type="number" id="rTopNotch" value="5" min="0" step="1">
         </div>
       </div>
     </fieldset>

@@ -204,16 +204,20 @@ const Dimensions = (() => {
       add(buildLinearDimension({ x: nBR.x, y: 0 }, { x: nBR.x, y: params.notchH }, 15, formatMm));
     }
 
-    // Top notch (T-slot or rectangular): width, and horizontal offset
-    // from center only when the person has actually shifted it.
-    if (params.topNotchType !== 'none') {
-      const cx = W / 2 + params.topNotchOffset;
-      const half = params.topNotchWidth / 2;
-      // Placed above the tabletop (mirrors the overall-width placement
-      // pattern, but on the opposite edge, so it never collides with the
-      // bottom-notch stack).
+    // Top notches (T-slot / rectangular), one or more: each gets its own
+    // width dimension, and its own offset-from-center dimension only when
+    // it's actually been shifted. All placed above the tabletop, same as
+    // the single-notch version — placeDimension's own collision stacking
+    // (see its comment above) pushes overlapping ones further out
+    // automatically when two notches sit close together, so nothing here
+    // needs to know about the others.
+    for (const notch of (params.topNotches || [])) {
+      if (!(notch.width > 0)) continue;
+      if (notch.dimensionsOn === false) continue;
+      const cx = W / 2 + (notch.offset || 0);
+      const half = notch.width / 2;
       add(buildLinearDimension({ x: cx - half, y: H }, { x: cx + half, y: H }, gap, formatMm));
-      if (params.topNotchOffset !== 0) {
+      if (notch.offset) {
         add(buildLinearDimension({ x: W / 2, y: H }, { x: cx, y: H }, gap + 25, formatMm));
       }
     }

@@ -4,9 +4,10 @@
 // usbCharger, pult) to a target the user explicitly PICKS via that
 // source's own `cableTarget` field  one of:
 //   - 'none'                 no channel (default)
-//   - 'tslot'                 the T-slot notch (whichever of its own two
-//     base-arm entry points, left/right  see tSlotEntryPoints  is closer
-//     to the source), on CABLE_CHANNEL_4 (4x4mm)
+//   - 'tslot:<n>'             the n-th (0-based, counting only among
+//     'tslot'-type topNotches instances, in list order) T-slot notch's
+//     own two base-arm entry points (whichever, left/right, is closer to
+//     the source  see tSlotEntryPoints), on CABLE_CHANNEL_4 (4x4mm)
 //   - 'smallPocket:<n>'       the n-th (0-based, in creation order) small
 //     cablePocket instance, on CABLE_CHANNEL_5_5 (5.5x5.5mm)
 //   - 'bigPocket:<n>'         the n-th big cablePocket instance, on
@@ -81,8 +82,16 @@ Elements.register((() => {
   // channel entirely in that case, exactly like an unset/'none' target.
   function resolveCableTarget(cableTarget, source, p){
     if (!cableTarget || cableTarget === 'none') return null;
-    if (cableTarget === 'tslot') {
-      const tSlot = tSlotEntryPoints(p);
+    // 'tslot:<n>' — the n-th T-slot notch (0-based, counting only among
+    // topNotches entries of type 'tslot' — see allTSlotEntryPoints in
+    // tabletop.js and its matching updateCableTargetOptions counter in
+    // field-helpers.js). Whichever of that notch's own two base-arm entry
+    // points (left/right) is closer to the source is picked, same as the
+    // old single-T-slot behavior.
+    const tSlotMatch = /^tslot:(\d+)$/.exec(cableTarget);
+    if (tSlotMatch) {
+      const idx = parseInt(tSlotMatch[1], 10);
+      const tSlot = allTSlotEntryPoints(p)[idx];
       if (!tSlot) return null;
       return nearestPoint(source, [tSlot.left, tSlot.right]);
     }

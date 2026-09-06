@@ -101,9 +101,13 @@
     if (!containerEl) return;
     const smallCount = (p.cablePockets || []).filter(i => i.type === 'small').length;
     const bigCount = (p.cablePockets || []).filter(i => i.type === 'big').length;
-    const hasTSlot = p.topNotchType === 'tslot' && p.topNotchWidth > 0;
+    // T-slots are indexed among topNotches entries of type 'tslot' only,
+    // 0-based in list order — same "count only within this type" rule as
+    // the pocket counts just above (see cable-channels.js's
+    // resolveCableTarget for the matching lookup).
+    const tSlotCount = (p.topNotches || []).filter(n => n.type === 'tslot' && n.width > 0).length;
     let optionsHtml = '<option value="none">Нет</option>';
-    if (hasTSlot) optionsHtml += '<option value="tslot">Т-вырез</option>';
+    for (let i = 0; i < tSlotCount; i++) optionsHtml += `<option value="tslot:${i}">Т-вырез №${i + 1}</option>`;
     for (let i = 0; i < bigCount; i++) optionsHtml += `<option value="bigPocket:${i}">Большой карман №${i + 1}</option>`;
     for (let i = 0; i < smallCount; i++) optionsHtml += `<option value="smallPocket:${i}">Малый карман №${i + 1}</option>`;
 
@@ -176,7 +180,16 @@
   // in the container/button ids from `key` and builds the markup on the
   // fly. The existence check just guards against double-creating a
   // section if this is ever accidentally called twice for the same key.
-  function ensureElementSection(key, label, addLabel){
+  //
+  // By default the new section is appended at the end of the panel (same
+  // as every other list-based element, whose visible order otherwise
+  // just follows call order in element-managers.js — see that file's own
+  // comment). `insertBeforeId`, when given, places the section right
+  // before that existing element instead — e.g. pinning the top-notch
+  // section to the very top of the panel, above the static
+  // size/underframe fieldsets, which a plain call-order position could
+  // never reach since those aren't JS-created at all.
+  function ensureElementSection(key, label, addLabel, insertBeforeId){
     const containerId = `${key}List`;
     const addBtnId = `add${key.charAt(0).toUpperCase()}${key.slice(1)}Btn`;
     if (!document.getElementById(containerId)) {
@@ -186,7 +199,10 @@
         <div id="${containerId}"></div>
         <button type="button" id="${addBtnId}" class="btn-add">+ ${addLabel}</button>
       `;
-      document.getElementById('controls').appendChild(fieldset);
+      const controls = document.getElementById('controls');
+      const beforeEl = insertBeforeId ? document.getElementById(insertBeforeId) : null;
+      if (beforeEl) controls.insertBefore(fieldset, beforeEl);
+      else controls.appendChild(fieldset);
     }
     return { containerId, addBtnId };
   }
