@@ -75,8 +75,8 @@ Elements.register((() => {
       }));
     };
     const entries = [];
-    for (const contour of data.frameOutline) entries.push({ contour: ensureCCW(place(contour)), layer: 'UNDERFRAME' });
-    for (const contour of data.frameHoles) entries.push({ contour: ensureCCW(place(contour)), layer: 'UNDERFRAME_HOLES' });
+    for (const contour of data.frameOutline) entries.push({ contour: ensureCCW(place(contour)), layer: 'PHYSICAL' });
+    for (const contour of data.frameHoles) entries.push({ contour: ensureCCW(place(contour)), layer: 'HOLES' });
     return entries;
   }
 

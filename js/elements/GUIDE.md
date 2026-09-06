@@ -35,7 +35,7 @@ const MY_ELEMENT_VARIANTS = registerSimpleEmbeddable({
           verts: [
             // ...bulge-arc vertices, local (0,0)-centered...
           ],
-          layer: 'ELEMENTS'
+          layer: 'PHYSICAL'
         },
       ]
     },
@@ -57,7 +57,7 @@ const MY_ELEMENT_VARIANTS = registerSimpleEmbeddable({
 1. Machining metadata (see the **Layers registry**).
 2. Preview color.
 
-Reuse an existing layer name such as `ELEMENTS` or `UNDERFRAME`, or add a new one to the Layers registry if this element needs its own depth/color.
+Reuse an existing layer name from the **Layers registry** (see `js/core/layers.js` — e.g. `PHYSICAL` for reference/structural outlines, `HOLES` for mounting holes, `CUTOUT` for a through-cut opening), or add a new one if this element needs its own depth/color.
 
 For example:
 
@@ -103,7 +103,9 @@ This color is used by DXF-reading CAD tools and is independent of `style.stroke`
 
 Omit it entirely for a layer that is purely reference geometry and is never milled, such as `DIMENSIONS`.
 
-See the comment atop `Layers.registry` for the meaning of each machining field.
+`millType` is either `'pocket'` (clear the whole enclosed area) or one of three contour-following modes that only differ in cutter-radius compensation: `'contour'` (cut exactly along the path), `'outside'` (offset outward, so the piece inside the path comes out full size — e.g. the tabletop's own silhouette), or `'inside'` (offset inward, so the opening inside the path comes out full size — e.g. a cutout for an insert).
+
+See the comment atop `Layers.registry` for the meaning of every machining field.
 
 ### Cable node
 

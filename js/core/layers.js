@@ -42,27 +42,86 @@ const Layers = (() => {
   //                5mm deep, starting from the bottom face"; side='bottom',
   //                depth=0, depthAnchor='top' means "cut all the way
   //                through" (the bottom-side cut reaches the top face).
-  //   millType   — 'contour' (just follow the path, e.g. an outline cut)
-  //                or 'pocket' (clear the whole enclosed area, e.g. a
-  //                recess) — 'contour' by default.
+  //   millType   — 'pocket' (clear the whole enclosed area, e.g. a
+  //                recess) or one of three contour-following modes,
+  //                which only differ in how the cutter's own radius is
+  //                compensated for a closed path (irrelevant for pockets
+  //                and for open/reference lines):
+  //                  'contour' — cut exactly along the path itself,
+  //                              splitting the kerf between the two
+  //                              sides (used when the exact line matters
+  //                              more than which side stays which size)
+  //                  'outside' — offset the toolpath outward, so the
+  //                              piece inside the path ends up at its
+  //                              full nominal size (e.g. the tabletop's
+  //                              own silhouette — the panel itself must
+  //                              come out true to size)
+  //                  'inside'  — offset the toolpath inward, so the
+  //                              opening inside the path ends up at its
+  //                              full nominal size (e.g. a cutout whose
+  //                              hole needs to fit an insert)
+  //                'contour' by default. These cutter-compensation
+  //                settings aren't dialed in yet (values above are
+  //                placeholders) — to be configured later.
   // DIMENSIONS has no `machining` — it's pure on-screen/on-paper
   // reference, never actually cut.
   const registry = {
-    OUTLINE:			{ name: 'OUTLINE',			color: 7, style: { stroke: '#ff8a3d', fillOpacity: 0.06, strokeWidth: 2 }, machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'outside' } }, // tabletop silhouette
-    CUTOUT:				{ name: 'CUTOUT',			color: 7, style: { stroke: '#ff8a3d', fillOpacity: 0 }, machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside' } }, // tabletop cutouts
-    PHYSICAL:			{ name: 'PHYSICAL',			color: 5, style: { stroke: '#4d8ff0', fillOpacity: 0 } }, // physical parts that is not part of a tabletop, for reference
-    UNDERFRAME:			{ name: 'UNDERFRAME',		color: 5, style: { stroke: '#4d8ff0', fillOpacity: 0, strokeWidth: 1.5 } }, // physical underframe parts: legs, control panel
-    HOLES:				{ name: 'HOLES',			color: 6, style: { stroke: '#b06fe0', fillOpacity: 0 }, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } }, // mounting holes
-    UNDERFRAME_HOLES:	{ name: 'UNDERFRAME_HOLES',	color: 6, style: { stroke: '#b06fe0', fillOpacity: 0, strokeWidth: 1 }, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } }, // mounting holes for the underframe parts
-    ELEMENTS:			{ name: 'ELEMENTS',			color: 3, style: { stroke: '#4cc97c', fillOpacity: 0.08, strokeWidth: 1.5 }, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } },
-    ELEMENTS_BACK:		{ name: 'ELEMENTS_BACK',	color: 4, style: { stroke: '#4dcfe0', fillOpacity: 0.08, strokeWidth: 1.5, dashed: true }, machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'pocket' } },
-    ENGRAVING:			{ name: 'ENGRAVING',		color: 3, style: { stroke: '#4cc97c', fillOpacity: 0.1 }, machining: { side: 'top', depth: 0.5, depthAnchor: 'top', millType: 'pocket' } },
-    PHONESTAND:			{ name: 'PHONESTAND',		color: 3, style: { stroke: '#4cc97c', fillOpacity: 0.15 }, machining: { side: 'top', depth: 11, depthAnchor: 'top', millType: 'pocket' } },
-    WIRELESS_POCKET:	{ name: 'WIRELESS_POCKET',	color: 3, style: { stroke: '#4cc97c', fillOpacity: 0.15 }, machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
-    CABLE_CHANNEL_4:	{ name: 'CABLE_CHANNEL_4',	color: 4, style: { stroke: '#e0a84a', fillOpacity: 0.12, strokeWidth: 1, dashed: true }, machining: { side: 'bottom', depth: 4, depthAnchor: 'top', millType: 'pocket' } }, // 4x4mm cable channel groove
-    CABLE_CHANNEL_5_5:	{ name: 'CABLE_CHANNEL_5_5',	color: 4, style: { stroke: '#e0a84a', fillOpacity: 0.18, strokeWidth: 1.5, dashed: true }, machining: { side: 'bottom', depth: 5.5, depthAnchor: 'top', millType: 'pocket' } }, // 5.5x5.5mm cable channel groove
-    CABLE_POCKET:		{ name: 'CABLE_POCKET',	color: 4, style: { stroke: '#e0a84a', fillOpacity: 0.25, strokeWidth: 1.5 }, machining: { side: 'bottom', depth: 5.5, depthAnchor: 'top', millType: 'pocket' } },
-    DIMENSIONS:			{ name: 'DIMENSIONS',		color: 1, style: { stroke: '#e05a5a', fillOpacity: 1, strokeWidth: 1 } }, // dimension lines — pure reference, never milled, so no `machining` at all
+  // tabletop silhouette
+  OUTLINE: { name: 'OUTLINE', color: 7,
+    style: { stroke: '#ff8a3d', fillOpacity: 0, strokeWidth: 2 },
+    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'outside' } },
+
+  // tabletop cutouts
+  CUTOUT: { name: 'CUTOUT', color: 7,
+    style: { stroke: '#ff8a3d', fillOpacity: 0 },
+    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside' } },
+
+  // physical parts that is not part of a tabletop, for reference
+  PHYSICAL: { name: 'PHYSICAL', color: 8,
+    style: { stroke: '#808080', fillOpacity: 0 } },
+
+  // mounting holes
+  HOLES: { name: 'HOLES', color: 6,
+    style: { stroke: '#b06fe0', fillOpacity: 0 },
+    machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } },
+
+  ENGRAVING: { name: 'ENGRAVING', color: 3,
+    style: { stroke: '#4cc97c', fillOpacity: 0 },
+    machining: { side: 'top', depth: 0.5, depthAnchor: 'top', millType: 'pocket' } },
+
+  PHONESTAND: { name: 'PHONESTAND', color: 3,
+    style: { stroke: '#4cc97c', fillOpacity: 0 },
+    machining: { side: 'top', depth: 11, depthAnchor: 'top', millType: 'pocket' } },
+
+  WIRELESS_POCKET: { name: 'WIRELESS_POCKET',  color: 4,
+    style: { stroke: '#e0a84a', fillOpacity: 0, dashed: true },
+    machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
+
+  USB_CHARGER_POCKET: { name: 'USB_CHARGER_POCKET', color: 4,
+    style: { stroke: '#e0a84a', fillOpacity: 0, dashed: true },
+    machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
+
+  EMBEDED_USB_POCKET:  { name: 'EMBEDED_USB_POCKET',  color: 4,
+    style: { stroke: '#e0a84a', fillOpacity: 0, dashed: true },
+    machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
+
+   // 4x4mm cable channel groove
+  CABLE_CHANNEL_4:  { name: 'CABLE_CHANNEL_4',  color: 4,
+    style: { stroke: '#e0a84a', fillOpacity: 0, strokeWidth: 1, dashed: true },
+    machining: { side: 'bottom', depth: 4, depthAnchor: 'top', millType: 'pocket' } },
+
+  // 5.5x5.5mm cable channel groove
+  CABLE_CHANNEL_5_5:  { name: 'CABLE_CHANNEL_5_5',  color: 4,
+    style: { stroke: '#e0a84a', fillOpacity: 0, strokeWidth: 1.5, dashed: true },
+    machining: { side: 'bottom', depth: 5.5, depthAnchor: 'top', millType: 'pocket' } },
+
+  CABLE_POCKET: { name: 'CABLE_POCKET', color: 4,
+    style: { stroke: '#e0a84a', fillOpacity: 0, strokeWidth: 1.5, dashed: true },
+    machining: { side: 'bottom', depth: 5.5, depthAnchor: 'top', millType: 'pocket' } },
+
+  // dimension lines — pure reference, never milled, so no `machining` at all
+  DIMENSIONS: { name: 'DIMENSIONS', color: 1,
+    style: { stroke: '#e05a5a', fillOpacity: 1, strokeWidth: 1 } },
   };
   const all = () => Object.values(registry);
   // Returns undefined for an id not in the registry — deliberately NOT
