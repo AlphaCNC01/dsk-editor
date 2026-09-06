@@ -11,21 +11,37 @@ const T_STEM_H = 20, T_STEM_W = 30, T_BASE_H = 20;
 // (baseL_bot–baseL_top / baseR_bot–baseR_top from buildTopNotchCorners
 // below, but only the two points a channel would actually enter through —
 // the horizontal base's own bottom edge is where a channel milled from
-// underneath reaches the through-slot). Returns null if there's no T-slot
-// configured. The cable-channel element picks whichever of the two is
+// underneath reaches the through-slot). Returns null if the given notch
+// isn't a T-slot. The cable-channel element picks whichever of the two is
 // closer to its own source point, per instance.
-function tSlotEntryPoints(p){
-  const { W, H, topNotchType, topNotchWidth, topNotchOffset } = p;
-  if (topNotchType !== 'tslot' || !(topNotchWidth > 0)) return null;
-  const cx = W/2 + (topNotchOffset || 0);
-  const y = H - T_STEM_H - T_BASE_H/2; // vertical midpoint of the base arm, well inside the slot
+//
+// `topNotches` is a LIST now (see buildTopNotchCorners below) — each
+// T-slot instance in the list gets its own independent pair of entry
+// points, indexed the same way cablePocket instances are ('tslot:<n>',
+// 0-based in the list's own order — see cable-channels.js).
+function tSlotEntryPoints(notch, W){
+  if (!notch || notch.type !== 'tslot' || !(notch.width > 0)) return null;
+  const cx = W/2 + (notch.offset || 0);
+  const y = notch.__H - T_STEM_H - T_BASE_H/2; // vertical midpoint of the base arm, well inside the slot
   // Exit direction runs along the base arm itself (horizontal), away from
   // center — a channel entering here runs along the slot rather than
   // straight into its side wall.
   return {
-    left:  { x: cx - topNotchWidth/2, y, dir: { x: -1, y: 0 } },
-    right: { x: cx + topNotchWidth/2, y, dir: { x: 1, y: 0 } },
+    left:  { x: cx - notch.width/2, y, dir: { x: -1, y: 0 } },
+    right: { x: cx + notch.width/2, y, dir: { x: 1, y: 0 } },
   };
+}
+
+// Resolves every 'tslot'-type entry in `topNotches` (in list order) into
+// its own entry-point pair, skipping any non-T-slot / zero-width entries.
+// This is what cable-channels.js indexes into for a 'tslot:<n>' target —
+// `n` counts only among T-slot notches, same convention as
+// 'bigPocket:<n>'/'smallPocket:<n>' counting only among their own type.
+function allTSlotEntryPoints(p){
+  const { W, H, topNotches } = p;
+  return (topNotches || [])
+    .map(notch => tSlotEntryPoints({ ...notch, __H: H }, W))
+    .filter(Boolean);
 }
 
 // ============================================================================
@@ -33,37 +49,63 @@ function tSlotEntryPoints(p){
 // optional top notch).
 // ============================================================================
 Elements.register((() => {
-  function buildTopNotchCorners(p){
-    const { W, H, topNotchType, topNotchWidth, topNotchOffset, rTopNotch } = p;
-    if (topNotchType === 'rect' && topNotchWidth > 0) {
-      const cx = W/2 + (topNotchOffset || 0);
-      const topR = [cx + topNotchWidth/2, H];
-      const botR = [cx + topNotchWidth/2, H - RECT_NOTCH_H];
-      const botL = [cx - topNotchWidth/2, H - RECT_NOTCH_H];
-      const topL = [cx - topNotchWidth/2, H];
+  // One notch's own corners, in the same right-to-left winding order the
+  // old single-notch code used (the top edge itself is walked right to
+  // left — from TR toward TL — so each notch's own corners must run
+  // right-arm-down, across the bottom, left-arm-up, matching that
+  // direction; see buildContours' own corners array below).
+  function oneNotchCorners(notch, W){
+    const { type, width, offset, r } = notch;
+    if (!(width > 0)) return [];
+    const cx = W/2 + (offset || 0);
+    if (type === 'rect') {
+      const topR = [cx + width/2, notch.__H];
+      const botR = [cx + width/2, notch.__H - RECT_NOTCH_H];
+      const botL = [cx - width/2, notch.__H - RECT_NOTCH_H];
+      const topL = [cx - width/2, notch.__H];
       return [
-        { pt: topR, r: rTopNotch }, { pt: botR, r: rTopNotch },
-        { pt: botL, r: rTopNotch }, { pt: topL, r: rTopNotch },
+        { pt: topR, r }, { pt: botR, r },
+        { pt: botL, r }, { pt: topL, r },
       ];
     }
-    if (topNotchType === 'tslot' && topNotchWidth > 0) {
-      const cx = W/2 + (topNotchOffset || 0);
+    if (type === 'tslot') {
+      const H = notch.__H;
       const stemR_top = [cx + T_STEM_W/2, H];
       const stemR_bot = [cx + T_STEM_W/2, H - T_STEM_H];
-      const baseR_top = [cx + topNotchWidth/2, H - T_STEM_H];
-      const baseR_bot = [cx + topNotchWidth/2, H - T_STEM_H - T_BASE_H];
-      const baseL_bot = [cx - topNotchWidth/2, H - T_STEM_H - T_BASE_H];
-      const baseL_top = [cx - topNotchWidth/2, H - T_STEM_H];
+      const baseR_top = [cx + width/2, H - T_STEM_H];
+      const baseR_bot = [cx + width/2, H - T_STEM_H - T_BASE_H];
+      const baseL_bot = [cx - width/2, H - T_STEM_H - T_BASE_H];
+      const baseL_top = [cx - width/2, H - T_STEM_H];
       const stemL_bot = [cx - T_STEM_W/2, H - T_STEM_H];
       const stemL_top = [cx - T_STEM_W/2, H];
       return [
-        { pt: stemR_top, r: rTopNotch }, { pt: stemR_bot, r: rTopNotch },
-        { pt: baseR_top, r: rTopNotch }, { pt: baseR_bot, r: rTopNotch },
-        { pt: baseL_bot, r: rTopNotch }, { pt: baseL_top, r: rTopNotch },
-        { pt: stemL_bot, r: rTopNotch }, { pt: stemL_top, r: rTopNotch },
+        { pt: stemR_top, r }, { pt: stemR_bot, r },
+        { pt: baseR_top, r }, { pt: baseR_bot, r },
+        { pt: baseL_bot, r }, { pt: baseL_top, r },
+        { pt: stemL_bot, r }, { pt: stemL_top, r },
       ];
     }
     return [];
+  }
+
+  // Every configured top notch (T-slot or rectangular), concatenated into
+  // one flat corner list for the top edge. The top edge is walked right
+  // to left (TR -> TL, see buildContours), so notches are sorted by
+  // descending center X first — each notch's own corners already run
+  // right-arm-to-left-arm (see oneNotchCorners), so simply placing
+  // right-to-center notches before left-of-center ones, in that order,
+  // keeps the whole top edge's winding consistent with a single physical
+  // pass across it. Overlapping notches (the user's own responsibility to
+  // avoid — no collision check here) will produce a self-intersecting
+  // contour, same as any other invalid geometry this app doesn't guard
+  // against elsewhere.
+  function buildTopNotchCorners(p){
+    const { W, H, topNotches } = p;
+    const notches = (topNotches || []).filter(n => n.type !== 'none' && n.width > 0);
+    notches.sort((a, b) => (b.offset || 0) - (a.offset || 0));
+    const corners = [];
+    for (const notch of notches) corners.push(...oneNotchCorners({ ...notch, __H: H }, W));
+    return corners;
   }
 
   function buildContours(p){

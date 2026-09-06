@@ -16,15 +16,11 @@
     rTop: el('rTop'), rBottom: el('rBottom'), rNotch: el('rNotch'),
     notchOn: el('notchOn'),
     notchH: el('notchH'), notchBottom: el('notchBottom'), notchTop: el('notchTop'),
-    topNotchType: el('topNotchType'),
-    topNotchWidth: el('topNotchWidth'), topNotchOffset: el('topNotchOffset'),
-    rTopNotch: el('rTopNotch'),
     underframeType: el('underframeType'),
     underframeInsetH: el('underframeInsetH'), underframeInsetV: el('underframeInsetV'),
     dimensionsOn: el('dimensionsOn'),
   };
   const notchFieldsWrap = el('notchFields');
-  const topNotchFieldsWrap = el('topNotchFields');
   const underframeFieldsWrap = el('underframeFields');
   const svg = el('stage');
 
@@ -54,10 +50,6 @@
       notchH: parseFloat(inputs.notchH.value) || 0,
       notchBottom: parseFloat(inputs.notchBottom.value) || 0,
       notchTop: parseFloat(inputs.notchTop.value) || 0,
-      topNotchType: inputs.topNotchType.value,
-      topNotchWidth: parseFloat(inputs.topNotchWidth.value) || 0,
-      topNotchOffset: parseFloat(inputs.topNotchOffset.value) || 0,
-      rTopNotch: parseFloat(inputs.rTopNotch.value) || 0,
       underframeType: inputs.underframeType.value,
       underframeInsetH: underframeInsetH,
       underframeInsetV: parseFloat(inputs.underframeInsetV.value) || 0,
@@ -77,7 +69,6 @@
     // Show/hide the field groups that only make sense when their own
     // toggle is on (the ergo notch, the top notch, the underframe).
     notchFieldsWrap.classList.toggle('disabled', !inputs.notchOn.checked);
-    topNotchFieldsWrap.classList.toggle('disabled', inputs.topNotchType.value === 'none');
     underframeFieldsWrap.classList.toggle('disabled', inputs.underframeType.value === 'none');
 
     const p = readParams();

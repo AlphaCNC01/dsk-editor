@@ -22,6 +22,66 @@
   // (see UI.ensureElementSection, called internally by
   // UI.createEmbeddableManager) — the panel's own visual order comes
   // purely from this declaration order, top to bottom.
+  // Top notches (T-slot / rectangular cutouts milled into the tabletop's
+  // own top edge — see tabletop.js's buildTopNotchCorners): a plain
+  // instance list, NOT built on createEmbeddableManager, since these
+  // aren't anchor-positioned embeddable parts — a notch lives ON the
+  // tabletop's own outline, positioned by a center offset along that one
+  // edge, with no anchor grid, rotation, or mirror of its own.
+  // UI.createInstanceListManager (the same base createEmbeddableManager
+  // itself is built on) is used directly instead. Declared FIRST among
+  // the managers below (before pultMgr) so its section lands right after
+  // the static "Подстолье" fieldset already in index.html and before
+  // every other repeatable-element section — see ensureElementSection's
+  // own comment: section order is purely call order.
+  const topNotchMgr = (() => {
+    const { containerId, addBtnId } = UI.ensureElementSection('topNotches', 'Вырезы для проводов', 'Добавить вырез');
+
+    const rowHtml = (inst, idx) => `
+      <div class="field">
+        <label>Тип выреза</label>
+        <select data-field="type" data-idx="${idx}">
+          <option value="tslot">Т-образный</option>
+          <option value="rect">Прямоугольный</option>
+        </select>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label>Ширина выреза <span class="unit">мм</span></label>
+          <input type="number" data-field="width" data-idx="${idx}" value="${inst.width}" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>Смещение <span class="unit">мм</span></label>
+          <input type="number" data-field="offset" data-idx="${idx}" value="${inst.offset}" step="1">
+        </div>
+      </div>
+      <div class="field">
+        <label>Скругление углов <span class="unit">мм</span></label>
+        <input type="number" data-field="r" data-idx="${idx}" value="${inst.r}" min="0" step="1">
+      </div>`;
+
+    const mgr = UI.createInstanceListManager({
+      containerId, addBtnId, itemLabel: 'Вырез',
+      dimensionsDefault: true,
+      defaults: () => ({ type: 'tslot', width: 300, offset: 0, r: 5 }),
+      onChange: () => UI.render(),
+      onFieldChange: () => UI.debouncedRender(),
+      rowHtml,
+    });
+
+    // No anchor-based defaults to resolve (width/offset/r are always
+    // concrete, never a placeholder-driven function of other params like
+    // insetX/insetY elsewhere) — resolveItems is a pass-through, and
+    // updatePlaceholders has nothing to refresh. Both still exist so this
+    // manager plugs into the exact same ELEMENT_MANAGERS loop
+    // (readParams/render/buildProjectData/applyProjectData) as every
+    // anchor-based element, with no special-casing needed there.
+    mgr.resolveItems = (p) => mgr.items;
+    mgr.updatePlaceholders = () => {};
+
+    return mgr;
+  })();
+
   const pultMgr = UI.createEmbeddableManager({
     key: 'pults', label: 'Пульты управления', addLabel: 'Добавить пульт',
     defaults: {
@@ -98,6 +158,13 @@
     cableTargetLabel: 'Кабель-канал'
   });
 
+  // Top notches (T-slot / rectangular cutouts milled into the tabletop's
+  // own top edge) — see the topNotchMgr declaration near the top of this
+  // file, right after the comment block, and its own entry in
+  // ELEMENT_MANAGERS below. Moved there so its section appears first in
+  // the controls panel (right after "Подстолье"), while still keeping
+  // this file's convention of one declaration per manager.
+
   const cablePocketMgr = UI.createEmbeddableManager({
     key: 'cablePockets', label: 'Кабельные выемки', addLabel: 'Добавить выемку',
     defaults: { type: 'big' },
@@ -134,6 +201,7 @@
   // element" guide at the top of the js/elements/ directory (GUIDE.md)
   // for the full walkthrough.
   UI.ELEMENT_MANAGERS = [
+    { key: 'topNotches', mgr: topNotchMgr },
     { key: 'pults', mgr: pultMgr },
     { key: 'chargers', mgr: chargerMgr },
     { key: 'outletBlocks', mgr: outletBlockMgr },
