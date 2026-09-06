@@ -18,7 +18,7 @@
     'orderNumber', 'rectW', 'rectH', 'rectThickness', 'rTop', 'rBottom', 'rNotch',
     'notchOn', 'notchH', 'notchBottom', 'notchTop',
     'underframeType', 'underframeInsetH', 'underframeInsetV',
-    'dimensionsOn',
+    'dimensionsOn', 'schematicOn', 'woodTint',
   ];
 
   function buildProjectData(){

@@ -80,6 +80,15 @@ const Layers = (() => {
   PHYSICAL: { name: 'PHYSICAL', color: 8,
     style: { stroke: '#808080', fillOpacity: 0 } },
 
+  // outlet block's own visible top face (the physical unit sits on top
+  // of the panel here, unlike PHYSICAL above which is a shared reference
+  // outline for several unrelated elements) — kept separate so the wood-
+  // texture preview can fill just this one shape as a solid cover plate
+  // (eventually a real product photo) without affecting PHYSICAL's own
+  // reference-only rendering everywhere else it's used.
+  OUTLET_BLOCK_TOP: { name: 'OUTLET_BLOCK_TOP', color: 8,
+    style: { stroke: '#808080', fillOpacity: 0 } },
+
   // mounting holes
   HOLES: { name: 'HOLES', color: 6,
     style: { stroke: '#b06fe0', fillOpacity: 0 },
