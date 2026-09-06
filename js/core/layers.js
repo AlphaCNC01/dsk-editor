@@ -80,6 +80,15 @@ const Layers = (() => {
   PHYSICAL: { name: 'PHYSICAL', color: 8,
     style: { stroke: '#808080', fillOpacity: 0 } },
 
+  // outlet block's own visible top face (the physical unit sits on top
+  // of the panel here, unlike PHYSICAL above which is a shared reference
+  // outline for several unrelated elements) — kept separate so the wood-
+  // texture preview can fill just this one shape as a solid cover plate
+  // (eventually a real product photo) without affecting PHYSICAL's own
+  // reference-only rendering everywhere else it's used.
+  OUTLET_BLOCK_TOP: { name: 'OUTLET_BLOCK_TOP', color: 8,
+    style: { stroke: '#808080', fillOpacity: 0 } },
+
   // mounting holes
   HOLES: { name: 'HOLES', color: 6,
     style: { stroke: '#b06fe0', fillOpacity: 0 },
@@ -99,25 +108,25 @@ const Layers = (() => {
 
   USB_CHARGER_POCKET: { name: 'USB_CHARGER_POCKET', color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, dashed: true },
-    machining: { side: 'bottom', depth: 6, depthAnchor: 'center', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
 
   EMBEDED_USB_POCKET:  { name: 'EMBEDED_USB_POCKET',  color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, dashed: true },
-    machining: { side: 'bottom', depth: 12, depthAnchor: 'center', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
 
    // 4x4mm cable channel groove
   CABLE_CHANNEL_4:  { name: 'CABLE_CHANNEL_4',  color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, strokeWidth: 1, dashed: true },
-    machining: { side: 'bottom', depth: 4, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 4, depthAnchor: 'top', millType: 'pocket' } },
 
   // 5.5x5.5mm cable channel groove
   CABLE_CHANNEL_5_5:  { name: 'CABLE_CHANNEL_5_5',  color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, strokeWidth: 1.5, dashed: true },
-    machining: { side: 'bottom', depth: 5.5, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 5.5, depthAnchor: 'top', millType: 'pocket' } },
 
   CABLE_POCKET: { name: 'CABLE_POCKET', color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, strokeWidth: 1.5, dashed: true },
-    machining: { side: 'bottom', depth: 15, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 5.5, depthAnchor: 'top', millType: 'pocket' } },
 
   // dimension lines — pure reference, never milled, so no `machining` at all
   DIMENSIONS: { name: 'DIMENSIONS', color: 1,

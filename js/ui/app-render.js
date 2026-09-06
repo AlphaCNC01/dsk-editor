@@ -19,10 +19,25 @@
     underframeType: el('underframeType'),
     underframeInsetH: el('underframeInsetH'), underframeInsetV: el('underframeInsetV'),
     dimensionsOn: el('dimensionsOn'),
+    schematicOn: el('schematicOn'),
+    woodTint: el('woodTint'),
   };
   const notchFieldsWrap = el('notchFields');
   const underframeFieldsWrap = el('underframeFields');
+  const woodTintFieldWrap = el('woodTintField');
   const svg = el('stage');
+
+  // The finish-color <select>'s own options come straight from
+  // RenderSVG.WOOD_TINTS (the single source of truth for both the list of
+  // presets and how each one is rendered — see svg.js), so a new preset
+  // added there shows up here with no separate list to keep in sync.
+  // Preview-only: never touches geometry/DXF/SVG-export.
+  for (const [key, { label }] of Object.entries(RenderSVG.WOOD_TINTS)) {
+    const opt = document.createElement('option');
+    opt.value = key;
+    opt.textContent = label;
+    inputs.woodTint.appendChild(opt);
+  }
 
   // Sanitizes the order number into a filesystem-safe filename — the
   // order number itself can contain characters a filename can't
@@ -67,9 +82,13 @@
 
   function render(){
     // Show/hide the field groups that only make sense when their own
-    // toggle is on (the ergo notch, the top notch, the underframe).
+    // toggle is on (the ergo notch, the top notch, the underframe, and
+    // the finish-color picker — that one's meaningless in schematic view
+    // since schematic mode never paints the wood photo at all).
     notchFieldsWrap.classList.toggle('disabled', !inputs.notchOn.checked);
     underframeFieldsWrap.classList.toggle('disabled', inputs.underframeType.value === 'none');
+    const viewMode = inputs.schematicOn.checked ? 'schematic' : 'render';
+    woodTintFieldWrap.classList.toggle('disabled', viewMode === 'schematic');
 
     const p = readParams();
     if (p.W <= 0 || p.H <= 0) return;
@@ -83,7 +102,7 @@
     const entries = Drawing.build(p);
     const dims = Dimensions.build(p);
     const allEntries = [...entries, ...dims.entries];
-    const svgMarkup = RenderSVG.build(allEntries, p.W, p.H, dims.texts);
+    const svgMarkup = RenderSVG.build(allEntries, p.W, p.H, dims.texts, inputs.woodTint.value, viewMode);
 
     // Pad the viewBox out a little beyond the drawing's own bounds so
     // dimension lines/labels sitting outside the tabletop's own outline
