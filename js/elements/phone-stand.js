@@ -9,7 +9,7 @@ const PHONE_STAND_VARIANTS = registerSimpleEmbeddable({
   defaultVariant: 'standard',
   variants: {
     standard: { parts: [
-      { verts: [{x:-125.0,y:-5.5,bulge:0},{x:125.0,y:-5.5,bulge:0},{x:125.0,y:5.5,bulge:0},{x:-125.0,y:5.5,bulge:0}], layer: 'ELEMENTS' },
+      { verts: [{x:-125.0,y:-5.5,bulge:0},{x:125.0,y:-5.5,bulge:0},{x:125.0,y:5.5,bulge:0},{x:-125.0,y:5.5,bulge:0}], layer: 'PHONESTAND' },
     ] },
   },
 });

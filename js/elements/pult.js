@@ -40,17 +40,17 @@ const PULT_VARIANTS = registerSimpleEmbeddable({
   variants: {
     standard: {
       parts: [
-        { verts: [{x:-45.0,y:50.0,bulge:0},{x:-45.0,y:0.0,bulge:0},{x:45.0,y:0.0,bulge:0},{x:45.0,y:50.0,bulge:0}], layer: 'UNDERFRAME' },
-        { verts: [{x:-34.0,y:30.0,bulge:1.0},{x:-26.0,y:30.0,bulge:1.0}], layer: 'UNDERFRAME_HOLES' },
-        { verts: [{x:-33.0,y:30.0,bulge:1.0},{x:-27.0,y:30.0,bulge:1.0}], layer: 'UNDERFRAME_HOLES' },
-        { verts: [{x:26.0,y:30.0,bulge:1.0},{x:34.0,y:30.0,bulge:1.0}], layer: 'UNDERFRAME_HOLES' },
-        { verts: [{x:27.0,y:30.0,bulge:1.0},{x:33.0,y:30.0,bulge:1.0}], layer: 'UNDERFRAME_HOLES' },
+        { verts: [{x:-45.0,y:50.0,bulge:0},{x:-45.0,y:0.0,bulge:0},{x:45.0,y:0.0,bulge:0},{x:45.0,y:50.0,bulge:0}], layer: 'PHYSICAL' },
+        { verts: [{x:-34.0,y:30.0,bulge:1.0},{x:-26.0,y:30.0,bulge:1.0}], layer: 'HOLES' },
+        { verts: [{x:-33.0,y:30.0,bulge:1.0},{x:-27.0,y:30.0,bulge:1.0}], layer: 'HOLES' },
+        { verts: [{x:26.0,y:30.0,bulge:1.0},{x:34.0,y:30.0,bulge:1.0}], layer: 'HOLES' },
+        { verts: [{x:27.0,y:30.0,bulge:1.0},{x:33.0,y:30.0,bulge:1.0}], layer: 'HOLES' },
       ],
     },
     embeddedUsb: {
       parts: [
-        { verts: [{x:-36.0,y:41.0,bulge:-0.414214},{x:-41.0,y:36.0,bulge:0},{x:-76.5,y:36.0,bulge:0.414214},{x:-80.5,y:32.0,bulge:0},{x:-80.5,y:22.0,bulge:0.414214},{x:-76.5,y:18.0,bulge:0},{x:76.5,y:18.0,bulge:0.414214},{x:80.5,y:22.0,bulge:0},{x:80.5,y:32.0,bulge:0.414214},{x:76.5,y:36.0,bulge:0},{x:-13.0,y:36.0,bulge:-0.414214},{x:-18.0,y:41.0,bulge:0},{x:-18.0,y:46.0,bulge:0.414214},{x:-23.0,y:51.0,bulge:0},{x:-31.0,y:51.0,bulge:0.414214},{x:-36.0,y:46.0,bulge:0}], layer: 'UNDERFRAME' },
-        { verts: [{x:-79.0,y:34.0,bulge:0},{x:-79.0,y:0.0,bulge:0},{x:79.0,y:0.0,bulge:0},{x:79.0,y:34.0,bulge:0}], layer: 'ELEMENTS' },
+        { verts: [{x:-36.0,y:41.0,bulge:-0.414214},{x:-41.0,y:36.0,bulge:0},{x:-76.5,y:36.0,bulge:0.414214},{x:-80.5,y:32.0,bulge:0},{x:-80.5,y:22.0,bulge:0.414214},{x:-76.5,y:18.0,bulge:0},{x:76.5,y:18.0,bulge:0.414214},{x:80.5,y:22.0,bulge:0},{x:80.5,y:32.0,bulge:0.414214},{x:76.5,y:36.0,bulge:0},{x:-13.0,y:36.0,bulge:-0.414214},{x:-18.0,y:41.0,bulge:0},{x:-18.0,y:46.0,bulge:0.414214},{x:-23.0,y:51.0,bulge:0},{x:-31.0,y:51.0,bulge:0.414214},{x:-36.0,y:46.0,bulge:0}], layer: 'EMBEDED_USB_POCKET' },
+        { verts: [{x:-79.0,y:34.0,bulge:0},{x:-79.0,y:0.0,bulge:0},{x:79.0,y:0.0,bulge:0},{x:79.0,y:34.0,bulge:0}], layer: 'PHYSICAL' },
       ],
       // Hardcoded cable-channel node, in this element's own local space:
       // the top of the small tab on the panel's own UNDERFRAME contour

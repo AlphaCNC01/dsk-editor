@@ -14,8 +14,8 @@ const OUTLET_BLOCK_VARIANTS = registerSimpleEmbeddable({
   defaultVariant: 'standard',
   variants: {
     standard: { parts: [
-      { verts: [{x:-133.5,y:60.0,bulge:0},{x:-133.5,y:-60.0,bulge:0},{x:133.5,y:-60.0,bulge:0},{x:133.5,y:60.0,bulge:0}], layer: 'ELEMENTS' },
-      { verts: [{x:118.5,y:-55.0,bulge:0},{x:118.5,y:55.0,bulge:0},{x:-118.5,y:55.0,bulge:0},{x:-118.5,y:-55.0,bulge:0}], layer: 'ELEMENTS_BACK' },
+      { verts: [{x:-133.5,y:60.0,bulge:0},{x:-133.5,y:-60.0,bulge:0},{x:133.5,y:-60.0,bulge:0},{x:133.5,y:60.0,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:118.5,y:-55.0,bulge:0},{x:118.5,y:55.0,bulge:0},{x:-118.5,y:55.0,bulge:0},{x:-118.5,y:-55.0,bulge:0}], layer: 'CUTOUT' },
     ] },
   },
 });

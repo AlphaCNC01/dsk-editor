@@ -24,16 +24,16 @@ const PULLOUT_VARIANTS = registerSimpleEmbeddable({
   variants: {
     standard: {
       parts: [
-        { verts: [{x:242.5,y:0,bulge:0},{x:242.5,y:281,bulge:0},{x:-242.5,y:281,bulge:0},{x:-242.5,y:0,bulge:0}], layer: 'ELEMENTS' },
-        { verts: [{x:262.5,y:0,bulge:0},{x:262.5,y:281,bulge:0},{x:-262.5,y:281,bulge:0},{x:-262.5,y:0,bulge:0}], layer: 'ELEMENTS' },
-        { verts: [{x:-251,y:71,bulge:1},{x:-259,y:71,bulge:1}], layer: 'ELEMENTS_BACK' },
-        { verts: [{x:-252,y:71,bulge:1},{x:-258,y:71,bulge:1}], layer: 'ELEMENTS_BACK' },
-        { verts: [{x:-251,y:191,bulge:1},{x:-259,y:191,bulge:1}], layer: 'ELEMENTS_BACK' },
-        { verts: [{x:-252,y:191,bulge:1},{x:-258,y:191,bulge:1}], layer: 'ELEMENTS_BACK' },
-        { verts: [{x:259,y:191,bulge:1},{x:251,y:191,bulge:1}], layer: 'ELEMENTS_BACK' },
-        { verts: [{x:258,y:191,bulge:1},{x:252,y:191,bulge:1}], layer: 'ELEMENTS_BACK' },
-        { verts: [{x:259,y:71,bulge:1},{x:251,y:71,bulge:1}], layer: 'ELEMENTS_BACK' },
-        { verts: [{x:258,y:71,bulge:1},{x:252,y:71,bulge:1}], layer: 'ELEMENTS_BACK' }
+        { verts: [{x:242.5,y:0,bulge:0},{x:242.5,y:281,bulge:0},{x:-242.5,y:281,bulge:0},{x:-242.5,y:0,bulge:0}], layer: 'PHYSICAL' },
+        { verts: [{x:262.5,y:0,bulge:0},{x:262.5,y:281,bulge:0},{x:-262.5,y:281,bulge:0},{x:-262.5,y:0,bulge:0}], layer: 'PHYSICAL' },
+        { verts: [{x:-251,y:71,bulge:1},{x:-259,y:71,bulge:1}], layer: 'HOLES' },
+        { verts: [{x:-252,y:71,bulge:1},{x:-258,y:71,bulge:1}], layer: 'HOLES' },
+        { verts: [{x:-251,y:191,bulge:1},{x:-259,y:191,bulge:1}], layer: 'HOLES' },
+        { verts: [{x:-252,y:191,bulge:1},{x:-258,y:191,bulge:1}], layer: 'HOLES' },
+        { verts: [{x:259,y:191,bulge:1},{x:251,y:191,bulge:1}], layer: 'HOLES' },
+        { verts: [{x:258,y:191,bulge:1},{x:252,y:191,bulge:1}], layer: 'HOLES' },
+        { verts: [{x:259,y:71,bulge:1},{x:251,y:71,bulge:1}], layer: 'HOLES' },
+        { verts: [{x:258,y:71,bulge:1},{x:252,y:71,bulge:1}], layer: 'HOLES' }
       ],
     },
   },
