@@ -107,6 +107,38 @@
     inp.addEventListener('input', UI.debouncedRender);
     inp.addEventListener('change', UI.debouncedRender);
   });
+  
+  // --- Share URL / Reset URL buttons ---
+  el('shareUrlBtn').addEventListener('click', () => {
+    const p = UI.readParams();
+    StateSerializer.saveToURL(p);
+    const url = window.location.href;
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = el('shareUrlBtn');
+      const originalText = btn.querySelector('span').textContent;
+      btn.querySelector('span').textContent = 'Ссылка скопирована!';
+      setTimeout(() => {
+        btn.querySelector('span').textContent = originalText;
+      }, 2000);
+    }).catch(err => {
+      alert('Не удалось скопировать ссылку: ' + err.message);
+    });
+  });
+  
+  el('resetUrlBtn').addEventListener('click', () => {
+    StateSerializer.cleanURL();
+    UI.render();
+  });
+  
+  // --- Load state from URL on startup ---
+  (function tryLoadFromURL() {
+    const savedState = StateSerializer.loadFromURL();
+    if (savedState) {
+      StateSerializer.applyStateToUI(savedState, { el, inputs });
+      UI.render();
+    }
+  })();
+  
   el('exportMainBtn').addEventListener('click', () => UI.runExport('png'));
   el('exportMenuToggle').addEventListener('click', (e) => {
     e.stopPropagation();

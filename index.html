@@ -50,6 +50,14 @@
           <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>
           <span>Загрузить</span>
         </button>
+        <button id="shareUrlBtn" class="btn-icon" type="button" title="Копировать ссылку с текущим состоянием">
+          <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+          <span>Поделиться</span>
+        </button>
+        <button id="resetUrlBtn" class="btn-icon" type="button" title="Очистить URL от состояния">
+          <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          <span>Сброс</span>
+        </button>
       </div>
       <input type="file" id="loadProjectInput" accept="application/json,.json" style="display:none;">
     </fieldset>
@@ -147,6 +155,8 @@
 <script src="js/core/layers.js"></script>
 <script src="js/core/elements.js"></script>
 <script src="js/core/drawing.js"></script>
+<!-- State serialization -->
+<script src="js/state-serializer.js"></script>
 <!-- Elements -->
 <script src="js/elements/tabletop.js"></script>
 <script src="js/elements/underframe.js"></script>
