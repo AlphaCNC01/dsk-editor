@@ -37,14 +37,14 @@
     // Only the embeddedUsb variant has a USB module cutout to route a
     // channel from (see the pult element's own cableNode, defined only on
     // that variant) — Standard has nothing for a channel to start at.
-    cableChannelLabel: 'Кабель-канал до большого кармана',
-    cableChannelWhen: (inst) => inst.type === 'embeddedUsb'
+    cableTargetLabel: 'Кабель-канал',
+    cableTargetWhen: (inst) => inst.type === 'embeddedUsb'
   });
 
   const chargerMgr = UI.createEmbeddableManager({
     key: 'chargers', label: 'Беспроводные зарядки', addLabel: 'Добавить зарядку',
     defaults: { anchor: 'topRight', insetX: 225, insetY: 200 },
-    cableChannelLabel: 'Кабель-канал до Т-выреза'
+    cableTargetLabel: 'Кабель-канал'
   });
 
   const outletBlockMgr = UI.createEmbeddableManager({
@@ -95,7 +95,7 @@
       insetX: (inst, p) => (p.underframeInsetH || 0) + 220,
       insetY: 0
     },
-    cableChannelLabel: 'Кабель-канал до малого кармана'
+    cableTargetLabel: 'Кабель-канал'
   });
 
   const cablePocketMgr = UI.createEmbeddableManager({

@@ -67,21 +67,55 @@
       </div>`;
   }
 
-  // Opt-in cable-channel toggle, reused by the three element managers that
-  // support a cable channel to/from a hardcoded node (see the
-  // cableChannels element): wireless charger (-> T-slot notch), USB
-  // charger and embeddedUsb pult (-> nearest wireless charger pocket).
-  // `label` names what the channel connects to, since that differs per
-  // element.
-  function cableChannelToggleHtml(idx, inst, label){
+  // Cable-channel TARGET picker, reused by the three element managers
+  // that support a channel from a hardcoded node on that element (see
+  // the cableChannels element): wireless charger, USB charger, and
+  // embeddedUsb pult. Every source offers the SAME target vocabulary
+  // ('none' / the T-slot / any small pocket by number / any big pocket
+  // by number) — this markup only creates the <select> itself, with just
+  // the always-available 'none' option; the actual T-slot/pocket options
+  // are filled in (and the previously-chosen value restored) by
+  // updateCableTargetOptions below on every render, since which pockets
+  // exist can change at any time. `label` names the field itself in the
+  // panel, e.g. "Кабель-канал".
+  function cableTargetSelectHtml(idx, inst, label){
     return `
-      <div class="toggle-row">
-        <span>${label}</span>
-        <label class="switch">
-          <input type="checkbox" data-field="cableChannel" data-idx="${idx}">
-          <span class="track"></span>
-        </label>
+      <div class="field">
+        <label>${label}</label>
+        <select data-field="cableTarget" data-idx="${idx}" data-cable-target-select>
+          <option value="none">Нет</option>
+        </select>
       </div>`;
+  }
+
+  // Rebuilds every cable-target <select>'s own option list to match the
+  // CURRENT project's T-slot/pocket instances, and restores whichever
+  // value that instance already had selected (falling back to 'none' if
+  // the previously-chosen target no longer exists — same "just stop
+  // routing there" behavior as buildContours itself, see cableChannels).
+  // Called on every render (like updatePlaceholders) since the set of
+  // available targets can change on any keystroke (adding/removing a
+  // pocket, or toggling the top-notch type).
+  function updateCableTargetOptions(containerId, items, p){
+    const containerEl = document.getElementById(containerId);
+    if (!containerEl) return;
+    const smallCount = (p.cablePockets || []).filter(i => i.type === 'small').length;
+    const bigCount = (p.cablePockets || []).filter(i => i.type === 'big').length;
+    const hasTSlot = p.topNotchType === 'tslot' && p.topNotchWidth > 0;
+    let optionsHtml = '<option value="none">Нет</option>';
+    if (hasTSlot) optionsHtml += '<option value="tslot">Т-вырез</option>';
+    for (let i = 0; i < bigCount; i++) optionsHtml += `<option value="bigPocket:${i}">Большой карман №${i + 1}</option>`;
+    for (let i = 0; i < smallCount; i++) optionsHtml += `<option value="smallPocket:${i}">Малый карман №${i + 1}</option>`;
+
+    containerEl.querySelectorAll('select[data-cable-target-select]').forEach(sel => {
+      const idx = parseInt(sel.dataset.idx, 10);
+      const inst = items[idx];
+      if (!inst) return;
+      sel.innerHTML = optionsHtml;
+      const wanted = inst.cableTarget || 'none';
+      sel.value = [...sel.options].some(o => o.value === wanted) ? wanted : 'none';
+      if (sel.value !== wanted) inst.cableTarget = 'none';
+    });
   }
 
   // Builds the anchor-picker + insetX/insetY row shared by every anchor-
@@ -158,7 +192,7 @@
   }
 
   function createEmbeddableManager(cfg) {
-    const { key, label, typeSelector = null, cableChannelLabel = null, cableChannelWhen = null, addLabel, dimensionsDefault = true, typeDefaults = null } = cfg;
+    const { key, label, typeSelector = null, cableTargetLabel = null, cableTargetWhen = null, addLabel, dimensionsDefault = true, typeDefaults = null } = cfg;
     // Every element's UI section is auto-created from `key`+`label` — see
     // ensureElementSection — so there's no hand-written HTML to keep in
     // sync when adding a new element, and the panel's own visible order
@@ -233,8 +267,8 @@
             </div>`;
         }
         html += insetFieldsHtml(idx, inst);
-        if (cableChannelLabel && (!cableChannelWhen || cableChannelWhen(inst))) {
-          html += cableChannelToggleHtml(idx, inst, cableChannelLabel);
+        if (cableTargetLabel && (!cableTargetWhen || cableTargetWhen(inst))) {
+          html += cableTargetSelectHtml(idx, inst, cableTargetLabel);
         }
         return html;
       }
@@ -262,6 +296,8 @@
         const inpY = row.querySelector('input[data-field="insetY"]');
         if (inpY && defY != null) inpY.placeholder = defY;
       });
+
+      updateCableTargetOptions(container, mgr.items, p);
     };
 
     // Hands the geometry code a plain array with every instance's own
@@ -281,7 +317,7 @@
   }
 
   Object.assign(UI, {
-    anchorGridHtml, transformFieldsHtml, cableChannelToggleHtml, insetFieldsHtml,
+    anchorGridHtml, transformFieldsHtml, cableTargetSelectHtml, updateCableTargetOptions, insetFieldsHtml,
     ensureElementSection, createEmbeddableManager,
   });
 })();
