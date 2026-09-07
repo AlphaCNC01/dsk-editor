@@ -45,10 +45,46 @@ const Dimensions = (() => {
   // lines (e.g. the underframe's own inset vs. the pult's own inset,
   // which sit on different y-coordinates entirely) never visually
   // interfere with each other regardless of offset.
-  function placeDimension(axis, base, spanMin, spanMax, desiredOffset){
-    const sign = desiredOffset >= 0 ? 1 : -1;
+  // `outermost` is for the tabletop's own overall width/height dimension:
+  // rather than sliding out just far enough to clear whichever individual
+  // dimension it happens to collide with first, it must always end up
+  // beyond EVERY other dimension sharing its base/side/span, since it's
+  // meant to read as the outer boundary of the whole stack. Passing a
+  // desiredOffset that's merely "large" isn't enough on its own — a busy
+  // drawing can still place some inner dimension further out than that
+  // guess — so `outermost` instead takes the largest already-placed
+  // offset that overlaps and adds STACK_STEP on top of it, guaranteeing
+  // it clears everything placed so far regardless of what desiredOffset
+  // was asked for. Combined with building the overall dimension LAST (see
+  // build() below), "placed so far" means "everything else in the
+  // drawing".
+  //
+  // `visualSign` is the side the dimension line ACTUALLY lands on once
+  // buildLinearDimension applies its perpendicular offset — which is not
+  // always the same as desiredOffset's own sign. A dimension whose p1->p2
+  // direction runs "backwards" along its axis (e.g. right-to-left for a
+  // horizontal one, as happens for elements anchored from the right edge)
+  // has its perpendicular flipped too, so a positive offset can still put
+  // the line on the negative side. Bookkeeping stacking by desiredOffset's
+  // raw sign in that case would silently let a "positive-offset" (but
+  // visually-negative) dimension collide undetected with a genuinely
+  // negative one like the overall-width dimension — exactly the pult/
+  // overall-width crossing bug this parameter exists to fix.
+  function placeDimension(axis, base, spanMin, spanMax, desiredOffset, outermost, visualSign){
+    const dsign = desiredOffset >= 0 ? 1 : -1; // desiredOffset's own sign convention — the returned offset must stay in this convention, since the caller's perpendicular math (nx,ny) already accounts for direction and expects offset back in its own terms
     const placed = placedByAxis[axis];
     let offset = desiredOffset;
+    if (outermost) {
+      for (const entry of placed) {
+        if (entry.sign !== visualSign || entry.base !== base) continue;
+        const overlaps = spanMin < entry.spanMax && spanMax > entry.spanMin;
+        if (!overlaps) continue;
+        const minAbs = entry.visualAbsOffset + STACK_STEP;
+        if (minAbs > Math.abs(offset)) offset = dsign * minAbs;
+      }
+      placed.push({ spanMin, spanMax, offset, sign: visualSign, base, visualAbsOffset: Math.abs(offset) });
+      return offset;
+    }
     // Re-check from scratch each time offset changes, since pushing past
     // one collision can land inside another's band — a fixed-point loop
     // (rather than a single pass) is what makes this correct for 3+
@@ -57,17 +93,17 @@ const Dimensions = (() => {
     while (changed) {
       changed = false;
       for (const entry of placed) {
-        if (entry.sign !== sign || entry.base !== base) continue;
+        if (entry.sign !== visualSign || entry.base !== base) continue;
         const overlaps = spanMin < entry.spanMax && spanMax > entry.spanMin;
         if (!overlaps) continue;
-        const tooClose = Math.abs(Math.abs(offset) - Math.abs(entry.offset)) < STACK_STEP;
+        const tooClose = Math.abs(Math.abs(offset) - entry.visualAbsOffset) < STACK_STEP;
         if (tooClose) {
-          offset = sign * (Math.abs(entry.offset) + STACK_STEP);
+          offset = dsign * (entry.visualAbsOffset + STACK_STEP);
           changed = true;
         }
       }
     }
-    placed.push({ spanMin, spanMax, offset, sign, base });
+    placed.push({ spanMin, spanMax, offset, sign: visualSign, base, visualAbsOffset: Math.abs(offset) });
     return offset;
   }
 
@@ -83,15 +119,25 @@ const Dimensions = (() => {
   // so two nearby measurements always end up stacked instead of on top of
   // each other. This only works for axis-aligned dimensions (p1.x===p2.x
   // or p1.y===p2.y), which covers every dimension this app draws.
-  function buildLinearDimension(p1, p2, offset, formatText){
+  function buildLinearDimension(p1, p2, offset, formatText, outermost){
     const isHorizontal = p1.y === p2.y;
     const isVertical = p1.x === p2.x;
+    const dx0 = p2.x - p1.x, dy0 = p2.y - p1.y;
+    const len0 = Math.hypot(dx0, dy0) || 1;
+    const nx0 = -(dy0 / len0), ny0 = dx0 / len0; // perpendicular direction, computed early so stacking can see which real-world side `offset` actually lands on
     if (isHorizontal || isVertical) {
       const axis = isHorizontal ? 'h' : 'v';
       const base = isHorizontal ? p1.y : p1.x;
       const spanMin = isHorizontal ? Math.min(p1.x, p2.x) : Math.min(p1.y, p2.y);
       const spanMax = isHorizontal ? Math.max(p1.x, p2.x) : Math.max(p1.y, p2.y);
-      offset = placeDimension(axis, base, spanMin, spanMax, offset);
+      // The actual displacement offset produces is nx0*offset (horizontal
+      // axis cares about the resulting y via ny0, vertical axis cares
+      // about the resulting x via nx0) — its sign is `visualSign`, which
+      // can differ from offset's own sign when p1->p2 runs backwards
+      // along the axis (see placeDimension's own comment on this).
+      const visualDelta = isHorizontal ? ny0 * offset : nx0 * offset;
+      const visualSign = visualDelta >= 0 ? 1 : -1;
+      offset = placeDimension(axis, base, spanMin, spanMax, offset, outermost, visualSign);
     }
     // A genuinely diagonal dimension (p1.x!==p2.x && p1.y!==p2.y) skips
     // stacking entirely and just uses its requested offset as-is — none
@@ -180,10 +226,6 @@ const Dimensions = (() => {
 
     function add(dim){ entries.push(...dim.entries); texts.push(...dim.texts); }
 
-    // Overall width (below) and height (left).
-    add(buildLinearDimension({ x: 0, y: 0 }, { x: W, y: 0 }, -gap, formatMm));
-    add(buildLinearDimension({ x: 0, y: 0 }, { x: 0, y: H }, gap, formatMm));
-
     // Bottom trapezoid notch: width at the tabletop's bottom edge, width at
     // the notch's own flat top, and its height.
     if (params.notchOn) {
@@ -192,8 +234,10 @@ const Dimensions = (() => {
       const nBR = { x: cx + params.notchBottom / 2, y: 0 };
       const nTL = { x: cx - params.notchTop / 2, y: params.notchH };
       const nTR = { x: cx + params.notchTop / 2, y: params.notchH };
-      // Stacked further out (gap 60) than the overall width dimension
-      // (gap 30), since both sit on the same bottom edge.
+      // Placed further out (gap 60) than the tabletop's own edge — the
+      // overall width dimension is built last as `outermost` and will
+      // automatically clear this regardless, but a wider starting gap
+      // here keeps this dimension itself readable against the notch.
       add(buildLinearDimension(nBL, nBR, -60, formatMm));
       // The notch's flat top isn't on the tabletop's own edge, so its
       // width is dimensioned as an internal line just above that edge.
@@ -278,6 +322,17 @@ const Dimensions = (() => {
         }
       }
     }
+
+    // Overall width (below) and height (left) — built LAST, and marked
+    // `outermost`, so it's guaranteed to end up beyond every other
+    // dimension already placed on the bottom edge / left edge above
+    // (e.g. a control panel's own inset dimension, or the notch's width
+    // dimension), rather than potentially landing among them. See the
+    // `outermost` comment on placeDimension for why order matters here:
+    // this only works because everything else has already reserved its
+    // spot in placedByAxis by the time this runs.
+    add(buildLinearDimension({ x: 0, y: 0 }, { x: W, y: 0 }, -gap, formatMm, true));
+    add(buildLinearDimension({ x: 0, y: 0 }, { x: 0, y: H }, gap, formatMm, true));
 
     return { entries, texts };
   }
