@@ -142,8 +142,9 @@
         <label>Тип подстолья</label>
         <select id="underframeType">
           <option value="none">Нет подстолья</option>
-          <option value="60" selected>Подстолье 60</option>
-          <option value="70">Подстолье 70</option>
+          <!-- '60'/'70' options are generated at load time from
+               UNDERFRAME_VARIANTS in js/elements/underframe.js, so a new
+               underframe size only needs adding there, not here. -->
         </select>
       </div>
       <div id="underframeFields" style="margin-top:12px;">

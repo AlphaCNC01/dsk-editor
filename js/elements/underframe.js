@@ -35,11 +35,15 @@
 Elements.register((() => {
   const UNDERFRAME_VARIANTS = {
     '60': {
+      sku: 'ПОДСТ-60',
+      label: 'Подстолье 60',
       width: 503.0, height: 575.0,
       frameOutline: [[{x:240.5,y:336.0,bulge:0},{x:265.5,y:336.0,bulge:0},{x:265.5,y:239.0,bulge:0},{x:240.5,y:239.0,bulge:0}],[{x:37.5,y:356.0,bulge:0},{x:503.0,y:356.0,bulge:0},{x:503.0,y:336.0,bulge:0},{x:37.5,y:336.0,bulge:0}],[{x:37.5,y:336.0,bulge:0},{x:199.0,y:336.0,bulge:0},{x:199.0,y:239.0,bulge:0},{x:37.5,y:239.0,bulge:0}],[{x:0.0,y:575.0,bulge:0},{x:37.5,y:575.0,bulge:0},{x:37.5,y:0.0,bulge:0},{x:0.0,y:0.0,bulge:0}],[{x:478.0,y:336.0,bulge:0},{x:503.0,y:336.0,bulge:0},{x:503.0,y:239.0,bulge:0},{x:478.0,y:239.0,bulge:0}],[{x:37.5,y:239.0,bulge:0},{x:503.0,y:239.0,bulge:0},{x:503.0,y:219.0,bulge:0},{x:37.5,y:219.0,bulge:0}]],
       frameHoles: [[{x:23.0,y:20.0,bulge:1.0},{x:32.0,y:20.0,bulge:1.0}],[{x:21.5,y:20.0,bulge:1.0},{x:33.5,y:20.0,bulge:1.0}],[{x:23.0,y:425.0,bulge:1.0},{x:32.0,y:425.0,bulge:1.0}],[{x:21.5,y:425.0,bulge:1.0},{x:33.5,y:425.0,bulge:1.0}],[{x:23.0,y:150.0,bulge:1.0},{x:32.0,y:150.0,bulge:1.0}],[{x:21.5,y:150.0,bulge:1.0},{x:33.5,y:150.0,bulge:1.0}],[{x:23.0,y:555.0,bulge:1.0},{x:32.0,y:555.0,bulge:1.0}],[{x:21.5,y:555.0,bulge:1.0},{x:33.5,y:555.0,bulge:1.0}],[{x:248.5,y:287.5,bulge:1.0},{x:257.5,y:287.5,bulge:1.0}],[{x:247.0,y:287.5,bulge:1.0},{x:259.0,y:287.5,bulge:1.0}],[{x:486.0,y:287.5,bulge:1.0},{x:495.0,y:287.5,bulge:1.0}],[{x:484.5,y:287.5,bulge:1.0},{x:496.5,y:287.5,bulge:1.0}]],
     },
     '70': {
+      sku: 'ПОДСТ-70',
+      label: 'Подстолье 70',
       width: 548.0, height: 575.0,
       frameOutline: [[{x:278.0,y:367.5,bulge:0},{x:298.0,y:367.5,bulge:0},{x:298.0,y:207.5,bulge:0},{x:278.0,y:207.5,bulge:0}],[{x:38.0,y:387.5,bulge:0},{x:548.0,y:387.5,bulge:0},{x:548.0,y:367.5,bulge:0},{x:38.0,y:367.5,bulge:0}],[{x:0.0,y:575.0,bulge:0},{x:38.0,y:575.0,bulge:0},{x:38.0,y:0.0,bulge:0},{x:0.0,y:0.0,bulge:0}],[{x:38.0,y:207.5,bulge:0},{x:548.0,y:207.5,bulge:0},{x:548.0,y:187.5,bulge:0},{x:38.0,y:187.5,bulge:0}],[{x:528.0,y:367.5,bulge:0},{x:548.0,y:367.5,bulge:0},{x:548.0,y:207.5,bulge:0},{x:528.0,y:207.5,bulge:0}]],
       frameHoles: [[{x:23.5,y:20.0,bulge:1.0},{x:32.5,y:20.0,bulge:1.0}],[{x:22.0,y:20.0,bulge:1.0},{x:34.0,y:20.0,bulge:1.0}],[{x:23.5,y:425.0,bulge:1.0},{x:32.5,y:425.0,bulge:1.0}],[{x:22.0,y:425.0,bulge:1.0},{x:34.0,y:425.0,bulge:1.0}],[{x:23.5,y:150.0,bulge:1.0},{x:32.5,y:150.0,bulge:1.0}],[{x:22.0,y:150.0,bulge:1.0},{x:34.0,y:150.0,bulge:1.0}],[{x:23.5,y:555.0,bulge:1.0},{x:32.5,y:555.0,bulge:1.0}],[{x:22.0,y:555.0,bulge:1.0},{x:34.0,y:555.0,bulge:1.0}],[{x:283.5,y:287.5,bulge:1.0},{x:292.5,y:287.5,bulge:1.0}],[{x:282.0,y:287.5,bulge:1.0},{x:294.0,y:287.5,bulge:1.0}],[{x:533.5,y:287.5,bulge:1.0},{x:542.5,y:287.5,bulge:1.0}],[{x:532.0,y:287.5,bulge:1.0},{x:544.0,y:287.5,bulge:1.0}]],
@@ -104,3 +108,47 @@ Elements.register((() => {
 
   return { id: 'underframe', buildContours, VARIANTS: UNDERFRAME_VARIANTS };
 })());
+
+// The underframe's own type <select> lives as static markup in
+// index.html (it isn't a repeatable/embeddable element like the ones
+// built via UI.createEmbeddableManager, so it doesn't go through
+// optionsFromVariants in element-managers.js) — but its OPTIONS are
+// still generated here, from UNDERFRAME_VARIANTS's own sku/label, so a
+// new underframe size only ever needs adding to UNDERFRAME_VARIANTS
+// above, never a second hand-edit in the HTML. The "Нет подстолья" (no
+// underframe) option is kept as static markup in index.html since it
+// isn't a real variant. Runs at script-load time, safely before
+// app-render.js reads the select's value on first render (this file
+// loads earlier in index.html's own script order).
+// Default underframe size on a fresh (unsaved) project — kept as one
+// named constant here rather than a hardcoded `selected` attribute in
+// index.html's markup, since the HTML no longer lists '60'/'70' as
+// static options at all (see below). Must be a real key of
+// UNDERFRAME_VARIANTS.
+const UNDERFRAME_DEFAULT_TYPE = '60';
+
+(function populateUnderframeTypeOptions(){
+  const select = document.getElementById('underframeType');
+  if (!select) return;
+  // UNDERFRAME_VARIANTS itself is local to the IIFE above (not global —
+  // this file deliberately keeps it out of the global scope other
+  // element files' top-level consts sit in), so it's read back the same
+  // way dimensions.js already does: via the registered element's own
+  // .VARIANTS, exposed by the `return { id, buildContours, VARIANTS }`
+  // just above.
+  const variants = Elements.all().find(e => e.id === 'underframe').VARIANTS;
+  const previousValue = select.value; // 'none', the only static option
+  for (const key of Object.keys(variants)) {
+    if (select.querySelector(`option[value="${key}"]`)) continue; // don't duplicate on re-run
+    const v = variants[key];
+    const option = document.createElement('option');
+    option.value = key;
+    option.textContent = v.sku && v.label ? `${v.sku} — ${v.label}` : (v.label || v.sku || key);
+    select.appendChild(option);
+  }
+  // A saved project's own value is applied later by app-project.js's own
+  // load path, which sets .value directly and doesn't depend on this
+  // select's default — this only decides what a brand-new, never-loaded
+  // project starts on.
+  select.value = (previousValue && previousValue !== 'none') ? previousValue : UNDERFRAME_DEFAULT_TYPE;
+})();

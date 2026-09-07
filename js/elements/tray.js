@@ -15,7 +15,10 @@ const TRAY_VARIANTS = registerSimpleEmbeddable({
   paramsKey: 'trays',
   defaultVariant: '60',
   variants: {
-    '60': { parts: [
+    '60': {
+      sku: 'ЛОТ-60',
+      label: 'Лоток 60 см',
+      parts: [
       { verts: [{x:171.5,y:65.0,bulge:0},{x:171.5,y:-65.0,bulge:0},{x:191.5,y:-65.0,bulge:0},{x:191.5,y:65.0,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:-191.5,y:65.0,bulge:0},{x:-191.5,y:-65.0,bulge:0},{x:-171.5,y:-65.0,bulge:0},{x:-171.5,y:65.0,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:-300.0,y:47.5,bulge:0},{x:-300.0,y:-47.5,bulge:0},{x:300.0,y:-47.5,bulge:0},{x:300.0,y:47.5,bulge:0}], layer: 'PHYSICAL' },
@@ -28,7 +31,10 @@ const TRAY_VARIANTS = registerSimpleEmbeddable({
       { verts: [{x:185.5,y:-42.5,bulge:1.0},{x:177.5,y:-42.5,bulge:1.0}], layer: 'HOLES' },
       { verts: [{x:184.5,y:-42.5,bulge:1.0},{x:178.5,y:-42.5,bulge:1.0}], layer: 'HOLES' },
     ] },
-    '80': { parts: [
+    '80': {
+      sku: 'ЛОТ-80',
+      label: 'Лоток 80 см',
+      parts: [
       { verts: [{x:350.0,y:-65.0,bulge:0},{x:350.0,y:65.0,bulge:0},{x:330.0,y:65.0,bulge:0},{x:330.0,y:-65.0,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:-330.0,y:-65.0,bulge:0},{x:-330.0,y:65.0,bulge:0},{x:-350.0,y:65.0,bulge:0},{x:-350.0,y:-65.0,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:400.0,y:-47.5,bulge:0},{x:400.0,y:47.5,bulge:0},{x:-400.0,y:47.5,bulge:0},{x:-400.0,y:-47.5,bulge:0}], layer: 'PHYSICAL' },

@@ -8,7 +8,10 @@ const PHONE_STAND_VARIANTS = registerSimpleEmbeddable({
   paramsKey: 'phoneStands',
   defaultVariant: 'standard',
   variants: {
-    standard: { parts: [
+    standard: {
+      sku: 'ПОДСТ-ТЛФ',
+      label: 'Подставка для телефона',
+      parts: [
       { verts: [{x:-125.0,y:-5.5,bulge:0},{x:125.0,y:-5.5,bulge:0},{x:125.0,y:5.5,bulge:0},{x:-125.0,y:5.5,bulge:0}], layer: 'PHONESTAND' },
     ] },
   },

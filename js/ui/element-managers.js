@@ -7,6 +7,25 @@
 // ============================================================================
 
 (function(){
+  // Builds typeSelector.options straight from an element's own VARIANTS
+  // object, instead of hand-listing {value,text} pairs a second time —
+  // each variant's `sku` (the manufacturer/internal article code) and
+  // `label` (a short human description) are combined into the dropdown
+  // text as "SKU — label". This is the single place that reads sku/label
+  // for display, so adding a new variant (new charger, new pult, new
+  // underframe size, etc.) to an element file is enough on its own to
+  // make it show up correctly here — no second list to remember to
+  // update. Falls back to the bare key if a variant is missing sku/label
+  // (shouldn't happen for anything registered properly, but avoids a
+  // blank/undefined option text if it ever does).
+  function optionsFromVariants(variants){
+    return Object.keys(variants).map(key => {
+      const v = variants[key];
+      const text = v.sku && v.label ? `${v.sku} — ${v.label}` : (v.label || v.sku || key);
+      return { value: key, text };
+    });
+  }
+
   // ---------- Instance-list managers ----------
   // Each repeatable element gets one manager built on the shared factory
   // (UI.createEmbeddableManager, see field-helpers.js). insetFieldsHtml
@@ -92,7 +111,7 @@
     },
     typeSelector: {
       label: 'Тип пульта',
-      options: [{value:'standard', text:'Стандартный'}, {value:'embeddedUsb', text:'Встраиваемый с USB'}]
+      options: optionsFromVariants(PULT_VARIANTS)
     },
     // Only the embeddedUsb variant has a USB module cutout to route a
     // channel from (see the pult element's own cableNode, defined only on
@@ -184,7 +203,7 @@
     },
     typeSelector: {
       label: 'Тип выемки',
-      options: [{value:'big', text:'Большая'}, {value:'small', text:'Малая'}]
+      options: optionsFromVariants(CABLE_POCKET_VARIANTS)
     },
     dimensionsDefault: false
   });

@@ -23,6 +23,8 @@ const PULLOUT_VARIANTS = registerSimpleEmbeddable({
   defaultVariant: 'standard',
   variants: {
     standard: {
+      sku: 'ВЫДВ-СТ',
+      label: 'Выдвижная подставка',
       parts: [
         { verts: [{x:242.5,y:0,bulge:0},{x:242.5,y:281,bulge:0},{x:-242.5,y:281,bulge:0},{x:-242.5,y:0,bulge:0}], layer: 'PHYSICAL' },
         { verts: [{x:262.5,y:0,bulge:0},{x:262.5,y:281,bulge:0},{x:-262.5,y:281,bulge:0},{x:-262.5,y:0,bulge:0}], layer: 'PHYSICAL' },

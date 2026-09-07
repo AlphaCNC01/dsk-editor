@@ -15,7 +15,10 @@ const OUTLET_BLOCK_VARIANTS = registerSimpleEmbeddable({
   paramsKey: 'outletBlocks',
   defaultVariant: 'standard',
   variants: {
-    standard: { parts: [
+    standard: {
+      sku: 'РОЗ-СТ',
+      label: 'Блок розеток стандартный',
+      parts: [
       { verts: [{x:-133.5,y:60.0,bulge:0},{x:-133.5,y:-60.0,bulge:0},{x:133.5,y:-60.0,bulge:0},{x:133.5,y:60.0,bulge:0}], layer: 'OUTLET_BLOCK_TOP' },
       { verts: [{x:118.5,y:-55.0,bulge:0},{x:118.5,y:55.0,bulge:0},{x:-118.5,y:55.0,bulge:0},{x:-118.5,y:-55.0,bulge:0}], layer: 'CUTOUT' },
     ] },
