@@ -304,7 +304,7 @@
   }
 
   #notchFields{ transition:opacity .15s; }
-  #notchFields.disabled, #topNotchFields.disabled{ opacity:.35; pointer-events:none; }
+  #notchFields.disabled, #topNotchFields.disabled, #woodTintField.disabled{ opacity:.35; pointer-events:none; }
 
   .btn-secondary{
     width:100%;
