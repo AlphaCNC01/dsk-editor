@@ -383,7 +383,7 @@
   }
   #exportMenu button:hover{ background:var(--panel); color:var(--accent); }
 
-  #projectRow{ display:flex; gap:8px; margin-top:8px; }
+  #projectRow, #projectRow2{ display:flex; gap:8px; margin-top:8px; }
   .btn-icon{
     flex:1;
     display:flex; align-items:center; justify-content:center; gap:6px;
@@ -397,3 +397,4 @@
   .btn-icon:hover{ border-color:var(--accent); color:var(--accent); }
   .btn-icon:active{ transform:translateY(1px); }
   .btn-icon svg{ width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
+  .btn-icon-danger:hover{ border-color:#c0392b; color:#c0392b; }

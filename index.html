@@ -51,6 +51,16 @@
           <span>Загрузить</span>
         </button>
       </div>
+      <div id="projectRow2">
+        <button id="shareProjectBtn" class="btn-icon" type="button" title="Скопировать ссылку с текущим макетом">
+          <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5 15.4 6.5"/><path d="M8.6 13.5 15.4 17.5"/></svg>
+          <span>Поделиться</span>
+        </button>
+        <button id="resetProjectBtn" class="btn-icon btn-icon-danger" type="button" title="Сбросить макет к пустому проекту">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+          <span>Сброс</span>
+        </button>
+      </div>
       <input type="file" id="loadProjectInput" accept="application/json,.json" style="display:none;">
     </fieldset>
 
@@ -172,6 +182,7 @@
 <script src="js/ui/app-render.js"></script>
 <script src="js/ui/zoom.js"></script>
 <script src="js/ui/app-project.js"></script>
+<script src="js/ui/app-state.js"></script>
 
 </body>
 </html>

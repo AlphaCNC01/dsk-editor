@@ -126,5 +126,14 @@
     e.target.value = ''; // allow re-selecting the same file later
   });
 
-  UI.render();
+  // Exposed for app-state.js: URL-share/sessionStorage/reset use the exact
+  // same "raw form values + raw instance arrays" serialization as the
+  // JSON project file, and applying it goes through the same migration
+  // path (old single-notch fields -> topNotches list, etc). The initial
+  // UI.render() call itself is left to app-state.js, since it's the one
+  // that decides whether the very first paint should come from a shared
+  // URL, this tab's own session draft, or the blank defaults already
+  // sitting in the form.
+  UI.buildProjectData = buildProjectData;
+  UI.applyProjectData = applyProjectData;
 })();
