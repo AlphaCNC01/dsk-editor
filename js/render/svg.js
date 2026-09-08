@@ -28,9 +28,9 @@ const RenderSVG = (() => {
   //
   // Board layout, in mm — tunable constants rather than buried in the
   // math below:
-  const LAMELLA_HEIGHT_MM = 50;   // width of each board (the panel's own short axis per board)
-  const LAMELLA_LENGTH_MM = 350;  // nominal length of each board along its row
-  const LAMELLA_LENGTH_VARIATION_MM = 50; // +/- random length jitter per board, for a less mechanical seam pattern
+  const LAMELLA_HEIGHT_MM = 40;   // width of each board (the panel's own short axis per board)
+  const LAMELLA_LENGTH_MM = 400;  // nominal length of each board along its row
+  const LAMELLA_LENGTH_VARIATION_MM = 100; // +/- random length jitter per board, for a less mechanical seam pattern
 
   // Grain noise shape — tuned once, shared by every board (only the seed
   // and base/grain colors vary board-to-board and preset-to-preset).
