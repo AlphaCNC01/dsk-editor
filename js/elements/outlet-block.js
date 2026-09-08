@@ -16,8 +16,8 @@ const OUTLET_BLOCK_VARIANTS = registerSimpleEmbeddable({
   defaultVariant: 'standard',
   variants: {
     standard: {
-      sku: 'РОЗ-СТ',
-      label: 'Блок розеток стандартный',
+      sku: '220В+USB+Type-C',
+      label: 'Блок розеток 220В+USB+Type-C',
       parts: [
       { verts: [{x:-133.5,y:60.0,bulge:0},{x:-133.5,y:-60.0,bulge:0},{x:133.5,y:-60.0,bulge:0},{x:133.5,y:60.0,bulge:0}], layer: 'OUTLET_BLOCK_TOP' },
       { verts: [{x:118.5,y:-55.0,bulge:0},{x:118.5,y:55.0,bulge:0},{x:-118.5,y:55.0,bulge:0},{x:-118.5,y:-55.0,bulge:0}], layer: 'CUTOUT' },
