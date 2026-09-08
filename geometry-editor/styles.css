@@ -1,0 +1,262 @@
+/* ============================================================================
+   This file is loaded AFTER ../css/styles.css (the real dsk-editor
+   stylesheet) and only adds what that file doesn't already have — it
+   reuses --bg/--panel/--ink/--accent/--mono etc. and existing classes like
+   .field, .btn-secondary, .btn-icon, fieldset/legend, #preview, #stage,
+   #zoomControls/.zoom-btn directly from it rather than redefining them.
+   ============================================================================ */
+
+/* Belt-and-suspenders against the whole page scrolling: even though
+   #app is sized to exactly 100vh below, any inner element that overflows
+   its own grid/flex cell (long contour lists, a tall picker bar row-wrap,
+   etc.) could otherwise still push html/body taller than the viewport,
+   making the ENTIRE page scroll together — preview, top bars and all.
+   Pinning html/body to the viewport and hiding overflow here means any
+   such overflow is forced to stay contained inside whichever inner panel
+   caused it (see #sideCol's own overflow-y below), not leak out to the
+   page. */
+html, body{
+  height:100vh;
+  overflow:hidden;
+}
+
+/* Top-level layout: TWO COLUMNS — main column (picker bar, transform bar,
+   preview stacked) on the left, sideCol spanning the FULL viewport height
+   on the right. This replaces the earlier rows-then-nested-row-split
+   layout, where sideCol only occupied the preview's row and picker/
+   transform bars ran the full window width above it. */
+#app{
+  display:grid;
+  grid-template-columns: 1fr 380px;
+  height:100vh;
+}
+#mainCol{
+  display:grid;
+  grid-template-rows: auto auto 1fr;
+  min-width:0;
+  min-height:0;
+  overflow:hidden;
+}
+@media (max-width: 900px){
+  #app{ grid-template-columns: 1fr; grid-template-rows: 1fr 40vh; }
+  #mainCol{ min-height:0; }
+}
+
+/* ---------- Top picker bar ---------- */
+#pickerBar{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:10px 16px;
+  border-bottom:1px solid var(--line);
+  background:var(--panel);
+  flex-wrap:wrap;
+}
+#pickerBar .brand{
+  font-family:var(--mono);
+  font-weight:700;
+  letter-spacing:.04em;
+  color:var(--accent);
+  font-size:13px;
+  white-space:nowrap;
+}
+#pickerBar .field-inline{
+  display:flex; align-items:center; gap:6px;
+}
+#pickerBar .field-inline label{
+  font-size:12px; color:var(--ink-dim); white-space:nowrap;
+}
+#pickerBar select{
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:5px;
+  color:var(--ink);
+  font-family:var(--mono);
+  font-size:12.5px;
+  padding:6px 8px;
+}
+#pickerBar .spacer{ flex:1; }
+
+/* ---------- Transform toolbar (below picker bar, above the preview).
+   Wraps into 2-3 rows rather than staying single-row — the origin-grid
+   (3x3 buttons) is already several lines tall, so a wide single-row
+   toolbar wastes horizontal space fighting that height; letting offset/
+   rotate/mirror/scope wrap naturally alongside it reads better. ---------- */
+#transformBar{
+  display:flex;
+  align-items:center;
+  gap:12px 20px;
+  padding:10px 16px;
+  border-bottom:1px solid var(--line);
+  background:var(--panel);
+  flex-wrap:wrap;
+  font-size:12px;
+}
+#transformBar .group{ display:flex; align-items:center; gap:6px; }
+#transformBar label{ color:var(--ink-dim); white-space:nowrap; }
+#transformBar input[type=number]{
+  width:70px;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:5px;
+  color:var(--ink);
+  font-family:var(--mono);
+  font-size:12.5px;
+  padding:5px 7px;
+}
+#transformBar .btn-mini{
+  background:var(--panel-2);
+  color:var(--ink);
+  border:1px solid var(--line);
+  border-radius:5px;
+  padding:5px 9px;
+  font-size:11.5px;
+  font-family:var(--mono);
+  cursor:pointer;
+  white-space:nowrap;
+}
+#transformBar .btn-mini:hover{ border-color:var(--accent); color:var(--accent); }
+#transformBar #previewMeta{ flex-basis:100%; text-align:right; }
+
+.origin-grid{
+  display:grid;
+  grid-template-columns:repeat(3, 22px);
+  grid-template-rows:repeat(3, 22px);
+  gap:2px;
+}
+.origin-grid button{
+  background:var(--panel-2);
+  color:var(--ink-dim);
+  border:1px solid var(--line);
+  border-radius:3px;
+  cursor:pointer;
+  font-size:11px;
+  padding:0;
+}
+.origin-grid button:hover{ border-color:var(--accent); color:var(--accent); }
+
+/* ---------- Preview pane: reuses #preview/#stage/#zoomControls/.zoom-btn
+   from ../css/styles.css as-is. Only the status/info overlay text below
+   is new. ---------- */
+#status{
+  position:absolute; bottom:16px; left:20px;
+  font-family:var(--mono); font-size:11px; color:var(--ink-dim);
+}
+#status.error{ color:#e05a5a; }
+#previewInfoBar{
+  position:absolute; top:16px; left:20px;
+  font-family:var(--mono); font-size:11px; color:var(--ink-dim);
+  line-height:1.7;
+}
+#previewInfoBar b{ color:var(--ink); }
+
+.origin-marker{ fill:var(--accent); }
+.shape-path{ cursor:pointer; }
+.shape-path:hover{ opacity:.7; }
+.shape-path.selected{ stroke-width:3 !important; filter:drop-shadow(0 0 3px var(--accent)); }
+
+/* ---------- Side column: sku/label fields, contour list, JSON editor.
+   Its own grid column (see #app above), so it spans the full viewport
+   height regardless of how tall the picker/transform bars in the main
+   column end up being. ---------- */
+#sideCol{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  overflow-y:auto;
+  border-left:1px solid var(--line);
+  background:var(--panel);
+  padding:16px 16px 16px;
+}
+#sideCol fieldset{ margin-bottom:14px; flex:none; }
+#sideCol #metaFieldset, #sideCol fieldset:not(#jsonFieldset){ overflow:visible; }
+
+/* The JSON fieldset takes all LEFTOVER vertical space in the column
+   (metadata + contour list stay their natural height above it) and the
+   editor inside it stretches to fill that fieldset completely, so the
+   JSON pane is always "the rest of the column" rather than a fixed small
+   box regardless of how many contours are listed above it. */
+#jsonFieldset{
+  flex:1 1 auto;
+  min-height:160px;
+  display:flex;
+  flex-direction:column;
+  margin-bottom:0;
+}
+#jsonFieldset legend{ flex:none; }
+#jsonEditorHost{
+  flex:1 1 auto;
+  min-height:0;
+  border:1px solid var(--line);
+  border-radius:6px;
+  overflow:hidden;
+}
+#jsonError{
+  font-family:var(--mono);
+  font-size:11px;
+  color:#e05a5a;
+  margin-top:6px;
+  min-height:14px;
+  flex:none;
+}
+
+.pill{
+  font-family:var(--mono);
+  font-size:10.5px;
+  padding:2px 8px;
+  border-radius:10px;
+  background:var(--panel-2);
+  border:1px solid var(--line);
+  color:var(--ink-dim);
+  display:inline-block;
+}
+.pill.new{ border-color:#4cc97c; color:#4cc97c; }
+
+/* Own scroll region with a sane cap — the contour list's fieldset sits
+   ABOVE the flexible JSON fieldset in a fixed-height column (see #sideCol
+   above), so if an element ever has a long contour list, it scrolls
+   internally rather than pushing the JSON editor down or off-screen. */
+#contourList{
+  max-height:220px;
+  overflow-y:auto;
+}
+
+/* Contour list rows — modeled on .instance-row from the real app's own
+   CSS (same radius/padding/background language) but denser, since a
+   contour row carries much less per-row UI than an instance row does. */
+.contour-item{
+  display:flex; align-items:center; gap:8px;
+  padding:6px 8px;
+  border-radius:6px;
+  cursor:pointer;
+  font-size:11.5px;
+  font-family:var(--mono);
+  border:1px solid transparent;
+  margin-bottom:3px;
+}
+.contour-item:hover{ background:var(--panel-2); }
+.contour-item.selected{ background:var(--panel-2); border-color:var(--accent); }
+.contour-item .swatch{
+  width:9px; height:9px; border-radius:2px; flex:none;
+  border:1px solid rgba(255,255,255,.25);
+}
+.contour-item .meta{ color:var(--ink-dim); flex:1; line-height:1.5; }
+.contour-item .meta b{ color:var(--ink); font-weight:600; }
+.contour-item .del{
+  background:none; border:none; color:var(--ink-dim); cursor:pointer;
+  font-size:13px; line-height:1; padding:2px 5px; border-radius:4px;
+}
+.contour-item .del:hover{ color:#e05a5a; background:var(--bg); }
+
+#addContourRow{ display:flex; gap:6px; margin-top:6px; }
+#addContourRow select{ flex:1; }
+
+/* ---------- CodeMirror (JSON pane) — fills #jsonEditorHost completely.
+   Only sizing/theme-integration rules here; syntax colors come from the
+   'dracula' CodeMirror theme loaded in index.html. ---------- */
+.CodeMirror{
+  height:100%;
+  font-family:var(--mono);
+  font-size:12px;
+  line-height:1.5;
+}
