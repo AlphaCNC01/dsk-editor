@@ -49,6 +49,18 @@ const PULT_VARIANTS = registerSimpleEmbeddable({
         { verts: [{x:27.0,y:30.0,bulge:1.0},{x:33.0,y:30.0,bulge:1.0}], layer: 'HOLES' },
       ],
     },
+    sensor: {
+      sku: 'сенсорный',
+      label: 'Сенсорный пульт',
+      parts: [
+        { verts: [{x:-33.8,y:33.7,bulge:0.414214},{x:-30.8,y:30.7,bulge:0.414214},{x:-27.8,y:33.7,bulge:0.414214},{x:-30.8,y:36.7,bulge:0.414214}], layer: 'HOLES' },
+        { verts: [{x:27.8,y:33.7,bulge:0.414214},{x:30.8,y:30.7,bulge:0.414214},{x:33.8,y:33.7,bulge:0.414214},{x:30.8,y:36.7,bulge:0.414214}], layer: 'HOLES' },
+        { verts: [{x:26.8,y:33.7,bulge:0.414214},{x:30.8,y:29.7,bulge:0.414214},{x:34.8,y:33.7,bulge:0.414214},{x:30.8,y:37.7,bulge:0.414214}], layer: 'HOLES' },
+        { verts: [{x:-34.8,y:33.7,bulge:0.414214},{x:-30.8,y:29.7,bulge:0.414214},{x:-26.8,y:33.7,bulge:0.414214},{x:-30.8,y:37.7,bulge:0.414214}], layer: 'HOLES' },
+        { verts: [{x:-37,y:58.4,bulge:0},{x:-37,y:0,bulge:0},{x:37,y:0,bulge:0},{x:37,y:58.4,bulge:0.414214},{x:32,y:63.4,bulge:0},{x:-32,y:63.4,bulge:0.414214}], layer: 'PHYSICAL' },
+        { verts: [{x:-37,y:0,bulge:0},{x:-37,y:-20.9,bulge:0.414214},{x:-22,y:-35.9,bulge:0},{x:22,y:-35.9,bulge:0.414214},{x:37,y:-20.9,bulge:0},{x:37,y:0,bulge:0}], layer: 'PHYSICAL' },
+      ],
+    },
     embeddedUsb: {
       sku: 'ПУ-USB',
       label: 'Встраиваемый с USB',
