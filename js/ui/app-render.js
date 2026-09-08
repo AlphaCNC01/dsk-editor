@@ -163,7 +163,10 @@
     mainBtn.disabled = true;
     mainBtn.textContent = 'Рендеринг…';
     try {
-      await ExportPNG.downloadAs([...entries, ...dims.entries], p.W, p.H, sanitizeFilename(inputs.orderNumber.value), dims.texts);
+      await ExportPNG.downloadAs([...entries, ...dims.entries], p.W, p.H, sanitizeFilename(inputs.orderNumber.value), dims.texts, undefined, undefined, {
+        orderNumber: (inputs.orderNumber.value || '').trim(),
+        thickness: p.thickness,
+      });
     } catch (err) {
       alert('Не удалось экспортировать PNG: ' + err.message);
     } finally {

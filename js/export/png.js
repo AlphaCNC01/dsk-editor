@@ -14,7 +14,36 @@ const ExportPNG = (() => {
   const BORDER_MARGIN_MM = 50;           // gap between the drawing's own edge and the border
   const BORDER_WIDTH_MM = 0;           // border line thickness, in the same mm units as the drawing
 
-  function rasterize(entries, W, H, texts, scale = DEFAULT_SCALE, strokeWidthMultiplier = DEFAULT_STROKE_WIDTH_MULTIPLIER){
+  // Order number + thickness caption, baked into the PNG's own pixels
+  // (not into the SVG/DXF geometry — this is PNG-export-only, since the
+  // PNG is the file that tends to get printed/passed around on its own
+  // without the project file alongside it). Drawn in the top-left margin
+  // in plain CSS pixels (not scaled by `scale`) so it reads at a
+  // consistent physical size regardless of the panel's mm dimensions or
+  // chosen export resolution.
+  const CAPTION_FONT_PX = 56;
+  const CAPTION_PADDING_PX = 20;         // inset from the canvas's own top-left corner
+  const CAPTION_LINE_GAP_PX = 10;
+
+  function drawCaption(ctx, orderNumber, thickness){
+    const lines = [];
+    if (orderNumber) lines.push(`Заказ №${orderNumber}`);
+    if (thickness) lines.push(`Толщина: ${thickness} мм`);
+    if (lines.length === 0) return;
+
+    ctx.save();
+    ctx.font = `bold ${CAPTION_FONT_PX}px monospace`;
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = '#000000';
+    let y = CAPTION_PADDING_PX;
+    for (const line of lines){
+      ctx.fillText(line, CAPTION_PADDING_PX, y);
+      y += CAPTION_FONT_PX + CAPTION_LINE_GAP_PX;
+    }
+    ctx.restore();
+  }
+
+  function rasterize(entries, W, H, texts, scale = DEFAULT_SCALE, strokeWidthMultiplier = DEFAULT_STROKE_WIDTH_MULTIPLIER, caption = {}){
     return new Promise((resolve, reject) => {
       const svgText = ExportSVG.build(entries, W, H, texts, strokeWidthMultiplier);
       const svgBlob = new Blob([svgText], { type: 'image/svg+xml;charset=utf-8' });
@@ -44,6 +73,8 @@ const ExportPNG = (() => {
         ctx.lineWidth = borderWidth;
         ctx.strokeRect(borderWidth / 2, borderWidth / 2, canvas.width - borderWidth, canvas.height - borderWidth);
 
+        drawCaption(ctx, caption.orderNumber, caption.thickness);
+
         URL.revokeObjectURL(svgUrl);
         canvas.toBlob((blob) => {
           if (blob) resolve(blob); else reject(new Error('canvas.toBlob returned null'));
@@ -57,12 +88,12 @@ const ExportPNG = (() => {
     });
   }
 
-  async function downloadAs(entries, W, H, filename, texts, scale, strokeWidthMultiplier){
+  async function downloadAs(entries, W, H, filename, texts, scale, strokeWidthMultiplier, caption){
     let name = (filename || 'panel').trim();
     if (!name) name = 'panel';
     if (!/\.png$/i.test(name)) name += '.png';
 
-    const blob = await rasterize(entries, W, H, texts, scale, strokeWidthMultiplier);
+    const blob = await rasterize(entries, W, H, texts, scale, strokeWidthMultiplier, caption);
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
