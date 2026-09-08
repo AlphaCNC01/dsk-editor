@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>DSK — Редактор геометрии элементов</title>
+<link rel="stylesheet" href="../css/styles.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+
+  <div id="mainCol">
+
+    <div id="pickerBar">
+      <div class="brand">DSK · ГЕОМЕТРИЯ</div>
+
+      <div class="field-inline">
+        <label>Элемент</label>
+        <select id="elemSelect"></select>
+      </div>
+      <div class="field-inline" id="elemVariantGroup" style="display:none;">
+        <label>Вариант</label>
+        <select id="elemVariant"></select>
+      </div>
+
+      <span class="pill" id="kindPill"></span>
+
+      <div class="spacer"></div>
+
+      <input type="file" id="fileInput" accept=".svg,.json" style="display:none;">
+      <button class="btn-icon" onclick="document.getElementById('fileInput').click()">Импорт SVG/JSON</button>
+      <button class="btn-icon" id="saveBtn" style="color:var(--accent);border-color:var(--accent-dim);">Скачать блок</button>
+    </div>
+
+    <div id="transformBar">
+      <div class="group">
+        <label>0,0 →</label>
+        <div class="origin-grid">
+          <button data-pos="tl" title="Верхний левый">↖</button>
+          <button data-pos="t" title="Верх, центр">↑</button>
+          <button data-pos="tr" title="Верхний правый">↗</button>
+          <button data-pos="l" title="Слева, центр">←</button>
+          <button data-pos="c" title="Центр">●</button>
+          <button data-pos="r" title="Справа, центр">→</button>
+          <button data-pos="bl" title="Нижний левый">↙</button>
+          <button data-pos="b" title="Низ, центр">↓</button>
+          <button data-pos="br" title="Нижний правый">↘</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <label>Сдвиг X/Y</label>
+        <input type="number" id="offsetX" value="0" step="any">
+        <input type="number" id="offsetY" value="0" step="any">
+        <button class="btn-mini" id="applyOffsetBtn">Сдвинуть</button>
+      </div>
+
+      <div class="group">
+        <label>Поворот °</label>
+        <input type="number" id="rotateAngle" value="90" step="any">
+        <button class="btn-mini" id="applyRotateBtn">Повернуть</button>
+      </div>
+
+      <div class="group">
+        <button class="btn-mini" id="mirrorHBtn">⇄ Зеркало Г</button>
+        <button class="btn-mini" id="mirrorVBtn">⇅ Зеркало В</button>
+      </div>
+
+      <div class="group">
+        <label><input type="checkbox" id="scopeSelected"> только выделенный контур</label>
+      </div>
+
+      <div class="spacer"></div>
+      <div id="previewMeta" style="font-family:var(--mono); font-size:11px; color:var(--ink-dim);"></div>
+    </div>
+
+    <div id="preview">
+      <svg id="stage" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+      <div id="previewInfoBar"></div>
+      <div id="status">Ожидание...</div>
+      <div id="zoomControls">
+        <button type="button" id="zoomOutBtn" class="zoom-btn" title="Уменьшить" aria-label="Уменьшить">−</button>
+        <button type="button" id="zoomResetBtn" class="zoom-btn zoom-percent" title="Сбросить масштаб">100%</button>
+        <button type="button" id="zoomInBtn" class="zoom-btn" title="Увеличить" aria-label="Увеличить">+</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="sideCol">
+
+    <fieldset id="metaFieldset" style="display:none;">
+      <legend>Метаданные</legend>
+      <div class="field">
+        <label>Артикул (sku)</label>
+        <input type="text" id="skuInput" placeholder="ПУ-СТ">
+      </div>
+      <div class="field">
+        <label>Название (label)</label>
+        <input type="text" id="labelInput" placeholder="Стандартный">
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Контуры <span id="contourCount" style="color:var(--ink-dim);"></span></legend>
+      <div id="contourList"></div>
+      <div id="addContourRow">
+        <select id="newContourLayer"></select>
+        <button class="btn-add" id="addContourBtn" style="width:auto;padding:8px 12px;">+ контур</button>
+      </div>
+    </fieldset>
+
+    <fieldset id="jsonFieldset">
+      <legend>JSON (группы контуров)</legend>
+      <div id="jsonEditorHost"><textarea id="jsonEditor" spellcheck="false"></textarea></div>
+      <div id="jsonError"></div>
+    </fieldset>
+
+  </div>
+
+</div>
+
+<!-- Real project core — read-only. This editor never modifies these files;
+     it only reads Elements.all() / Layers.registry, and reuses
+     RenderSVG.build / zoom.js outright instead of reimplementing them. -->
+<script src="../js/core/geo.js"></script>
+<script src="../js/core/layers.js"></script>
+<script src="../js/core/elements.js"></script>
+<script src="../js/core/drawing.js"></script>
+<script src="../js/elements/tabletop.js"></script>
+<script src="../js/elements/underframe.js"></script>
+<script src="../js/elements/pult.js"></script>
+<script src="../js/elements/wireless-charger.js"></script>
+<script src="../js/elements/outlet-block.js"></script>
+<script src="../js/elements/phone-stand.js"></script>
+<script src="../js/elements/tray.js"></script>
+<script src="../js/elements/pullout.js"></script>
+<script src="../js/elements/usb-charger.js"></script>
+<script src="../js/elements/cable-pocket.js"></script>
+<script src="../js/elements/cable-channels.js"></script>
+<script src="../js/render/svg.js"></script>
+
+<!-- js/ui/zoom.js is copied in verbatim (own file, own header explaining
+     that) rather than linked directly from ../js/ui/, since that file
+     also expects UI.el to already exist — this editor's own main.js
+     defines the same trivial UI.el = document.getElementById shim before
+     zoom.js runs, without pulling in the rest of js/ui/ (instance lists,
+     anchor pickers, cable-channel UI) that has no purpose here. -->
+<!-- Minimal UI.el shim, defined before zoom.js needs it (see zoom.js's
+     own header comment for why it's a verbatim copy rather than a live
+     include of ../js/ui/zoom.js). This is genuinely the entire UI
+     namespace this editor uses — kept as its own one-line file rather
+     than folded into main.js so the ordering requirement (must exist
+     before zoom.js runs) is visible from index.html's own script list,
+     not hidden inside main.js's larger bootstrap logic which belongs
+     after every module it wires together, not before zoom.js. -->
+<script src="js/ui-shim.js"></script>
+<script src="js/zoom.js"></script>
+
+<!-- This editor's own modules -->
+<script src="js/registry.js"></script>
+<script src="js/editor-state.js"></script>
+<script src="js/transform.js"></script>
+<script src="js/render.js"></script>
+<script src="js/contour-list.js"></script>
+<script src="js/save.js"></script>
+<script src="js/svg-import.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
