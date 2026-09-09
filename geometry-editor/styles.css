@@ -27,7 +27,12 @@ html, body{
    transform bars ran the full window width above it. */
 #app{
   display:grid;
-  grid-template-columns: 1fr 380px;
+  /* Right column's width lives in a CSS variable so the resize handle
+     (js/resize.js) can adjust it by writing to this variable rather than
+     rewriting the whole grid-template-columns rule — the drag handle
+     itself sits in the 3rd column below. */
+  --side-col-width: 380px;
+  grid-template-columns: 1fr 6px var(--side-col-width);
   height:100vh;
 }
 #mainCol{
@@ -39,7 +44,27 @@ html, body{
 }
 @media (max-width: 900px){
   #app{ grid-template-columns: 1fr; grid-template-rows: 1fr 40vh; }
+  #resizeHandle{ display:none; }
   #mainCol{ min-height:0; }
+}
+
+/* ---------- Drag handle between mainCol and sideCol — lets the side
+   column's width be adjusted by dragging, writing the result into #app's
+   own --side-col-width variable (see #app above) rather than any fixed
+   width. A thin visual line at rest, widens on hover so it's easy to
+   grab without being visually heavy the rest of the time. ---------- */
+#resizeHandle{
+  cursor:col-resize;
+  background:var(--line);
+  position:relative;
+}
+#resizeHandle:hover, #resizeHandle.dragging{ background:var(--accent); }
+#resizeHandle::before{
+  /* Wider invisible hit area than the visible 6px line, so the handle is
+     comfortably grabbable without needing the visible line itself to be
+     thick (which would look heavy at rest). */
+  content:'';
+  position:absolute; top:0; bottom:0; left:-4px; right:-4px;
 }
 
 /* ---------- Top picker bar ---------- */
@@ -155,38 +180,38 @@ html, body{
 .shape-path:hover{ opacity:.7; }
 .shape-path.selected{ stroke-width:3 !important; filter:drop-shadow(0 0 3px var(--accent)); }
 
-/* ---------- Side column: sku/label fields, contour list, JSON editor.
-   Its own grid column (see #app above), so it spans the full viewport
-   height regardless of how tall the picker/transform bars in the main
-   column end up being. ---------- */
+/* Side column: sku/label fields, contour list, JSON editor. Its own grid
+   column (see #app above), so it spans the full viewport height
+   regardless of how tall the picker/transform bars in the main column
+   end up being. */
 #sideCol{
   display:flex;
   flex-direction:column;
   min-height:0;
+  min-width:0;
   overflow-y:auto;
+  overflow-x:hidden;
   border-left:1px solid var(--line);
   background:var(--panel);
   padding:16px 16px 16px;
 }
 #sideCol fieldset{ margin-bottom:14px; flex:none; }
-#sideCol #metaFieldset, #sideCol fieldset:not(#jsonFieldset){ overflow:visible; }
+#sideCol #metaFieldset, #sideCol fieldset{ overflow:visible; }
 
-/* The JSON fieldset takes all LEFTOVER vertical space in the column
-   (metadata + contour list stay their natural height above it) and the
-   editor inside it stretches to fill that fieldset completely, so the
-   JSON pane is always "the rest of the column" rather than a fixed small
-   box regardless of how many contours are listed above it. */
-#jsonFieldset{
-  flex:1 1 auto;
-  min-height:160px;
-  display:flex;
-  flex-direction:column;
-  margin-bottom:0;
-}
-#jsonFieldset legend{ flex:none; }
+/* jsonEditorHost sits directly in #sideCol (no wrapping fieldset/legend —
+   a labeled box here just ate into an already-narrow column's width for
+   no benefit) and takes all LEFTOVER vertical space, so the code pane is
+   always "the rest of the column" regardless of how many contours are
+   listed above it. min-width:0 is the actual fix for horizontal overflow
+   leaking out to #sideCol: a flex child's default min-width is `auto`,
+   which refuses to shrink below its content's own intrinsic width — a
+   long unwrapped JSON line would otherwise force jsonEditorHost (and so
+   #sideCol) wider than the column, making the WHOLE column scroll
+   sideways instead of just the code pane internally. */
 #jsonEditorHost{
   flex:1 1 auto;
-  min-height:0;
+  min-height:160px;
+  min-width:0;
   border:1px solid var(--line);
   border-radius:6px;
   overflow:hidden;

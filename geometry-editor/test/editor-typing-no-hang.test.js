@@ -52,7 +52,7 @@ function makeEl(id, tag){ const el = new FakeElement(tag); if (id) elementsById[
   ['status','div'],['zoomControls','div'],['zoomOutBtn','button'],['zoomResetBtn','button'],['zoomInBtn','button'],
   ['sideCol','div'],['metaFieldset','fieldset'],['skuInput','input'],['labelInput','input'],['contourCount','span'],
   ['contourList','div'],['addContourRow','div'],['newContourLayer','select'],['addContourBtn','button'],
-  ['jsonEditor','textarea'],['jsonError','div'],['jsonEditorHost','div'],['jsonFieldset','fieldset'],['mainCol','div'],
+  ['jsonEditor','textarea'],['jsonError','div'],['jsonEditorHost','div'],['mainCol','div'],['resizeHandle','div'],['app','div'],
 ].forEach(([id,tag])=>makeEl(id,tag));
 const originGridButtons = ['tl','t','tr','l','c','r','bl','b','br'].map(pos=>{ const b=new FakeElement('button'); b.dataset.pos=pos; b._attrs['data-pos']=pos; return b; });
 const fakeDocument = {
