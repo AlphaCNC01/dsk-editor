@@ -122,12 +122,6 @@ Elements.register((() => {
     },
   };
   
-  function ensureCCW(verts){
-    if (verts.length < 2) return verts;
-    if (verts.length === 2) return verts[0].bulge > 0 ? verts : Geo.reverseContour(verts);
-    return Geo.signedArea(verts) >= 0 ? verts : Geo.reverseContour(verts);
-  }
-
   // Builds one leg-side's geometry at a given placement, optionally
   // mirrored. The underframe geometry is authored with its local origin
   // (0,0) at the center of the left edge for the left leg. For the right
@@ -136,27 +130,21 @@ Elements.register((() => {
   // standard anchor system ('left'/'right') where insetX is the distance
   // from the tabletop edge inward, and insetY is a vertical offset from
   // the centered position.
-  function buildSide(data, centerX, centerY, mirror){
-    const place = (verts) => {
+  function buildSide(data, centerX, centerY, mirrorX){
+    const entries = [];
+    for (const { verts, layer } of data.parts) {
       let v = verts;
-      if (mirror) {
-        // Mirror across the vertical axis at x=0 (the left edge, which is
-        // the reference point for anchors). This makes the original left
-        // edge become the right edge, with x coordinates negated.
-        v = v.map(vv => ({ x: -vv.x, y: vv.y, bulge: -vv.bulge }));
-        v = ensureCCW(v);
+      // Mirror across the vertical axis at x=0 for the right leg.
+      // Geo.mirror handles bulge sign flip and winding reversal.
+      if (mirrorX) {
+        v = Geo.mirror(v, 'vertical', { x: 0, y: 0 });
       }
       // Y flip: local y grows downward from frame's top, world y grows up.
       // A Y flip reverses winding direction, requiring bulge sign inversion.
-      return v.map(pt => ({
-        x: pt.x + centerX,
-        y: centerY - pt.y,
-        bulge: -pt.bulge, // Y-flip reverses arc direction
-      }));
-    };
-    const entries = [];
-    for (const { verts, layer } of data.parts) {
-      entries.push({ contour: ensureCCW(place(verts)), layer });
+      v = v.map(pt => ({ x: pt.x, y: -pt.y, bulge: -pt.bulge }));
+      // Translate to final position
+      v = Geo.translate(v, centerX, centerY);
+      entries.push({ contour: v, layer });
     }
     return entries;
   }
