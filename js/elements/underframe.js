@@ -22,11 +22,17 @@
 // vertical axis; mirroring, like the flip above, reverses winding and gets
 // the same re-verification.
 //
-// Local coordinate convention: x=0 at the frame's own left edge, y=0 at the
-// frame's own TOP edge (growing downward). The frame is centered vertically
-// on the tabletop by default (a vertical inset of 0), with the inset then
-// shifting it up or down from that centered position — see buildContours
-// for the exact placement math.
+// Local coordinate convention (AFTER geometry refactor): The geometry data
+// should be authored with its local origin (0,0) at the center of the LEFT
+// edge for the left leg variant. For positioning purposes, this means:
+//   - The 'left' anchor places the leg's left-edge-center at the specified inset
+//   - The 'right' anchor places the leg's right-edge-center (after mirroring)
+//     at the specified inset from the right tabletop edge
+//   - Vertical positioning uses underframeInsetV as a signed offset from the
+//     tabletop's vertical center (positive = up, negative = down)
+// This allows the underframe to use the same anchor+inset positioning system
+// as all other embeddable elements, unifying the code path and making it
+// independent of the specific geometry dimensions.
 //
 // Layers: physical parts (leg profile) go on UNDERFRAME; mounting holes
 // (присадка) go on UNDERFRAME_HOLES, so a CAM operator can isolate cut
@@ -39,24 +45,24 @@ Elements.register((() => {
       label: 'Подстолье 60',
       width: 503, height: 575,
       parts: [
-        { verts: [{x:240.5,y:336,bulge:0},{x:265.5,y:336,bulge:0},{x:265.5,y:239,bulge:0},{x:240.5,y:239,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:37.5,y:356,bulge:0},{x:503,y:356,bulge:0},{x:503,y:336,bulge:0},{x:37.5,y:336,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:37.5,y:336,bulge:0},{x:199,y:336,bulge:0},{x:199,y:239,bulge:0},{x:37.5,y:239,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:0,y:575,bulge:0},{x:37.5,y:575,bulge:0},{x:37.5,y:0,bulge:0},{x:0,y:0,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:478,y:336,bulge:0},{x:503,y:336,bulge:0},{x:503,y:239,bulge:0},{x:478,y:239,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:37.5,y:239,bulge:0},{x:503,y:239,bulge:0},{x:503,y:219,bulge:0},{x:37.5,y:219,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:23,y:20,bulge:1},{x:32,y:20,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:21.5,y:20,bulge:1},{x:33.5,y:20,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:23,y:425,bulge:1},{x:32,y:425,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:21.5,y:425,bulge:1},{x:33.5,y:425,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:23,y:150,bulge:1},{x:32,y:150,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:21.5,y:150,bulge:1},{x:33.5,y:150,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:23,y:555,bulge:1},{x:32,y:555,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:21.5,y:555,bulge:1},{x:33.5,y:555,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:248.5,y:287.5,bulge:1},{x:257.5,y:287.5,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:247,y:287.5,bulge:1},{x:259,y:287.5,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:486,y:287.5,bulge:1},{x:495,y:287.5,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:484.5,y:287.5,bulge:1},{x:496.5,y:287.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:240.5,y:48.5,bulge:0},{x:265.5,y:48.5,bulge:0},{x:265.5,y:-48.5,bulge:0},{x:240.5,y:-48.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:37.5,y:68.5,bulge:0},{x:503,y:68.5,bulge:0},{x:503,y:48.5,bulge:0},{x:37.5,y:48.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:37.5,y:48.5,bulge:0},{x:199,y:48.5,bulge:0},{x:199,y:-48.5,bulge:0},{x:37.5,y:-48.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:0,y:287.5,bulge:0},{x:37.5,y:287.5,bulge:0},{x:37.5,y:-287.5,bulge:0},{x:0,y:-287.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:478,y:48.5,bulge:0},{x:503,y:48.5,bulge:0},{x:503,y:-48.5,bulge:0},{x:478,y:-48.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:37.5,y:-48.5,bulge:0},{x:503,y:-48.5,bulge:0},{x:503,y:-68.5,bulge:0},{x:37.5,y:-68.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:23,y:-267.5,bulge:1},{x:32,y:-267.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:21.5,y:-267.5,bulge:1},{x:33.5,y:-267.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:23,y:137.5,bulge:1},{x:32,y:137.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:21.5,y:137.5,bulge:1},{x:33.5,y:137.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:23,y:-137.5,bulge:1},{x:32,y:-137.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:21.5,y:-137.5,bulge:1},{x:33.5,y:-137.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:23,y:267.5,bulge:1},{x:32,y:267.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:21.5,y:267.5,bulge:1},{x:33.5,y:267.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:248.5,y:0,bulge:1},{x:257.5,y:0,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:247,y:0,bulge:1},{x:259,y:0,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:486,y:0,bulge:1},{x:495,y:0,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:484.5,y:0,bulge:1},{x:496.5,y:0,bulge:1}], layer: 'HOLES' },
       ],
     },
     'X2DM-PRO': {
@@ -64,30 +70,30 @@ Elements.register((() => {
       label: 'Подстолье',
       width: 504, height: 700,
       parts: [
-      { verts: [{x:504,y:281.5,bulge:0},{x:479,y:281.5,bulge:0},{x:479,y:418.5,bulge:0},{x:504,y:418.5,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:36,y:301.5,bulge:0},{x:479,y:301.5,bulge:0},{x:479,y:281.5,bulge:0},{x:36,y:281.5,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:36,y:418.5,bulge:0},{x:479,y:418.5,bulge:0},{x:479,y:398.5,bulge:0},{x:36,y:398.5,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:36,y:397.5,bulge:0},{x:177,y:397.5,bulge:-0.414214},{x:182,y:392.5,bulge:0},{x:182,y:307.5,bulge:-0.414214},{x:177,y:302.5,bulge:0},{x:36,y:302.5,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:16,y:62.5,bulge:0},{x:0,y:62.5,bulge:0},{x:0,y:637.5,bulge:0},{x:16,y:637.5,bulge:-0.414214},{x:36,y:617.5,bulge:0},{x:36,y:82.5,bulge:-0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:5,y:0,bulge:0},{x:65,y:0,bulge:0.414214},{x:70,y:5,bulge:0},{x:70,y:25,bulge:0},{x:0,y:25,bulge:0},{x:0,y:5,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:0,y:25,bulge:0},{x:0,y:675,bulge:0},{x:70,y:675,bulge:0},{x:70,y:25,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:5,y:700,bulge:0},{x:65,y:700,bulge:-0.414214},{x:70,y:695,bulge:0},{x:70,y:675,bulge:0},{x:0,y:675,bulge:0},{x:0,y:695,bulge:-0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:409.75,bulge:-0.414214},{x:22.75,y:408.5,bulge:-0.414214},{x:21.5,y:407.25,bulge:-0.414214},{x:20.25,y:408.5,bulge:-0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:404.75,bulge:0.414214},{x:25.25,y:408.5,bulge:0.414214},{x:21.5,y:412.25,bulge:0.414214},{x:17.75,y:408.5,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:402,bulge:0.414214},{x:28,y:408.5,bulge:0.414214},{x:21.5,y:415,bulge:0.414214},{x:15,y:408.5,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:292.75,bulge:-0.414214},{x:22.75,y:291.5,bulge:-0.414214},{x:21.5,y:290.25,bulge:-0.414214},{x:20.25,y:291.5,bulge:-0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:287.75,bulge:0.414214},{x:25.25,y:291.5,bulge:0.414214},{x:21.5,y:295.25,bulge:0.414214},{x:17.75,y:291.5,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:285,bulge:0.414214},{x:28,y:291.5,bulge:0.414214},{x:21.5,y:298,bulge:0.414214},{x:15,y:291.5,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:15.5,y:182.5,bulge:0.414214},{x:21.5,y:176.5,bulge:0.414214},{x:27.5,y:182.5,bulge:0.414214},{x:21.5,y:188.5,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:182.5,bulge:0.414214},{x:21.5,y:178,bulge:0.414214},{x:26,y:182.5,bulge:0.414214},{x:21.5,y:187,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:15.5,y:82.5,bulge:0.414214},{x:21.5,y:76.5,bulge:0.414214},{x:27.5,y:82.5,bulge:0.414214},{x:21.5,y:88.5,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:82.5,bulge:0.414214},{x:21.5,y:78,bulge:0.414214},{x:26,y:82.5,bulge:0.414214},{x:21.5,y:87,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:15.5,y:617.5,bulge:0.414214},{x:21.5,y:611.5,bulge:0.414214},{x:27.5,y:617.5,bulge:0.414214},{x:21.5,y:623.5,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:617.5,bulge:0.414214},{x:21.5,y:613,bulge:0.414214},{x:26,y:617.5,bulge:0.414214},{x:21.5,y:622,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:15.5,y:517.5,bulge:0.414214},{x:21.5,y:511.5,bulge:0.414214},{x:27.5,y:517.5,bulge:0.414214},{x:21.5,y:523.5,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:517.5,bulge:0.414214},{x:21.5,y:513,bulge:0.414214},{x:26,y:517.5,bulge:0.414214},{x:21.5,y:522,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:485.5,y:350,bulge:0.414214},{x:491.5,y:344,bulge:0.414214},{x:497.5,y:350,bulge:0.414214},{x:491.5,y:356,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:487,y:350,bulge:0.414214},{x:491.5,y:345.5,bulge:0.414214},{x:496,y:350,bulge:0.414214},{x:491.5,y:354.5,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:504,y:-68.5,bulge:0},{x:479,y:-68.5,bulge:0},{x:479,y:68.5,bulge:0},{x:504,y:68.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:36,y:-48.5,bulge:0},{x:479,y:-48.5,bulge:0},{x:479,y:-68.5,bulge:0},{x:36,y:-68.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:36,y:68.5,bulge:0},{x:479,y:68.5,bulge:0},{x:479,y:48.5,bulge:0},{x:36,y:48.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:36,y:47.5,bulge:0},{x:177,y:47.5,bulge:-0.414214},{x:182,y:42.5,bulge:0},{x:182,y:-42.5,bulge:-0.414214},{x:177,y:-47.5,bulge:0},{x:36,y:-47.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:16,y:-287.5,bulge:0},{x:0,y:-287.5,bulge:0},{x:0,y:287.5,bulge:0},{x:16,y:287.5,bulge:-0.414214},{x:36,y:267.5,bulge:0},{x:36,y:-267.5,bulge:-0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:5,y:-350,bulge:0},{x:65,y:-350,bulge:0.414214},{x:70,y:-345,bulge:0},{x:70,y:-325,bulge:0},{x:0,y:-325,bulge:0},{x:0,y:-345,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:0,y:-325,bulge:0},{x:0,y:325,bulge:0},{x:70,y:325,bulge:0},{x:70,y:-325,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:5,y:350,bulge:0},{x:65,y:350,bulge:-0.414214},{x:70,y:345,bulge:0},{x:70,y:325,bulge:0},{x:0,y:325,bulge:0},{x:0,y:345,bulge:-0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:59.75,bulge:-0.414214},{x:22.75,y:58.5,bulge:-0.414214},{x:21.5,y:57.25,bulge:-0.414214},{x:20.25,y:58.5,bulge:-0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:54.75,bulge:0.414214},{x:25.25,y:58.5,bulge:0.414214},{x:21.5,y:62.25,bulge:0.414214},{x:17.75,y:58.5,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:52,bulge:0.414214},{x:28,y:58.5,bulge:0.414214},{x:21.5,y:65,bulge:0.414214},{x:15,y:58.5,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:-57.25,bulge:-0.414214},{x:22.75,y:-58.5,bulge:-0.414214},{x:21.5,y:-59.75,bulge:-0.414214},{x:20.25,y:-58.5,bulge:-0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:-62.25,bulge:0.414214},{x:25.25,y:-58.5,bulge:0.414214},{x:21.5,y:-54.75,bulge:0.414214},{x:17.75,y:-58.5,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:-65,bulge:0.414214},{x:28,y:-58.5,bulge:0.414214},{x:21.5,y:-52,bulge:0.414214},{x:15,y:-58.5,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:15.5,y:-167.5,bulge:0.414214},{x:21.5,y:-173.5,bulge:0.414214},{x:27.5,y:-167.5,bulge:0.414214},{x:21.5,y:-161.5,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:17,y:-167.5,bulge:0.414214},{x:21.5,y:-172,bulge:0.414214},{x:26,y:-167.5,bulge:0.414214},{x:21.5,y:-163,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:15.5,y:-267.5,bulge:0.414214},{x:21.5,y:-273.5,bulge:0.414214},{x:27.5,y:-267.5,bulge:0.414214},{x:21.5,y:-261.5,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:17,y:-267.5,bulge:0.414214},{x:21.5,y:-272,bulge:0.414214},{x:26,y:-267.5,bulge:0.414214},{x:21.5,y:-263,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:15.5,y:267.5,bulge:0.414214},{x:21.5,y:261.5,bulge:0.414214},{x:27.5,y:267.5,bulge:0.414214},{x:21.5,y:273.5,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:17,y:267.5,bulge:0.414214},{x:21.5,y:263,bulge:0.414214},{x:26,y:267.5,bulge:0.414214},{x:21.5,y:272,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:15.5,y:167.5,bulge:0.414214},{x:21.5,y:161.5,bulge:0.414214},{x:27.5,y:167.5,bulge:0.414214},{x:21.5,y:173.5,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:17,y:167.5,bulge:0.414214},{x:21.5,y:163,bulge:0.414214},{x:26,y:167.5,bulge:0.414214},{x:21.5,y:172,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:485.5,y:0,bulge:0.414214},{x:491.5,y:-6,bulge:0.414214},{x:497.5,y:0,bulge:0.414214},{x:491.5,y:6,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:487,y:0,bulge:0.414214},{x:491.5,y:-4.5,bulge:0.414214},{x:496,y:0,bulge:0.414214},{x:491.5,y:4.5,bulge:0.414214}], layer: 'HOLES' },
       ],
     },
     '70': {
@@ -95,23 +101,23 @@ Elements.register((() => {
       label: 'Подстолье 70',
       width: 548, height: 575,
       parts: [
-        { verts: [{x:278,y:367.5,bulge:0},{x:298,y:367.5,bulge:0},{x:298,y:207.5,bulge:0},{x:278,y:207.5,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:38,y:387.5,bulge:0},{x:548,y:387.5,bulge:0},{x:548,y:367.5,bulge:0},{x:38,y:367.5,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:0,y:575,bulge:0},{x:38,y:575,bulge:0},{x:38,y:0,bulge:0},{x:0,y:0,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:38,y:207.5,bulge:0},{x:548,y:207.5,bulge:0},{x:548,y:187.5,bulge:0},{x:38,y:187.5,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:528,y:367.5,bulge:0},{x:548,y:367.5,bulge:0},{x:548,y:207.5,bulge:0},{x:528,y:207.5,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:23.5,y:20,bulge:1},{x:32.5,y:20,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:22,y:20,bulge:1},{x:34,y:20,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:23.5,y:425,bulge:1},{x:32.5,y:425,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:22,y:425,bulge:1},{x:34,y:425,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:23.5,y:150,bulge:1},{x:32.5,y:150,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:22,y:150,bulge:1},{x:34,y:150,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:23.5,y:555,bulge:1},{x:32.5,y:555,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:22,y:555,bulge:1},{x:34,y:555,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:283.5,y:287.5,bulge:1},{x:292.5,y:287.5,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:282,y:287.5,bulge:1},{x:294,y:287.5,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:533.5,y:287.5,bulge:1},{x:542.5,y:287.5,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:532,y:287.5,bulge:1},{x:544,y:287.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:278,y:80,bulge:0},{x:298,y:80,bulge:0},{x:298,y:-80,bulge:0},{x:278,y:-80,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:38,y:100,bulge:0},{x:548,y:100,bulge:0},{x:548,y:80,bulge:0},{x:38,y:80,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:0,y:287.5,bulge:0},{x:38,y:287.5,bulge:0},{x:38,y:-287.5,bulge:0},{x:0,y:-287.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:38,y:-80,bulge:0},{x:548,y:-80,bulge:0},{x:548,y:-100,bulge:0},{x:38,y:-100,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:528,y:80,bulge:0},{x:548,y:80,bulge:0},{x:548,y:-80,bulge:0},{x:528,y:-80,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:23.5,y:-267.5,bulge:1},{x:32.5,y:-267.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:22,y:-267.5,bulge:1},{x:34,y:-267.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:23.5,y:137.5,bulge:1},{x:32.5,y:137.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:22,y:137.5,bulge:1},{x:34,y:137.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:23.5,y:-137.5,bulge:1},{x:32.5,y:-137.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:22,y:-137.5,bulge:1},{x:34,y:-137.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:23.5,y:267.5,bulge:1},{x:32.5,y:267.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:22,y:267.5,bulge:1},{x:34,y:267.5,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:283.5,y:0,bulge:1},{x:292.5,y:0,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:282,y:0,bulge:1},{x:294,y:0,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:533.5,y:0,bulge:1},{x:542.5,y:0,bulge:1}], layer: 'HOLES' },
+      { verts: [{x:532,y:0,bulge:1},{x:544,y:0,bulge:1}], layer: 'HOLES' },
       ],
     },
   };
@@ -122,26 +128,29 @@ Elements.register((() => {
     return Geo.signedArea(verts) >= 0 ? verts : Geo.reverseContour(verts);
   }
 
-  function mirrorX(verts, axisX){
-    const mirrored = verts.map(v => ({ x: 2 * axisX - v.x, y: v.y, bulge: -v.bulge }));
-    return ensureCCW(mirrored);
-  }
-
   // Builds one leg-side's geometry at a given placement, optionally
-  // mirrored. `leftX` is where this side's local x=0 lands on the
-  // tabletop; `topY` is where this side's local y=0 (the frame's own top
-  // edge) lands — i.e. the tabletop's top edge minus the vertical inset.
-  function buildSide(data, leftX, topY, mirror){
+  // mirrored. The underframe geometry is authored with its local origin
+  // (0,0) at the center of the left edge for the left leg. For the right
+  // leg (mirrored), this means the local origin ends up at the center of
+  // the right edge after mirroring. This allows positioning via the
+  // standard anchor system ('left'/'right') where insetX is the distance
+  // from the tabletop edge inward, and insetY is a vertical offset from
+  // the centered position.
+  function buildSide(data, centerX, centerY, mirror){
     const place = (verts) => {
       let v = verts;
-      if (mirror) v = mirrorX(v, data.width / 2);
-      // local y grows downward from the frame's own top (y=0), so placing
-      // it needs a Y flip relative to translate's plain add: worldY =
-      // topY - localY. A Y flip reverses the winding direction, which
-      // requires inverting all bulge signs to preserve the arc direction.
+      if (mirror) {
+        // Mirror across the vertical axis at x=0 (the left edge, which is
+        // the reference point for anchors). This makes the original left
+        // edge become the right edge, with x coordinates negated.
+        v = v.map(vv => ({ x: -vv.x, y: vv.y, bulge: -vv.bulge }));
+        v = ensureCCW(v);
+      }
+      // Y flip: local y grows downward from frame's top, world y grows up.
+      // A Y flip reverses winding direction, requiring bulge sign inversion.
       return v.map(pt => ({
-        x: pt.x + leftX,
-        y: topY - pt.y,
+        x: pt.x + centerX,
+        y: centerY - pt.y,
         bulge: -pt.bulge, // Y-flip reverses arc direction
       }));
     };
@@ -157,20 +166,14 @@ Elements.register((() => {
     const data = UNDERFRAME_VARIANTS[p.underframeType];
     if (!data) return [];
 
-    const insetH = p.underframeInsetH != null ? p.underframeInsetH : 50;
-    // Centered vertically by default (insetV=0): the frame's own vertical
-    // midpoint lands on the tabletop's own vertical midpoint. insetV then
-    // shifts it from that centered position — positive moves the frame up,
-    // negative moves it down, matching this app's normal CAD Y-up
-    // convention (unlike the charger's always-non-negative inset system,
-    // there's no single anchor corner here to derive a sign from, so this
-    // stays a plain signed offset from center).
-    const insetV = p.underframeInsetV || 0;
-    const topY = p.H / 2 + data.height / 2 + insetV;
+    const bounds = { minX: 0, minY: 0, maxX: p.W, maxY: p.H };
+        
+    const leftPos = Elements.resolveInset('left', p.underframeInsetH || 0, p.underframeInsetV || 0, bounds);
+    const rightPos = Elements.resolveInset('right', p.underframeInsetH || 0, p.underframeInsetV || 0, bounds);
 
     const entries = [];
-    entries.push(...buildSide(data, insetH, topY, false));
-    entries.push(...buildSide(data, p.W - insetH - data.width, topY, true));
+    entries.push(...buildSide(data, leftPos.x, leftPos.y, false));
+    entries.push(...buildSide(data, rightPos.x, rightPos.y, true));
     return entries;
   }
 
