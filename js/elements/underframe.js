@@ -67,27 +67,27 @@ Elements.register((() => {
       { verts: [{x:504,y:281.5,bulge:0},{x:479,y:281.5,bulge:0},{x:479,y:418.5,bulge:0},{x:504,y:418.5,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:36,y:301.5,bulge:0},{x:479,y:301.5,bulge:0},{x:479,y:281.5,bulge:0},{x:36,y:281.5,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:36,y:418.5,bulge:0},{x:479,y:418.5,bulge:0},{x:479,y:398.5,bulge:0},{x:36,y:398.5,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:36,y:397.5,bulge:0},{x:177,y:397.5,bulge:0.414214},{x:182,y:392.5,bulge:0},{x:182,y:307.5,bulge:0.414214},{x:177,y:302.5,bulge:0},{x:36,y:302.5,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:16,y:62.5,bulge:0},{x:0,y:62.5,bulge:0},{x:0,y:637.5,bulge:0},{x:16,y:637.5,bulge:0.414214},{x:36,y:617.5,bulge:0},{x:36,y:82.5,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:5,y:0,bulge:0},{x:65,y:0,bulge:-0.414214},{x:70,y:5,bulge:0},{x:70,y:25,bulge:0},{x:0,y:25,bulge:0},{x:0,y:5,bulge:-0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:36,y:397.5,bulge:0},{x:177,y:397.5,bulge:-0.414214},{x:182,y:392.5,bulge:0},{x:182,y:307.5,bulge:-0.414214},{x:177,y:302.5,bulge:0},{x:36,y:302.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:16,y:62.5,bulge:0},{x:0,y:62.5,bulge:0},{x:0,y:637.5,bulge:0},{x:16,y:637.5,bulge:-0.414214},{x:36,y:617.5,bulge:0},{x:36,y:82.5,bulge:-0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:5,y:0,bulge:0},{x:65,y:0,bulge:0.414214},{x:70,y:5,bulge:0},{x:70,y:25,bulge:0},{x:0,y:25,bulge:0},{x:0,y:5,bulge:0.414214}], layer: 'PHYSICAL' },
       { verts: [{x:0,y:25,bulge:0},{x:0,y:675,bulge:0},{x:70,y:675,bulge:0},{x:70,y:25,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:5,y:700,bulge:0},{x:65,y:700,bulge:0.414214},{x:70,y:695,bulge:0},{x:70,y:675,bulge:0},{x:0,y:675,bulge:0},{x:0,y:695,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:409.75,bulge:0.414214},{x:22.75,y:408.5,bulge:0.414214},{x:21.5,y:407.25,bulge:0.414214},{x:20.25,y:408.5,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:404.75,bulge:-0.414214},{x:25.25,y:408.5,bulge:-0.414214},{x:21.5,y:412.25,bulge:-0.414214},{x:17.75,y:408.5,bulge:-0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:402,bulge:-0.414214},{x:28,y:408.5,bulge:-0.414214},{x:21.5,y:415,bulge:-0.414214},{x:15,y:408.5,bulge:-0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:292.75,bulge:0.414214},{x:22.75,y:291.5,bulge:0.414214},{x:21.5,y:290.25,bulge:0.414214},{x:20.25,y:291.5,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:287.75,bulge:-0.414214},{x:25.25,y:291.5,bulge:-0.414214},{x:21.5,y:295.25,bulge:-0.414214},{x:17.75,y:291.5,bulge:-0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:21.5,y:285,bulge:-0.414214},{x:28,y:291.5,bulge:-0.414214},{x:21.5,y:298,bulge:-0.414214},{x:15,y:291.5,bulge:-0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:15.5,y:182.5,bulge:-0.414214},{x:21.5,y:176.5,bulge:-0.414214},{x:27.5,y:182.5,bulge:-0.414214},{x:21.5,y:188.5,bulge:-0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:182.5,bulge:-0.414214},{x:21.5,y:178,bulge:-0.414214},{x:26,y:182.5,bulge:-0.414214},{x:21.5,y:187,bulge:-0.414214}], layer: 'HOLES' },
-      { verts: [{x:15.5,y:82.5,bulge:-0.414214},{x:21.5,y:76.5,bulge:-0.414214},{x:27.5,y:82.5,bulge:-0.414214},{x:21.5,y:88.5,bulge:-0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:82.5,bulge:-0.414214},{x:21.5,y:78,bulge:-0.414214},{x:26,y:82.5,bulge:-0.414214},{x:21.5,y:87,bulge:-0.414214}], layer: 'HOLES' },
-      { verts: [{x:15.5,y:617.5,bulge:-0.414214},{x:21.5,y:611.5,bulge:-0.414214},{x:27.5,y:617.5,bulge:-0.414214},{x:21.5,y:623.5,bulge:-0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:617.5,bulge:-0.414214},{x:21.5,y:613,bulge:-0.414214},{x:26,y:617.5,bulge:-0.414214},{x:21.5,y:622,bulge:-0.414214}], layer: 'HOLES' },
-      { verts: [{x:15.5,y:517.5,bulge:-0.414214},{x:21.5,y:511.5,bulge:-0.414214},{x:27.5,y:517.5,bulge:-0.414214},{x:21.5,y:523.5,bulge:-0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:517.5,bulge:-0.414214},{x:21.5,y:513,bulge:-0.414214},{x:26,y:517.5,bulge:-0.414214},{x:21.5,y:522,bulge:-0.414214}], layer: 'HOLES' },
-      { verts: [{x:485.5,y:350,bulge:-0.414214},{x:491.5,y:344,bulge:-0.414214},{x:497.5,y:350,bulge:-0.414214},{x:491.5,y:356,bulge:-0.414214}], layer: 'HOLES' },
-      { verts: [{x:487,y:350,bulge:-0.414214},{x:491.5,y:345.5,bulge:-0.414214},{x:496,y:350,bulge:-0.414214},{x:491.5,y:354.5,bulge:-0.414214}], layer: 'HOLES' },
+      { verts: [{x:5,y:700,bulge:0},{x:65,y:700,bulge:-0.414214},{x:70,y:695,bulge:0},{x:70,y:675,bulge:0},{x:0,y:675,bulge:0},{x:0,y:695,bulge:-0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:409.75,bulge:-0.414214},{x:22.75,y:408.5,bulge:-0.414214},{x:21.5,y:407.25,bulge:-0.414214},{x:20.25,y:408.5,bulge:-0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:404.75,bulge:0.414214},{x:25.25,y:408.5,bulge:0.414214},{x:21.5,y:412.25,bulge:0.414214},{x:17.75,y:408.5,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:402,bulge:0.414214},{x:28,y:408.5,bulge:0.414214},{x:21.5,y:415,bulge:0.414214},{x:15,y:408.5,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:292.75,bulge:-0.414214},{x:22.75,y:291.5,bulge:-0.414214},{x:21.5,y:290.25,bulge:-0.414214},{x:20.25,y:291.5,bulge:-0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:287.75,bulge:0.414214},{x:25.25,y:291.5,bulge:0.414214},{x:21.5,y:295.25,bulge:0.414214},{x:17.75,y:291.5,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:21.5,y:285,bulge:0.414214},{x:28,y:291.5,bulge:0.414214},{x:21.5,y:298,bulge:0.414214},{x:15,y:291.5,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:15.5,y:182.5,bulge:0.414214},{x:21.5,y:176.5,bulge:0.414214},{x:27.5,y:182.5,bulge:0.414214},{x:21.5,y:188.5,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:17,y:182.5,bulge:0.414214},{x:21.5,y:178,bulge:0.414214},{x:26,y:182.5,bulge:0.414214},{x:21.5,y:187,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:15.5,y:82.5,bulge:0.414214},{x:21.5,y:76.5,bulge:0.414214},{x:27.5,y:82.5,bulge:0.414214},{x:21.5,y:88.5,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:17,y:82.5,bulge:0.414214},{x:21.5,y:78,bulge:0.414214},{x:26,y:82.5,bulge:0.414214},{x:21.5,y:87,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:15.5,y:617.5,bulge:0.414214},{x:21.5,y:611.5,bulge:0.414214},{x:27.5,y:617.5,bulge:0.414214},{x:21.5,y:623.5,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:17,y:617.5,bulge:0.414214},{x:21.5,y:613,bulge:0.414214},{x:26,y:617.5,bulge:0.414214},{x:21.5,y:622,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:15.5,y:517.5,bulge:0.414214},{x:21.5,y:511.5,bulge:0.414214},{x:27.5,y:517.5,bulge:0.414214},{x:21.5,y:523.5,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:17,y:517.5,bulge:0.414214},{x:21.5,y:513,bulge:0.414214},{x:26,y:517.5,bulge:0.414214},{x:21.5,y:522,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:485.5,y:350,bulge:0.414214},{x:491.5,y:344,bulge:0.414214},{x:497.5,y:350,bulge:0.414214},{x:491.5,y:356,bulge:0.414214}], layer: 'HOLES' },
+      { verts: [{x:487,y:350,bulge:0.414214},{x:491.5,y:345.5,bulge:0.414214},{x:496,y:350,bulge:0.414214},{x:491.5,y:354.5,bulge:0.414214}], layer: 'HOLES' },
       ],
     },
     '70': {
@@ -137,11 +137,12 @@ Elements.register((() => {
       if (mirror) v = mirrorX(v, data.width / 2);
       // local y grows downward from the frame's own top (y=0), so placing
       // it needs a Y flip relative to translate's plain add: worldY =
-      // topY - localY.
+      // topY - localY. A Y flip reverses the winding direction, which
+      // requires inverting all bulge signs to preserve the arc direction.
       return v.map(pt => ({
         x: pt.x + leftX,
         y: topY - pt.y,
-        bulge: pt.bulge, // bulge sign already handled by mirrorX for right leg
+        bulge: -pt.bulge, // Y-flip reverses arc direction
       }));
     };
     const entries = [];
