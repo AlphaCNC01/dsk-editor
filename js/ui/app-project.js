@@ -95,6 +95,10 @@
       try {
         const data = JSON.parse(reader.result);
         applyProjectData(data);
+        // Loading a project from disk is a new work session, distinct
+        // from whatever was open before — see app-history.js.
+        if (UI.startNewHistorySession) UI.startNewHistorySession();
+        if (UI.upsertHistoryEntry) UI.upsertHistoryEntry();
       } catch (err) {
         alert('Не удалось загрузить проект: ' + err.message);
       }

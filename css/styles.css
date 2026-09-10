@@ -352,7 +352,7 @@
     border-left:1px solid rgba(0,0,0,.2);
     border-radius:0 6px 6px 0;
     cursor:pointer;
-    font-size:10px;
+    font-size:15px;
     display:flex; align-items:center; justify-content:center;
   }
   #exportMenuToggle:hover{ background:#ffa25f; }
@@ -383,6 +383,144 @@
   }
   #exportMenu button:hover{ background:var(--panel); color:var(--accent); }
 
+  /* Order-number field + history dropdown: same split-button shape as
+     #exportSplit above (input/button fused into one control), but the
+     "trigger" is the order field itself rather than a dedicated primary
+     action — clicking the chevron opens a scrollable list of recent
+     projects instead of a fixed menu of formats. */
+  #orderSplit{
+    display:flex; align-items:center; position:relative;
+  }
+  #orderSplit input[type="text"]{
+    flex:1;
+    border-top-right-radius:0;
+    border-bottom-right-radius:0;
+    height:38px;
+  }
+  #historyMenuToggle{
+    width:44px;
+    height:38px;
+    background:var(--accent);
+    color:#1a1108;
+    border:none;
+    border-left:1px solid rgba(0,0,0,.2);
+    border-radius:0 5px 5px 0;
+    cursor:pointer;
+    font-size:10px;
+    display:flex; align-items:center; justify-content:center;
+    gap:3px;
+    padding:0;
+  }
+  #historyMenuToggle:hover{ background:#ffa25f; }
+  #historyMenuToggle svg{ width:15px; height:15px; stroke:currentColor; fill:none; stroke-width:2; flex-shrink:0; }
+  .history-toggle-caret{ font-size:15px; line-height:1; }
+  /* Sitting directly over the dark #controls panel, a --panel-2 fill
+     alone reads as barely-there — an accent border plus a real shadow
+     lifts it off the background the way a genuine popover should, and
+     keeps it visually tied to the accent-colored toggle that opens it. */
+  #historyMenu{
+    display:none;
+    position:absolute;
+    top:calc(100% + 4px);
+    right:0;
+    left:0;
+    background:var(--panel-2);
+    border:1px solid var(--accent-dim);
+    border-radius:6px;
+    overflow:hidden;
+    z-index:20;
+    max-height:min(560px, 70vh);
+    overflow-y:auto;
+    box-shadow:0 12px 28px rgba(0,0,0,.45), 0 2px 8px rgba(0,0,0,.3);
+  }
+  #historyMenu.open{ display:block; }
+  /* Firefox + WebKit scrollbar styling so a full (~10+ entry) list
+     doesn't hand off to the browser's default light/chunky scrollbar,
+     which would clash with the panel's own dark, thin-lined look. */
+  #historyMenu{ scrollbar-width:thin; scrollbar-color:var(--line) transparent; }
+  #historyMenu::-webkit-scrollbar{ width:8px; }
+  #historyMenu::-webkit-scrollbar-track{ background:transparent; }
+  #historyMenu::-webkit-scrollbar-thumb{ background:var(--line); border-radius:4px; }
+  #historyMenu::-webkit-scrollbar-thumb:hover{ background:var(--ink-dim); }
+  .history-header{
+    padding:10px 12px;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    border-bottom:1px solid var(--line);
+    background:var(--panel);
+  }
+  .history-item{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 12px;
+    cursor:pointer;
+    border-bottom:1px solid var(--line);
+    transition:background .1s;
+  }
+  .history-item:last-child{
+    border-bottom:none;
+  }
+  .history-item:hover{
+    background:var(--panel);
+  }
+  .history-item-info{
+    flex:1;
+    min-width:0;
+  }
+  .history-item-order{
+    font-family:var(--mono);
+    font-size:13px;
+    color:var(--ink);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .history-item-date{
+    font-size:11px;
+    color:var(--ink-dim);
+    margin-top:2px;
+  }
+  .history-item-actions{
+    display:flex;
+    gap:4px;
+    margin-left:8px;
+  }
+  .history-action-btn{
+    background:none;
+    border:none;
+    color:var(--ink-dim);
+    cursor:pointer;
+    padding:4px;
+    border-radius:4px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .history-action-btn:hover{
+    background:var(--bg);
+    color:var(--accent);
+  }
+  .history-action-btn.delete:hover{
+    color:#c0392b;
+  }
+  .history-action-btn svg{
+    width:14px;
+    height:14px;
+    stroke:currentColor;
+    fill:none;
+    stroke-width:2;
+  }
+  .history-empty{
+    padding:20px 12px;
+    text-align:center;
+    font-size:13px;
+    color:var(--ink-dim);
+  }
+
   #projectRow, #projectRow2{ display:flex; gap:8px; margin-top:8px; }
   .btn-icon{
     flex:1;
@@ -397,4 +535,4 @@
   .btn-icon:hover{ border-color:var(--accent); color:var(--accent); }
   .btn-icon:active{ transform:translateY(1px); }
   .btn-icon svg{ width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
-  .btn-icon-danger:hover{ border-color:#c0392b; color:#c0392b; }
+  .btn-icon-danger:hover{ border-color:#c0392b; color:#c0392b; }
