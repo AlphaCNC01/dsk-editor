@@ -34,9 +34,11 @@
 // as all other embeddable elements, unifying the code path and making it
 // independent of the specific geometry dimensions.
 //
-// Layers: physical parts (leg profile) go on UNDERFRAME; mounting holes
-// (присадка) go on UNDERFRAME_HOLES, so a CAM operator can isolate cut
-// paths from reference holes.
+// Layers: physical parts (leg profile) go on PHYSICAL; mounting holes
+// (присадка) are built via Holes.at() (see js/elements/hole.js), which
+// places each hole+counterbore pair on its own HOLE_A/HOLE_A_CS or
+// HOLE_B/HOLE_B_CS layer depending on fastener size, so a CAM operator
+// can isolate cut paths per hole size.
 // ============================================================================
 Elements.register((() => {
   const UNDERFRAME_VARIANTS = {
@@ -51,18 +53,12 @@ Elements.register((() => {
       { verts: [{x:0,y:287.5,bulge:0},{x:37.5,y:287.5,bulge:0},{x:37.5,y:-287.5,bulge:0},{x:0,y:-287.5,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:478,y:48.5,bulge:0},{x:503,y:48.5,bulge:0},{x:503,y:-48.5,bulge:0},{x:478,y:-48.5,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:37.5,y:-48.5,bulge:0},{x:503,y:-48.5,bulge:0},{x:503,y:-68.5,bulge:0},{x:37.5,y:-68.5,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:23,y:-267.5,bulge:1},{x:32,y:-267.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:21.5,y:-267.5,bulge:1},{x:33.5,y:-267.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:23,y:137.5,bulge:1},{x:32,y:137.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:21.5,y:137.5,bulge:1},{x:33.5,y:137.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:23,y:-137.5,bulge:1},{x:32,y:-137.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:21.5,y:-137.5,bulge:1},{x:33.5,y:-137.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:23,y:267.5,bulge:1},{x:32,y:267.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:21.5,y:267.5,bulge:1},{x:33.5,y:267.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:248.5,y:0,bulge:1},{x:257.5,y:0,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:247,y:0,bulge:1},{x:259,y:0,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:486,y:0,bulge:1},{x:495,y:0,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:484.5,y:0,bulge:1},{x:496.5,y:0,bulge:1}], layer: 'HOLES' },
+      ...Holes.at(27.5, -267.5, 'A'),
+      ...Holes.at(27.5, 137.5, 'A'),
+      ...Holes.at(27.5, -137.5, 'A'),
+      ...Holes.at(27.5, 267.5, 'A'),
+      ...Holes.at(253, 0, 'A'),
+      ...Holes.at(490.5, 0, 'A'),
       ],
     },
     'X2DM-PRO': {
@@ -84,16 +80,11 @@ Elements.register((() => {
       { verts: [{x:21.5,y:-57.25,bulge:-0.414214},{x:22.75,y:-58.5,bulge:-0.414214},{x:21.5,y:-59.75,bulge:-0.414214},{x:20.25,y:-58.5,bulge:-0.414214}], layer: 'PHYSICAL' },
       { verts: [{x:21.5,y:-62.25,bulge:0.414214},{x:25.25,y:-58.5,bulge:0.414214},{x:21.5,y:-54.75,bulge:0.414214},{x:17.75,y:-58.5,bulge:0.414214}], layer: 'PHYSICAL' },
       { verts: [{x:21.5,y:-65,bulge:0.414214},{x:28,y:-58.5,bulge:0.414214},{x:21.5,y:-52,bulge:0.414214},{x:15,y:-58.5,bulge:0.414214}], layer: 'PHYSICAL' },
-      { verts: [{x:15.5,y:-167.5,bulge:0.414214},{x:21.5,y:-173.5,bulge:0.414214},{x:27.5,y:-167.5,bulge:0.414214},{x:21.5,y:-161.5,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:-167.5,bulge:0.414214},{x:21.5,y:-172,bulge:0.414214},{x:26,y:-167.5,bulge:0.414214},{x:21.5,y:-163,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:15.5,y:-267.5,bulge:0.414214},{x:21.5,y:-273.5,bulge:0.414214},{x:27.5,y:-267.5,bulge:0.414214},{x:21.5,y:-261.5,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:-267.5,bulge:0.414214},{x:21.5,y:-272,bulge:0.414214},{x:26,y:-267.5,bulge:0.414214},{x:21.5,y:-263,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:15.5,y:267.5,bulge:0.414214},{x:21.5,y:261.5,bulge:0.414214},{x:27.5,y:267.5,bulge:0.414214},{x:21.5,y:273.5,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:267.5,bulge:0.414214},{x:21.5,y:263,bulge:0.414214},{x:26,y:267.5,bulge:0.414214},{x:21.5,y:272,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:15.5,y:167.5,bulge:0.414214},{x:21.5,y:161.5,bulge:0.414214},{x:27.5,y:167.5,bulge:0.414214},{x:21.5,y:173.5,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:17,y:167.5,bulge:0.414214},{x:21.5,y:163,bulge:0.414214},{x:26,y:167.5,bulge:0.414214},{x:21.5,y:172,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:485.5,y:0,bulge:0.414214},{x:491.5,y:-6,bulge:0.414214},{x:497.5,y:0,bulge:0.414214},{x:491.5,y:6,bulge:0.414214}], layer: 'HOLES' },
-      { verts: [{x:487,y:0,bulge:0.414214},{x:491.5,y:-4.5,bulge:0.414214},{x:496,y:0,bulge:0.414214},{x:491.5,y:4.5,bulge:0.414214}], layer: 'HOLES' },
+      ...Holes.at(21.5, -167.5, 'A'),
+      ...Holes.at(21.5, -267.5, 'A'),
+      ...Holes.at(21.5, 267.5, 'A'),
+      ...Holes.at(21.5, 167.5, 'A'),
+      ...Holes.at(491.5, 0, 'A'),
       ],
     },
     '70': {
@@ -106,18 +97,12 @@ Elements.register((() => {
       { verts: [{x:0,y:287.5,bulge:0},{x:38,y:287.5,bulge:0},{x:38,y:-287.5,bulge:0},{x:0,y:-287.5,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:38,y:-80,bulge:0},{x:548,y:-80,bulge:0},{x:548,y:-100,bulge:0},{x:38,y:-100,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:528,y:80,bulge:0},{x:548,y:80,bulge:0},{x:548,y:-80,bulge:0},{x:528,y:-80,bulge:0}], layer: 'PHYSICAL' },
-      { verts: [{x:23.5,y:-267.5,bulge:1},{x:32.5,y:-267.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:22,y:-267.5,bulge:1},{x:34,y:-267.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:23.5,y:137.5,bulge:1},{x:32.5,y:137.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:22,y:137.5,bulge:1},{x:34,y:137.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:23.5,y:-137.5,bulge:1},{x:32.5,y:-137.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:22,y:-137.5,bulge:1},{x:34,y:-137.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:23.5,y:267.5,bulge:1},{x:32.5,y:267.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:22,y:267.5,bulge:1},{x:34,y:267.5,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:283.5,y:0,bulge:1},{x:292.5,y:0,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:282,y:0,bulge:1},{x:294,y:0,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:533.5,y:0,bulge:1},{x:542.5,y:0,bulge:1}], layer: 'HOLES' },
-      { verts: [{x:532,y:0,bulge:1},{x:544,y:0,bulge:1}], layer: 'HOLES' },
+      ...Holes.at(28, -267.5, 'A'),
+      ...Holes.at(28, 137.5, 'A'),
+      ...Holes.at(28, -137.5, 'A'),
+      ...Holes.at(28, 267.5, 'A'),
+      ...Holes.at(288, 0, 'A'),
+      ...Holes.at(538, 0, 'A'),
       ],
     },
   };

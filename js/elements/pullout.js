@@ -1,8 +1,9 @@
 // ============================================================================
 // Element: Выдвижная подставка (pull-out stand). Physical outline is a
-// compound two-piece rectangle (housing wall + inner frame) plus 8
-// mounting-hole contours (4 physical holes, each a concentric pair,
-// matching the underframe's own hole convention). Local coordinates:
+// compound two-piece rectangle (housing wall + inner frame) plus 4
+// mounting holes, each built via Holes.at() (see js/elements/hole.js) —
+// shared hole/counterbore geometry used by every element with mounting
+// points. Local coordinates:
 // x=0 at horizontal center, y=0 at the shape's own BOTTOM edge — unlike
 // most other elements, the configurable inset here measures to that
 // bottom edge directly, not to the shape's center (per spec).
@@ -28,14 +29,10 @@ const PULLOUT_VARIANTS = registerSimpleEmbeddable({
       parts: [
         { verts: [{x:242.5,y:0,bulge:0},{x:242.5,y:281,bulge:0},{x:-242.5,y:281,bulge:0},{x:-242.5,y:0,bulge:0}], layer: 'PHYSICAL' },
         { verts: [{x:262.5,y:0,bulge:0},{x:262.5,y:281,bulge:0},{x:-262.5,y:281,bulge:0},{x:-262.5,y:0,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:-251,y:71,bulge:1},{x:-259,y:71,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:-252,y:71,bulge:1},{x:-258,y:71,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:-251,y:191,bulge:1},{x:-259,y:191,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:-252,y:191,bulge:1},{x:-258,y:191,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:259,y:191,bulge:1},{x:251,y:191,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:258,y:191,bulge:1},{x:252,y:191,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:259,y:71,bulge:1},{x:251,y:71,bulge:1}], layer: 'HOLES' },
-        { verts: [{x:258,y:71,bulge:1},{x:252,y:71,bulge:1}], layer: 'HOLES' }
+        ...Holes.at(-255, 71, 'B'),
+        ...Holes.at(-255, 191, 'B'),
+        ...Holes.at(255, 191, 'B'),
+        ...Holes.at(255, 71, 'B'),
       ],
     },
   },

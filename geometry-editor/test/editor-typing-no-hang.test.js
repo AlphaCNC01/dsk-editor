@@ -84,7 +84,7 @@ vm.createContext(ctx);
 
 const files = [
   'js/core/geo.js','js/core/layers.js','js/core/elements.js','js/core/drawing.js',
-  'js/elements/tabletop.js','js/elements/underframe.js','js/elements/pult.js',
+  'js/elements/tabletop.js','js/elements/hole.js','js/elements/underframe.js','js/elements/pult.js',
   'js/elements/wireless-charger.js','js/elements/outlet-block.js','js/elements/phone-stand.js',
   'js/elements/tray.js','js/elements/pullout.js','js/elements/usb-charger.js',
   'js/elements/cable-pocket.js','js/elements/cable-channels.js','js/render/svg.js',
