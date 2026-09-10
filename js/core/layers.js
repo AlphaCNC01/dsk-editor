@@ -96,19 +96,19 @@ const Layers = (() => {
   // before) pending real tool/production numbers.
   HOLE_A: { name: 'HOLE_A', color: 6,
     style: { stroke: '#b06fe0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } },
+    machining: { side: 'bottom', depth: 14, depthAnchor: 'bottom', millType: 'pocket' } },
 
   HOLE_A_CS: { name: 'HOLE_A_CS', color: 6,
     style: { stroke: '#b06fe0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 1.5, depthAnchor: 'bottom', millType: 'pocket' } },
 
   HOLE_B: { name: 'HOLE_B', color: 6,
     style: { stroke: '#8a4fc0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'contour' } },
+    machining: { side: 'bottom', depth: 10, depthAnchor: 'bottom', millType: 'pocket' } },
 
   HOLE_B_CS: { name: 'HOLE_B_CS', color: 6,
     style: { stroke: '#8a4fc0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 'none', depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 0.7, depthAnchor: 'bottom', millType: 'pocket' } },
 
   ENGRAVING: { name: 'ENGRAVING', color: 3,
     style: { stroke: '#4cc97c', fillOpacity: 0 },
