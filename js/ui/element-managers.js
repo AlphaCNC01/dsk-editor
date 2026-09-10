@@ -145,7 +145,8 @@
   const trayMgr = UI.createEmbeddableManager({
     key: 'trays', label: 'Лотки для сетевого фильтра', addLabel: 'Добавить лоток',
     defaults: { type: '60', anchor: 'top', insetX: 0, insetY: 115 },
-    typeSelector: { label: 'Тип лотка', options: [{value:'60', text:'Лоток 60 см'}, {value:'80', text:'Лоток 80 см'}] }
+    typeSelector: { label: 'Тип лотка', options: [{value:'60', text:'Лоток 60 см'}, {value:'80', text:'Лоток 80 см'}] },
+    dimensionsDefault: false
   });
 
   // Pull-out stand: same treatment as the tray — default anchor is the
@@ -156,7 +157,8 @@
     defaults: {
 	  anchor: 'bottom',
 	  insetX: 0,
-	  insetY: (inst, p) => (p.notchOn ? p.notchH : 0), }
+	  insetY: (inst, p) => (p.notchOn ? p.notchH : 0), },
+    dimensionsDefault: false
   });
 
   // USB charger: only the horizontal position is configurable — its
