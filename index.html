@@ -23,7 +23,18 @@
       <legend>Проект</legend>
       <div class="field" style="margin-bottom:10px;">
         <label>Номер заказа</label>
-        <input type="text" id="orderNumber" value="DSK">
+        <div id="orderSplit">
+          <input type="text" id="orderNumber" value="DSK">
+          <button id="historyMenuToggle" type="button" title="История проектов" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 24 24"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+            <span class="history-toggle-caret">▾</span>
+          </button>
+          <div id="historyMenu" role="menu">
+            <div class="history-header">История проектов</div>
+            <div id="historyList"></div>
+            <div class="history-empty" style="display:none;">Нет сохранённых проектов</div>
+          </div>
+        </div>
       </div>
       <div class="toggle-row" style="margin-bottom:12px;">
         <span>Показать размерные линии</span>
@@ -194,6 +205,7 @@
 <script src="js/ui/app-render.js"></script>
 <script src="js/ui/zoom.js"></script>
 <script src="js/ui/app-project.js"></script>
+<script src="js/ui/app-history.js"></script>
 <script src="js/ui/app-state.js"></script>
 
 </body>

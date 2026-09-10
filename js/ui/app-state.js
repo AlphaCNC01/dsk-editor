@@ -17,6 +17,11 @@
 // hash is stripped from the address bar right after — the URL is only ever
 // a transport for handing a snapshot to another tab/person, never the live
 // state store itself, so it doesn't grow unbounded as the user keeps editing.
+//
+// The cross-session "recent projects" list (localStorage-backed, visible
+// across tabs/restarts) lives separately in app-history.js. This file's
+// draft also carries UI.historySessionId so a reload of the same tab
+// resumes writing to the same history entry instead of forking a new one.
 // ============================================================================
 
 (function(){
@@ -86,7 +91,10 @@
   function saveDraftLocally(){
     try {
       const data = UI.buildProjectData();
-      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      // historySessionId travels alongside the draft so that reloading
+      // this same tab resumes the same app-history.js entry instead of
+      // forking a new one on every reload (see loadInitialState below).
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ data, historySessionId: UI.historySessionId }));
     } catch (err) {
       // Quota exceeded, private-mode restrictions, etc. — losing autosave
       // isn't fatal, so this stays silent rather than interrupting the user.
@@ -96,7 +104,15 @@
   function loadDraftLocally(){
     try {
       const raw = sessionStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      // Back-compat: older drafts stored the project data directly (a
+      // 'tabletop-layout-project' object), with no {data, historySessionId}
+      // wrapper.
+      if (parsed && parsed.fileType === 'tabletop-layout-project') {
+        return { data: parsed, historySessionId: null };
+      }
+      return parsed;
     } catch (err) {
       return null;
     }
@@ -178,6 +194,10 @@
       try {
         const data = await decodeState(payload);
         UI.applyProjectData(data);
+        // A pasted share link is a new work session, distinct from
+        // whatever this tab had open before — see app-history.js.
+        if (UI.startNewHistorySession) UI.startNewHistorySession();
+        if (UI.upsertHistoryEntry) UI.upsertHistoryEntry();
         // The link has done its job (handing this tab a snapshot) — absorb
         // it into this tab's own session draft and strip the hash from the
         // address bar immediately, via replaceState (no new history entry,
@@ -196,7 +216,11 @@
     const draft = loadDraftLocally();
     if (draft) {
       try {
-        UI.applyProjectData(draft);
+        UI.applyProjectData(draft.data);
+        // Resume the same history entry this tab was already writing to,
+        // rather than starting a fresh one on every reload — a reload of
+        // the same tab is a continuation, not a new work session.
+        if (draft.historySessionId) UI.historySessionId = draft.historySessionId;
         return;
       } catch (err) {
         // Corrupt/incompatible session draft — fall through to a blank
