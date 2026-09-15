@@ -2,7 +2,7 @@
 // Regression test for a real bug: typing in the JSON editor hung the tab.
 // Root cause: EditorState.notify() had no way to tell listeners WHERE a
 // change came from, so every keystroke triggered the SAME full cycle as
-// loading a brand new element: pushEditorToState() -> EditorState.setGroups()
+// loading a brand new element: pushEditorToState() -> EditorState.setEntries()
 // -> notify() -> main.js's onChange callback -> pushStateToEditor() ->
 // jsonEditor.setValue(EditorState.toText()) -- replacing the ENTIRE
 // document and re-tokenizing it on every single character typed. This
@@ -50,8 +50,7 @@ function makeEl(id, tag){ const el = new FakeElement(tag); if (id) elementsById[
   ['rotateAngle','input'],['applyRotateBtn','button'],['mirrorHBtn','button'],['mirrorVBtn','button'],
   ['scopeSelected','input'],['previewMeta','div'],['preview','div'],['stage','svg'],['previewInfoBar','div'],
   ['status','div'],['zoomControls','div'],['zoomOutBtn','button'],['zoomResetBtn','button'],['zoomInBtn','button'],
-  ['sideCol','div'],['metaFieldset','fieldset'],['skuInput','input'],['labelInput','input'],['contourCount','span'],
-  ['contourList','div'],['addContourRow','div'],['newContourLayer','select'],['addContourBtn','button'],
+  ['sideCol','div'],['metaFieldset','fieldset'],['skuInput','input'],['labelInput','input'],
   ['jsonEditor','textarea'],['jsonError','div'],['jsonEditorHost','div'],['mainCol','div'],['resizeHandle','div'],['app','div'],
 ].forEach(([id,tag])=>makeEl(id,tag));
 const originGridButtons = ['tl','t','tr','l','c','r','bl','b','br'].map(pos=>{ const b=new FakeElement('button'); b.dataset.pos=pos; b._attrs['data-pos']=pos; return b; });
@@ -70,6 +69,10 @@ FakeCodeMirror.prototype.setValue = function(v){ setValueCallCount++; this._valu
 FakeCodeMirror.prototype.getValue = function(){ return this._value; };
 FakeCodeMirror.prototype.on = function(type, fn){ (this._listeners[type]=this._listeners[type]||[]).push(fn); };
 FakeCodeMirror.prototype.refresh = function(){};
+FakeCodeMirror.prototype.setCursor = function(){};
+FakeCodeMirror.prototype.scrollIntoView = function(){};
+FakeCodeMirror.prototype.addLineClass = function(){};
+FakeCodeMirror.prototype.removeLineClass = function(){};
 const CodeMirror = { fromTextArea: (ta) => new FakeCodeMirror(ta) };
 
 const ctx = {
@@ -90,7 +93,7 @@ const files = [
   'js/elements/cable-pocket.js','js/elements/cable-channels.js','js/render/svg.js',
   'geometry-editor/js/ui-shim.js','geometry-editor/js/zoom.js',
   'geometry-editor/js/registry.js','geometry-editor/js/editor-state.js','geometry-editor/js/transform.js','geometry-editor/js/render.js',
-  'geometry-editor/js/contour-list.js','geometry-editor/js/save.js','geometry-editor/js/svg-import.js','geometry-editor/js/main.js',
+  'geometry-editor/js/save.js','geometry-editor/js/svg-import.js','geometry-editor/js/main.js',
 ];
 for (const f of files) vm.runInContext(fs.readFileSync(f,'utf8'), ctx, { filename: f });
 
@@ -108,7 +111,7 @@ if (setValueCallCount <= afterLoad) { console.log('FAIL: loading an element did 
 // Simulate TYPING in the editor -- get the live CodeMirror instance,
 // change its value and fire 'change' the way real typing would, THEN
 // verify setValue was NOT called again as a result (that's the actual
-// hang mechanism: typing -> setGroups -> notify -> setValue -> possible
+// hang mechanism: typing -> setEntries -> notify -> setValue -> possible
 // re-loop, or at minimum a full-document replace on every keystroke).
 const cm = vm.runInContext('jsonEditor', ctx); // the module-scope `jsonEditor` variable in main.js
 cm.setValue.call(cm, cm.getValue()); // this call itself increments the counter once, as a real "setValue from outside" would; we need to isolate the CHANGE event's own downstream effect instead

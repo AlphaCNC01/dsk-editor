@@ -46,7 +46,7 @@ function loadSelectedElement(){
   const element = Elements.all().find(e => e.id === elementId);
   const variantKey = $('elemVariant').value || Object.keys(element.VARIANTS)[0];
   const normalized = Registry.normalizeVariant(element, variantKey);
-  normalized.groups = Registry.cloneGroups(normalized.groups); // never mutate the live app's own registry
+  normalized.entries = Registry.cloneEntries(normalized.entries); // never mutate the live app's own registry
   EditorState.load(normalized);
 }
 
@@ -60,12 +60,33 @@ function pushStateToEditor(){
 
 function pushEditorToState(){
   try {
-    const groups = EditorState.fromText(jsonEditor.getValue());
-    EditorState.setGroups(groups, { source: 'editor' });
+    const entries = EditorState.fromText(jsonEditor.getValue());
+    EditorState.setEntries(entries, { source: 'editor' });
     $('jsonError').textContent = '';
   } catch (e) {
     $('jsonError').textContent = e.message;
   }
+}
+
+// Clicking a contour in the SVG preview (see render.js's own click
+// handler, which calls EditorState.setSelection) moves the JSON pane's
+// cursor to that entry's line and scrolls it into view — this is the
+// entire "which code does this shape belong to" story for this editor;
+// there's no separate contour list to keep in sync with the text, so
+// pointing at the text directly is both the simplest wiring and removes
+// an entire second view of the same data that could drift from it.
+function jumpEditorToSelection(){
+  const sel = EditorState.getSelection();
+  if (sel == null) return;
+  const line = EditorState.lineForSelection(sel);
+  if (line == null) return;
+  jsonEditor.setCursor({ line, ch: 0 });
+  jsonEditor.scrollIntoView({ line, ch: 0 }, 60);
+  jsonEditor.addLineClass(line, 'background', 'selected-line');
+  if (jumpEditorToSelection._lastLine != null && jumpEditorToSelection._lastLine !== line) {
+    jsonEditor.removeLineClass(jumpEditorToSelection._lastLine, 'background', 'selected-line');
+  }
+  jumpEditorToSelection._lastLine = line;
 }
 
 // ---------- Meta (sku/label/kind) fields ----------
@@ -75,7 +96,7 @@ function refreshMetaFields(){
   $('labelInput').value = meta.label || '';
   $('metaFieldset').style.display = meta.elementId ? '' : 'none';
   const pill = $('kindPill');
-  pill.textContent = meta.elementId ? (meta.kind === 'singleton' ? 'singleton' : 'repeatable') : 'новый';
+  pill.textContent = meta.elementId ? meta.kind : 'новый';
   pill.className = 'pill' + (meta.elementId ? '' : ' new');
 }
 
@@ -88,7 +109,7 @@ function scopeSelect(){
   populateElementSelect();
 
   jsonEditor = CodeMirror.fromTextArea($('jsonEditor'), {
-    mode: 'application/json',
+    mode: 'javascript',
     theme: 'dracula',
     lineNumbers: true,
     matchBrackets: true,
@@ -97,7 +118,6 @@ function scopeSelect(){
   });
 
   Render.init({ svg: $('stage'), status: $('status'), info: $('previewInfoBar'), centerInfo: $('previewMeta') });
-  ContourList.init({ list: $('contourList'), newContourLayer: $('newContourLayer') });
 
   // EditorState is the single source of truth; every view re-renders
   // itself in full on change — the geometry here is small (a handful of
@@ -106,14 +126,14 @@ function scopeSelect(){
   // when the change originated FROM the editor (the person typing), we
   // must NOT call jsonEditor.setValue() again — replacing the whole
   // document on every keystroke is what made the tab hang (see
-  // EditorState.notify's own comment on this). The preview and contour
-  // list still update on every keystroke; only the editor's own text is
-  // left alone while it's the source.
+  // EditorState.notify's own comment on this). The preview still updates
+  // on every keystroke; only the editor's own text is left alone while
+  // it's the source.
   EditorState.onChange((source) => {
     if (source !== 'editor') pushStateToEditor();
     Render.render();
-    ContourList.render();
     refreshMetaFields();
+    if (source !== 'editor') jumpEditorToSelection();
   });
 
   jsonEditor.on('change', () => {
@@ -139,10 +159,9 @@ function scopeSelect(){
     const angle = parseFloat($('rotateAngle').value) || 0;
     Transform.rotate(scopeSelect(), angle);
   });
-  $('mirrorHBtn').addEventListener('click', () => Transform.mirror(scopeSelect(), 'h'));
-  $('mirrorVBtn').addEventListener('click', () => Transform.mirror(scopeSelect(), 'v'));
+  $('mirrorHBtn').addEventListener('click', () => Transform.mirror(scopeSelect(), 'horizontal'));
+  $('mirrorVBtn').addEventListener('click', () => Transform.mirror(scopeSelect(), 'vertical'));
 
-  $('addContourBtn').addEventListener('click', () => ContourList.addContour());
   $('saveBtn').addEventListener('click', () => Save.save());
 
   $('preview').addEventListener('click', (ev) => {
@@ -158,8 +177,8 @@ function scopeSelect(){
         importSvgText(reader.result);
       } else {
         try {
-          const groups = EditorState.fromText(reader.result);
-          EditorState.load({ elementId: null, variantKey: null, kind: 'repeatable', sku: '', label: '', groups, passthrough: {} });
+          const entries = EditorState.fromText(reader.result);
+          EditorState.load({ elementId: null, variantKey: null, kind: 'repeatable', sku: '', label: '', entries, passthrough: {} });
         } catch (e) {
           Render.setStatus('Ошибка импорта: ' + e.message, true);
         }

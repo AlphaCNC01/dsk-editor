@@ -62,12 +62,12 @@ function firstPathCoords(html){
 }
 
 function loadTestShape(x, y){
-  const groups = [{ name: 'p', layer: 'PHYSICAL', contours: [[
+  const entries = [{ layer: 'PHYSICAL', verts: [
     { x: x - 10, y: y, bulge: 0 }, { x: x + 10, y: y, bulge: 0 },
     { x: x + 10, y: y + 20, bulge: 0 }, { x: x - 10, y: y + 20, bulge: 0 },
-  ]] }];
-  ctx.__groups = groups;
-  vm.runInContext(`EditorState.load({ elementId: null, variantKey: null, kind: 'repeatable', sku: '', label: '', groups: __groups, passthrough: {} })`, ctx);
+  ] }];
+  ctx.__entries = entries;
+  vm.runInContext(`EditorState.load({ elementId: null, variantKey: null, kind: 'repeatable', sku: '', label: '', entries: __entries, passthrough: {} })`, ctx);
 }
 
 const stage = new FakeEl();
@@ -123,7 +123,7 @@ check(
 );
 
 // --- Sanity: the underlying geometry itself really did move (Transform correctness) ---
-const box1 = vm.runInContext(`(function(){ EditorState.load({elementId:null,variantKey:null,kind:'repeatable',sku:'',label:'',groups:[{name:'p',layer:'PHYSICAL',contours:[[{x:0,y:0,bulge:0},{x:10,y:0,bulge:0},{x:10,y:10,bulge:0},{x:0,y:10,bulge:0}]]}],passthrough:{}}); return Transform.combinedExtents('all'); })()`, ctx);
+const box1 = vm.runInContext(`(function(){ EditorState.load({elementId:null,variantKey:null,kind:'repeatable',sku:'',label:'',entries:[{layer:'PHYSICAL',verts:[{x:0,y:0,bulge:0},{x:10,y:0,bulge:0},{x:10,y:10,bulge:0},{x:0,y:10,bulge:0}]}],passthrough:{}}); return Transform.combinedExtents('all'); })()`, ctx);
 vm.runInContext(`Transform.offset('all', 5, 5)`, ctx);
 const box2 = vm.runInContext(`Transform.combinedExtents('all')`, ctx);
 check('Transform.offset actually shifts the geometry (sanity check)', box2.minX === box1.minX + 5 && box2.minY === box1.minY + 5, { box1, box2 });

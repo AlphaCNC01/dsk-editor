@@ -5,6 +5,14 @@
 // verts-inline-per-part formatting, same trailing comma style), not like
 // generated code.
 //
+// The parts:[...] body here is EditorState.toText() itself, re-indented —
+// not a second, independently-maintained serializer. toText() already
+// produces exactly what belongs inside parts: [ ... ] (see its own header
+// comment), which is the whole point of that format: what's on screen in
+// the text pane is what pastes into an element file, with no reshaping in
+// between. Save only adds the surrounding variant boilerplate (sku/label/
+// passthrough fields) toText() intentionally doesn't know about.
+//
 // IMPORTANT SCOPE NOTE: this editor cannot read or rewrite the actual
 // js/elements/*.js file on disk — the project deliberately runs from
 // file:// with no server (see README/project conventions), and browsers
@@ -20,24 +28,13 @@
 // ============================================================================
 const Save = (() => {
 
-  function fmtCoord(n){
-    const r = parseFloat((n || 0).toFixed(4));
-    return Object.is(r, -0) ? 0 : r;
-  }
-  function fmtBulge(n){
-    const r = parseFloat((n || 0).toFixed(8));
-    return Object.is(r, -0) ? 0 : r;
-  }
-  function vertsToLiteral(verts){
-    return '[' + verts.map(v => `{x:${fmtCoord(v.x)},y:${fmtCoord(v.y)},bulge:${fmtBulge(v.bulge)}}`).join(',') + ']';
-  }
-
-  // Re-flattens the normalized {groups} model back into parts:[{verts,
-  // layer}], one entry per contour, in the same order groups/contours were
-  // originally read (Registry.groupsFromParts keeps one group per original
-  // part, so groups.flatMap here is the exact inverse of that).
-  function groupsToParts(groups){
-    return groups.flatMap(g => g.contours.map(verts => ({ verts, layer: g.layer })));
+  // Re-indents EditorState.toText()'s 2-space-indented lines to the
+  // 6-space depth parts:[...] sits at inside a variant block, and drops
+  // the surrounding '[' / ']' lines (the variant snippet supplies its own
+  // parts: [ ... ] wrapper).
+  function partsBodyText(){
+    const lines = EditorState.toText().split('\n');
+    return lines.slice(1, -1).map(l => '    ' + l).join('\n');
   }
 
   function serializePassthrough(passthrough){
@@ -51,9 +48,8 @@ const Save = (() => {
     return Object.entries(passthrough).map(([k, v]) => `      ${k}: ${JSON.stringify(v)},`).join('\n');
   }
 
-  function repeatableVariantSnippet(meta, groups){
-    const parts = groupsToParts(groups);
-    const partsLines = parts.map(p => `      { verts: ${vertsToLiteral(p.verts)}, layer: '${p.layer}' },`).join('\n');
+  function repeatableVariantSnippet(meta){
+    const partsLines = partsBodyText();
     const passthroughLines = serializePassthrough(meta.passthrough);
     return `    ${meta.variantKey}: {
       sku: ${JSON.stringify(meta.sku)},
@@ -64,43 +60,15 @@ ${partsLines}
 ${passthroughLines ? passthroughLines + '\n' : ''}    },`;
   }
 
-  function underframeVariantSnippet(meta, groups){
-    const outline = groups.find(g => g.name === 'frameOutline');
-    const holes = groups.find(g => g.name === 'frameHoles');
-    const outlineLiteral = '[' + (outline ? outline.contours : []).map(vertsToLiteral).join(',') + ']';
-    const holesLiteral = '[' + (holes ? holes.contours : []).map(vertsToLiteral).join(',') + ']';
-    // width/height are NOT geometry this editor touches (they're used by
-    // buildContours for placement math, not derived from the contours
-    // themselves — see underframe.js), so they're read back from
-    // passthrough rather than recomputed, and flagged clearly if somehow
-    // missing rather than silently writing 0 (which would silently break
-    // placement on paste).
-    const width = meta.passthrough.width;
-    const height = meta.passthrough.height;
-    const widthLine = width !== undefined ? width : '/* ЗАПОЛНИТЕ: width отсутствовал в исходных данных */';
-    const heightLine = height !== undefined ? height : '/* ЗАПОЛНИТЕ: height отсутствовал в исходных данных */';
-    return `    '${meta.variantKey}': {
-      sku: ${JSON.stringify(meta.sku)},
-      label: ${JSON.stringify(meta.label)},
-      width: ${widthLine}, height: ${heightLine},
-      frameOutline: ${outlineLiteral},
-      frameHoles: ${holesLiteral},
-    },`;
-  }
-
   function buildSnippet(){
     const meta = EditorState.getMeta();
-    const groups = EditorState.getGroups();
     if (!meta.elementId) {
       // Blank/scratch geometry with no source element attached — just the
       // parts[] array on its own, for pasting into a brand NEW element's
       // variants block (see README "как добавить новый элемент").
-      const parts = groupsToParts(groups);
-      return parts.map(p => `      { verts: ${vertsToLiteral(p.verts)}, layer: '${p.layer}' },`).join('\n');
+      return partsBodyText();
     }
-    return meta.kind === 'singleton'
-      ? underframeVariantSnippet(meta, groups)
-      : repeatableVariantSnippet(meta, groups);
+    return repeatableVariantSnippet(meta);
   }
 
   function downloadFile(text, filename){

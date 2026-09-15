@@ -237,45 +237,6 @@ html, body{
 }
 .pill.new{ border-color:#4cc97c; color:#4cc97c; }
 
-/* Own scroll region with a sane cap — the contour list's fieldset sits
-   ABOVE the flexible JSON fieldset in a fixed-height column (see #sideCol
-   above), so if an element ever has a long contour list, it scrolls
-   internally rather than pushing the JSON editor down or off-screen. */
-#contourList{
-  max-height:220px;
-  overflow-y:auto;
-}
-
-/* Contour list rows — modeled on .instance-row from the real app's own
-   CSS (same radius/padding/background language) but denser, since a
-   contour row carries much less per-row UI than an instance row does. */
-.contour-item{
-  display:flex; align-items:center; gap:8px;
-  padding:6px 8px;
-  border-radius:6px;
-  cursor:pointer;
-  font-size:11.5px;
-  font-family:var(--mono);
-  border:1px solid transparent;
-  margin-bottom:3px;
-}
-.contour-item:hover{ background:var(--panel-2); }
-.contour-item.selected{ background:var(--panel-2); border-color:var(--accent); }
-.contour-item .swatch{
-  width:9px; height:9px; border-radius:2px; flex:none;
-  border:1px solid rgba(255,255,255,.25);
-}
-.contour-item .meta{ color:var(--ink-dim); flex:1; line-height:1.5; }
-.contour-item .meta b{ color:var(--ink); font-weight:600; }
-.contour-item .del{
-  background:none; border:none; color:var(--ink-dim); cursor:pointer;
-  font-size:13px; line-height:1; padding:2px 5px; border-radius:4px;
-}
-.contour-item .del:hover{ color:#e05a5a; background:var(--bg); }
-
-#addContourRow{ display:flex; gap:6px; margin-top:6px; }
-#addContourRow select{ flex:1; }
-
 /* ---------- CodeMirror (JSON pane) — fills #jsonEditorHost completely.
    Only sizing/theme-integration rules here; syntax colors come from the
    'dracula' CodeMirror theme loaded in index.html. ---------- */
@@ -284,4 +245,12 @@ html, body{
   font-family:var(--mono);
   font-size:12px;
   line-height:1.5;
+}
+
+/* Highlights the line a preview click landed on (see main.js's own
+   jumpEditorToSelection) — a background tint rather than a border/outline
+   since CodeMirror line-classes apply to the full-width line background
+   cleanly, without needing to fight the editor's own gutter/wrap layout. */
+.CodeMirror .selected-line{
+  background:var(--panel-2);
 }

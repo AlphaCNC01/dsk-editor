@@ -136,8 +136,8 @@ function importSvgText(svgText){
       bulge: parseFloat((p.bulge || 0).toFixed(6)),
     })));
 
-    const groups = [{ name: 'imported', layer: 'PHYSICAL', contours: shifted }];
-    EditorState.load({ elementId: null, variantKey: null, kind: 'repeatable', sku: '', label: '', groups, passthrough: {} });
+    const entries = shifted.map(verts => ({ layer: 'PHYSICAL', verts }));
+    EditorState.load({ elementId: null, variantKey: null, kind: 'repeatable', sku: '', label: '', entries, passthrough: {} });
     Render.setStatus(`Импортировано: ${shifted.length} контуров. Координаты сдвинуты так, что верхний левый угол = (0,0) — проверьте начало координат инструментом «Установить 0,0».`);
   } catch (e) {
     Render.setStatus('Ошибка импорта SVG: ' + e.message, true);

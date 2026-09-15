@@ -1,22 +1,34 @@
 // ============================================================================
 // EditorState — the single source of truth for whatever geometry is
-// currently loaded in this session: a list of named contour groups (see
-// Registry's normalized shape). The text pane and the SVG preview are both
-// just views onto this same array; either can trigger a re-render, but
-// neither owns the data.
+// currently loaded in this session: a flat list of `entries` (see
+// Registry's normalized shape — one entry per real `parts` array item,
+// either {layer, verts} or {hole: {x,y,kind}}). The text pane and the SVG
+// preview are both just views onto this same array; either can trigger a
+// re-render, but neither owns the data.
 //
-// The text pane holds plain JSON (an array of {name, layer, contours}),
-// not a JS expression — parsed with JSON.parse rather than the old
-// editor's `new Function(...)` trick. This is both safer (no arbitrary
-// code execution from pasted/loaded text) and gives exact, useful parse
-// errors ("Unexpected token at position 214") instead of a generic
-// catch-all, which matters more here than in the old editor since this
-// version expects people to hand-edit individual vertices directly in
-// the text, not just paste in whole ready-made contours.
+// The text pane holds exactly what belongs inside parts: [ ... ] in a real
+// element file — a plain contour entry serializes as
+// `{ verts: [...], layer: '...' }`, and a hole entry as a literal
+// `...Holes.at(x, y, 'kind')` spread (see js/elements/hole.js). There is
+// deliberately no extra wrapping (no editor-only "name" field, no grouping)
+// — earlier versions of this editor added a friendlier {name, contours:[...]}
+// shape on top, but that meant the text on screen was NOT what you could
+// paste into an element file; this format is exactly that, so copy-pasting
+// straight from the pane (or from Save's output, which is now just this
+// text wrapped in the surrounding variant boilerplate) works.
+//
+// Because of the ...Holes.at(...) spread and the lack of outer {} wrapping
+// per line, this is no longer strict JSON — fromText() pre-processes both
+// into JSON-safe equivalents before calling JSON.parse, then expands them
+// back out afterwards. This is NOT the old editor's `new Function(...)`
+// trick: nothing is evaluated as code. Both rewrites use strict regexes
+// matching only the exact shapes toText() itself produces; anything else
+// is left alone to fail JSON.parse's own parsing with its normal (specific,
+// position-pointing) error.
 // ============================================================================
 const EditorState = (() => {
-  let groups = [];          // current working geometry
-  let selection = null;     // { groupIndex, contourIndex } | null
+  let entries = [];         // current working geometry — mirrors `parts`
+  let selection = null;     // index into `entries`, or null
   let currentElementId = null;
   let currentVariantKey = null;
   let currentKind = null;   // 'repeatable' | 'singleton'
@@ -47,7 +59,7 @@ const EditorState = (() => {
     currentSku = normalizedVariant.sku;
     currentLabel = normalizedVariant.label;
     currentPassthrough = normalizedVariant.passthrough || {};
-    groups = normalizedVariant.groups;
+    entries = normalizedVariant.entries;
     selection = null;
     notify();
   }
@@ -59,15 +71,15 @@ const EditorState = (() => {
     currentSku = '';
     currentLabel = '';
     currentPassthrough = {};
-    groups = [{ name: 'part 1', layer: 'PHYSICAL', contours: [[
+    entries = [{ layer: 'PHYSICAL', verts: [
       { x: 0, y: 0, bulge: 0 }, { x: 100, y: 0, bulge: 0 },
       { x: 100, y: 60, bulge: 0.4142 }, { x: 0, y: 60, bulge: 0 },
-    ]] }];
+    ] }];
     selection = null;
     notify();
   }
 
-  function getGroups(){ return groups; }
+  function getEntries(){ return entries; }
   function getMeta(){
     return {
       elementId: currentElementId, variantKey: currentVariantKey, kind: currentKind,
@@ -80,53 +92,71 @@ const EditorState = (() => {
     notify();
   }
 
-  function setGroups(newGroups, { select, source } = {}){
-    groups = newGroups;
+  function setEntries(newEntries, { select, source } = {}){
+    entries = newEntries;
     if (select !== undefined) selection = select;
     notify(source);
   }
 
-  function setSelection(sel){
-    selection = sel;
+  function setSelection(index){
+    selection = index;
     notify();
   }
   function getSelection(){ return selection; }
 
   // ---------- Text <-> state ----------
-  // Serializes to readable, stable-key-order JSON (not JSON.stringify's
+  // Serializes to readable, one-entry-per-line source (not JSON.stringify's
   // default compact form) so re-serializing after a small edit produces a
   // small diff, matching this project's existing preference for readable
-  // multi-line source over minified output.
-  // Formats each group's contours with ONE POINT PER LINE — this is
-  // purely a readability choice for hand-editing coordinates in the JSON
-  // pane; it has no effect on the underlying data model (still a plain
-  // array of {x,y,bulge} per contour) or on anything downstream of
-  // EditorState.getGroups() (Save.buildSnippet, SVG import's own
-  // generated contours, etc. all keep working with contours as plain
-  // arrays regardless of how this function happens to lay them out as
-  // text). fromText()'s own parser only cares about valid JSON, not
-  // about how it's laid out across lines, so this format is also freely
-  // hand-edited back.
+  // multi-line source over minified output — and matching parts: [ ... ]
+  // in a real element file line for line.
   function toText(){
     const lines = ['['];
-    groups.forEach((g, gi) => {
-      lines.push(`  {`);
-      lines.push(`    "name": ${JSON.stringify(g.name)},`);
-      lines.push(`    "layer": ${JSON.stringify(g.layer)},`);
-      lines.push(`    "contours": [`);
-      g.contours.forEach((c, ci) => {
-        lines.push(`      [`);
-        c.forEach((v, vi) => {
-          const comma = vi < c.length - 1 ? ',' : '';
-          lines.push(`        {"x":${fmtNum(v.x)},"y":${fmtNum(v.y)},"bulge":${fmtBulge(v.bulge)}}${comma}`);
-        });
-        lines.push(`      ]${ci < g.contours.length - 1 ? ',' : ''}`);
-      });
-      lines.push(`    ]`);
-      lines.push(`  }${gi < groups.length - 1 ? ',' : ''}`);
+    entries.forEach((e, i) => {
+      const comma = i < entries.length - 1 ? ',' : '';
+      if (e.hole) {
+        lines.push(`  ...Holes.at(${fmtNum(e.hole.x)}, ${fmtNum(e.hole.y)}, ${JSON.stringify(e.hole.kind)})${comma}`);
+      } else {
+        lines.push(`  { verts: ${vertsToLiteral(e.verts)}, layer: ${JSON.stringify(e.layer)} }${comma}`);
+      }
     });
     lines.push(']');
     return lines.join('\n');
+  }
+
+  // One line per vertex when there's more than a couple — keeps a simple
+  // 2-vertex hole-style contour compact on one line, but spreads a real
+  // multi-point outline out so individual points are easy to find/edit by
+  // eye, matching this project's own hand-authored element files (see
+  // underframe.js etc., which write one {x,y,bulge} per line for anything
+  // non-trivial).
+  function vertsToLiteral(verts){
+    if (verts.length <= 2) {
+      return '[' + verts.map(v => `{"x":${fmtNum(v.x)},"y":${fmtNum(v.y)},"bulge":${fmtBulge(v.bulge)}}`).join(',') + ']';
+    }
+    const inner = verts.map(v => `    {"x":${fmtNum(v.x)},"y":${fmtNum(v.y)},"bulge":${fmtBulge(v.bulge)}}`).join(',\n');
+    return '[\n' + inner + '\n  ]';
+  }
+
+  // Returns the 0-based CodeMirror line number where a given entry index
+  // starts in toText()'s own output. Each entry is exactly one opening
+  // line (see toText()/vertsToLiteral — a hole is always one line; a plain
+  // entry's OPENING line is what's returned even when its verts span
+  // several lines, since that's the more useful place to land: right at
+  // "{ verts: [" rather than mid-list). Mirrors toText()'s own line-
+  // counting exactly, but stops once it reaches the requested entry rather
+  // than emitting the rest of the text — a plain re-walk of the same
+  // layout toText() already knows, not a parse of generated text (regexing
+  // generated JSON back apart is more fragile than recomputing the same
+  // simple counts a second time).
+  function lineForSelection(index){
+    if (index == null || !entries[index]) return null;
+    let line = 1; // line 0 is the opening '[', entry 0 is on line 1
+    for (let i = 0; i < index; i++) {
+      const e = entries[i];
+      line += (e.hole || e.verts.length <= 2) ? 1 : 2 + e.verts.length;
+    }
+    return line;
   }
 
   function fmtNum(n){
@@ -141,38 +171,94 @@ const EditorState = (() => {
     return Object.is(r, -0) ? 0 : r;
   }
 
-  // Parses text back into groups. Throws with a specific message on
+  // Matches Holes.at(x, y, "kind") / Holes.at(x, y, 'kind') — deliberately
+  // narrow (three arguments, first two plain numbers, third a quoted
+  // identifier-like string, nothing else) so this only ever rewrites
+  // exactly the construct toText() itself produces, never anything a
+  // person might type that merely mentions "Holes" in passing. The leading
+  // `...` (spread, matching how it appears inside parts: [...] in a real
+  // element file) is optional here so pasting a line copied straight out
+  // of an element file — where it's always preceded by `...` — still
+  // parses the same as this editor's own generated text.
+  const HOLES_AT_RE = /(?:\.\.\.)?Holes\.at\(\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*,\s*["']([A-Za-z0-9_]+)["']\s*\)/g;
+
+  function preprocessHolesAt(text){
+    return text.replace(HOLES_AT_RE, (_, x, y, kind) =>
+      `{"__hole__":true,"x":${x},"y":${y},"kind":${JSON.stringify(kind)}}`);
+  }
+
+  // { verts: [...], layer: '...' } isn't valid JSON on its own (unquoted
+  // keys, single-quoted layer name — matching how it's written in a real
+  // element file, e.g. `layer: 'PHYSICAL'`), and neither is a real file's
+  // own vertex literal — `{x:242.5,y:0,bulge:0}`, compact and unquoted, the
+  // way underframe.js/pullout.js/etc. actually write coordinates — this
+  // rewrites all of it to JSON-safe form so JSON.parse can take it from
+  // there. Deliberately narrow (only ever touches the exact bare keys used
+  // in this format: `verts`, `layer`, `x`, `y`, `bulge`; only a
+  // single-quoted value immediately after `"layer":`) rather than a
+  // general unquoted-key/single-quote fixer, so anything else malformed
+  // still surfaces as a normal JSON.parse error instead of being silently
+  // "fixed" into something that parses but isn't what was meant.
+  function preprocessBareKeys(text){
+    return text
+      .replace(/\bverts\s*:/g, '"verts":')
+      .replace(/\blayer\s*:/g, '"layer":')
+      .replace(/\{\s*x\s*:/g, '{"x":')
+      .replace(/,\s*y\s*:/g, ',"y":')
+      .replace(/,\s*bulge\s*:/g, ',"bulge":')
+      .replace(/"layer"\s*:\s*'([^']*)'/g, '"layer": "$1"');
+  }
+
+  // A trailing comma before a closing ] or } is valid, everyday JS syntax
+  // (and exactly what pasting a line straight out of an element file, or
+  // this editor's own toText(), naturally produces on the last entry) but
+  // is a hard JSON.parse error — strips it so both directions round-trip
+  // without a person having to hand-delete the last comma.
+  function stripTrailingCommas(text){
+    return text.replace(/,(\s*[\]}])/g, '$1');
+  }
+
+  // Parses text back into entries. Throws with a specific message on
   // failure — callers show this directly rather than swallowing it, since
   // a vague "invalid input" is exactly what made the old editor's parse
   // errors hard to act on.
   function fromText(text){
     let parsed;
     try {
-      parsed = JSON.parse(text);
+      parsed = JSON.parse(stripTrailingCommas(preprocessBareKeys(preprocessHolesAt(text))));
     } catch (e) {
-      throw new Error('Некорректный JSON: ' + e.message);
+      throw new Error('Некорректный синтаксис: ' + e.message);
     }
-    if (!Array.isArray(parsed)) throw new Error('Ожидается массив групп контуров верхнего уровня');
-    parsed.forEach((g, gi) => {
-      if (!g || typeof g !== 'object') throw new Error(`Группа ${gi + 1}: ожидается объект`);
-      if (!Array.isArray(g.contours)) throw new Error(`Группа ${gi + 1} ("${g.name || '?'}"): нет массива "contours"`);
-      g.contours.forEach((c, ci) => {
-        if (!Array.isArray(c) || c.length < 1) throw new Error(`Группа ${gi + 1}, контур ${ci + 1}: пустой или некорректный`);
-        c.forEach((v, vi) => {
-          if (typeof v.x !== 'number' || typeof v.y !== 'number') {
-            throw new Error(`Группа ${gi + 1}, контур ${ci + 1}, точка ${vi + 1}: x/y должны быть числами`);
-          }
-        });
+    if (!Array.isArray(parsed)) throw new Error('Ожидается массив записей верхнего уровня (как parts: [...])');
+    parsed.forEach((e, i) => {
+      if (!e || typeof e !== 'object') throw new Error(`Запись ${i + 1}: ожидается объект`);
+
+      const holeMarker = e.__hole__ ? e : null;
+      if (holeMarker) {
+        if (typeof holeMarker.x !== 'number' || typeof holeMarker.y !== 'number') {
+          throw new Error(`Запись ${i + 1}: Holes.at требует числовые x/y`);
+        }
+        if (!Holes.KINDS[holeMarker.kind]) {
+          throw new Error(`Запись ${i + 1}: неизвестный вид отверстия "${holeMarker.kind}" (доступны: ${Object.keys(Holes.KINDS).join(', ')})`);
+        }
+        parsed[i] = { hole: { x: holeMarker.x, y: holeMarker.y, kind: holeMarker.kind } };
+        return;
+      }
+
+      if (!Array.isArray(e.verts) || e.verts.length < 1) throw new Error(`Запись ${i + 1}: нет массива "verts" (и не Holes.at(...))`);
+      e.verts.forEach((v, vi) => {
+        if (typeof v.x !== 'number' || typeof v.y !== 'number') {
+          throw new Error(`Запись ${i + 1}, точка ${vi + 1}: x/y должны быть числами`);
+        }
+        if (typeof v.bulge !== 'number') v.bulge = 0;
       });
-      if (!g.layer) g.layer = 'PHYSICAL';
-      if (!g.name) g.name = `part ${gi + 1}`;
-      g.contours.forEach(c => c.forEach(v => { if (typeof v.bulge !== 'number') v.bulge = 0; }));
+      if (!e.layer) e.layer = 'PHYSICAL';
     });
     return parsed;
   }
 
   return {
-    onChange, load, loadBlank, getGroups, getMeta, setGroups, setSkuLabel,
-    setSelection, getSelection, toText, fromText,
+    onChange, load, loadBlank, getEntries, getMeta, setEntries, setSkuLabel,
+    setSelection, getSelection, toText, fromText, lineForSelection,
   };
 })();

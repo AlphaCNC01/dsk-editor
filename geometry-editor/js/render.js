@@ -48,16 +48,29 @@ const Render = (() => {
   }
 
   function render(){
-    const groups = EditorState.getGroups();
+    const groupEntries = EditorState.getEntries();
     const selection = EditorState.getSelection();
 
+    // Hole entries ({hole:{x,y,kind}}, see Registry's own header comment)
+    // carry no `verts` of their own — Holes.at() is the single source of
+    // truth for what a hole actually looks like, so the preview asks it
+    // to rebuild the real hole+counterbore contour pair here rather than
+    // duplicating that geometry a second time in this file. Both
+    // resulting render entries point at the SAME entry index (clicking
+    // either the hole or its counterbore in the preview selects the one
+    // underlying entries[] item — see EditorState.lineForSelection in
+    // main.js, which treats a hole entry as a single selectable unit).
     const entries = [];
-    groups.forEach((group, gi) => {
-      group.contours.forEach((contour, ci) => {
-        if (!contour || contour.length < 1) return;
-        const closed = contour.length > 2 || (contour.length === 2 && Math.abs(contour[0].bulge || 0) > 1e-6);
-        entries.push({ contour, layer: group.layer, closed, _gi: gi, _ci: ci });
-      });
+    groupEntries.forEach((entry, ei) => {
+      if (entry.hole) {
+        const parts = Holes.at(entry.hole.x, entry.hole.y, entry.hole.kind);
+        parts.forEach(p => entries.push({ contour: p.verts, layer: p.layer, closed: true, _ei: ei }));
+        return;
+      }
+      const contour = entry.verts;
+      if (!contour || contour.length < 1) return;
+      const closed = contour.length > 2 || (contour.length === 2 && Math.abs(contour[0].bulge || 0) > 1e-6);
+      entries.push({ contour, layer: entry.layer, closed, _ei: ei });
     });
 
     if (entries.length === 0) {
@@ -131,12 +144,12 @@ const Render = (() => {
       const entry = entries[i];
       if (!entry) return;
       path.classList.add('shape-path');
-      if (selection && selection.groupIndex === entry._gi && selection.contourIndex === entry._ci) {
+      if (selection === entry._ei) {
         path.classList.add('selected');
       }
       path.addEventListener('click', (ev) => {
         ev.stopPropagation();
-        EditorState.setSelection({ groupIndex: entry._gi, contourIndex: entry._ci });
+        EditorState.setSelection(entry._ei);
       });
     });
 
