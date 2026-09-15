@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>DSK Editor</title>
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app">
+
+  <div id="preview">
+    <svg id="stage" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="zoomControls">
+      <button type="button" id="zoomOutBtn" class="zoom-btn" title="Уменьшить" aria-label="Уменьшить">−</button>
+      <button type="button" id="zoomResetBtn" class="zoom-btn zoom-percent" title="Сбросить масштаб">100%</button>
+      <button type="button" id="zoomInBtn" class="zoom-btn" title="Увеличить" aria-label="Увеличить">+</button>
+    </div>
+  </div>
+
+  <div id="controls">
+    <fieldset id="orderHeader">
+      <legend>Проект</legend>
+      <div class="field" style="margin-bottom:10px;">
+        <label>Номер заказа</label>
+        <div id="orderSplit">
+          <input type="text" id="orderNumber" value="DSK">
+          <button id="historyMenuToggle" type="button" title="История проектов" aria-haspopup="true" aria-expanded="false">
+            <svg viewBox="0 0 24 24"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>
+            <span class="history-toggle-caret">▾</span>
+          </button>
+          <div id="historyMenu" role="menu">
+            <div class="history-header">История проектов</div>
+            <div id="historyList"></div>
+            <div class="history-empty" style="display:none;">Нет сохранённых проектов</div>
+          </div>
+        </div>
+      </div>
+      <div class="toggle-row" style="margin-bottom:12px;">
+        <span>Показать размерные линии</span>
+        <label class="switch">
+          <input type="checkbox" id="dimensionsOn" checked>
+          <span class="track"></span>
+        </label>
+      </div>
+      <div class="toggle-row" style="margin-bottom:12px;">
+        <span>Схематический вид</span>
+        <label class="switch">
+          <input type="checkbox" id="schematicOn" checked>
+          <span class="track"></span>
+        </label>
+      </div>
+      <div class="field" id="woodTintField" style="margin-bottom:12px;">
+        <label>Цвет отделки (только превью)</label>
+        <select id="woodTint"></select>
+      </div>
+      <div id="exportSplit">
+        <button id="exportMainBtn">Экспортировать PNG</button>
+        <button id="exportMenuToggle" type="button" title="Другие форматы" aria-haspopup="true" aria-expanded="false">▾</button>
+        <div id="exportMenu" role="menu">
+          <button type="button" data-format="dxf" role="menuitem">Экспортировать DXF</button>
+          <button type="button" data-format="svg" role="menuitem">Экспортировать SVG</button>
+          <button type="button" data-format="png" role="menuitem">Экспортировать PNG</button>
+          <button type="button" data-format="gcode" role="menuitem">Экспортировать G-code</button>
+        </div>
+      </div>
+      <div id="projectRow">
+        <button id="saveProjectBtn" class="btn-icon" type="button" title="Сохранить проект в JSON">
+          <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/></svg>
+          <span>Сохранить</span>
+        </button>
+        <button id="loadProjectBtn" class="btn-icon" type="button" title="Загрузить проект из JSON">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>
+          <span>Загрузить</span>
+        </button>
+      </div>
+      <div id="projectRow2">
+        <button id="shareProjectBtn" class="btn-icon" type="button" title="Скопировать ссылку с текущим макетом">
+          <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5 15.4 6.5"/><path d="M8.6 13.5 15.4 17.5"/></svg>
+          <span>Поделиться</span>
+        </button>
+        <button id="resetProjectBtn" class="btn-icon btn-icon-danger" type="button" title="Сбросить макет к пустому проекту">
+          <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+          <span>Сброс</span>
+        </button>
+      </div>
+      <input type="file" id="loadProjectInput" accept="application/json,.json" style="display:none;">
+    </fieldset>
+
+    <fieldset id="tabletopSizeSection">
+      <legend>Столешница</legend>
+      <div class="row2">
+        <div class="field">
+          <label>Ширина <span class="unit">мм</span></label>
+          <input type="number" id="rectW" value="1500" min="1" step="1">
+        </div>
+        <div class="field">
+          <label>Высота <span class="unit">мм</span></label>
+          <input type="number" id="rectH" value="700" min="1" step="1">
+        </div>
+      </div>
+      <div class="field">
+        <label>Толщина <span class="unit">мм</span></label>
+        <select id="rectThickness">
+          <option value="30" selected>30</option>
+          <option value="40">40</option>
+        </select>
+      </div>
+	  <div class="row2">
+        <div class="field">
+          <label>Скругление верх<span class="unit">мм</span></label>
+          <input type="number" id="rTop" value="5" min="0" step="1">
+        </div>
+        <div class="field">
+          <label>Скругление низ<span class="unit">мм</span></label>
+          <input type="number" id="rBottom" value="50" min="0" step="1">
+        </div>
+	  </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Эргономический вырез</legend>
+      <div class="toggle-row">
+        <span>Добавить вырез</span>
+        <label class="switch">
+          <input type="checkbox" id="notchOn" checked>
+          <span class="track"></span>
+        </label>
+      </div>
+      <div id="notchFields" style="margin-top:12px;">
+        <div class="row2">
+          <div class="field">
+            <label>Ширина низа <span class="unit">мм</span></label>
+            <input type="number" id="notchBottom" value="750" min="0" step="1">
+          </div>
+          <div class="field">
+            <label>Ширина верха <span class="unit">мм</span></label>
+            <input type="number" id="notchTop" value="600" min="0" step="1">
+          </div>
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label>Высота выреза <span class="unit">мм</span></label>
+            <input type="number" id="notchH" value="75" min="0" step="1">
+          </div>
+          <div class="field">
+            <label>Скругление углов <span class="unit">мм</span></label>
+            <input type="number" id="rNotch" value="50" min="0" step="1">
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Подстолье</legend>
+      <div class="field">
+        <label>Тип подстолья</label>
+        <select id="underframeType">
+          <option value="none">Нет подстолья</option>
+          <!-- '60'/'70' options are generated at load time from
+               UNDERFRAME_VARIANTS in packages/elements/underframe.js — see
+               apps/engineer/js/ui/underframe-options.js, called from
+               main.js — so a new underframe size only needs adding there,
+               not here. -->
+        </select>
+      </div>
+      <div id="underframeFields" style="margin-top:12px;">
+        <div class="row2">
+          <div class="field">
+            <label>Отступ <span class="unit">мм</span></label>
+            <input type="number" id="underframeInsetH" value="50" min="0" step="1">
+          </div>
+          <div class="field">
+            <label>Смещение <span class="unit">мм</span></label>
+            <input type="number" id="underframeInsetV" value="0" step="1">
+          </div>
+        </div>
+      </div>
+    </fieldset>
+
+  </div>
+
+</div>
+
+<script type="module" src="js/main.js"></script>
+
+</body>
+</html>
