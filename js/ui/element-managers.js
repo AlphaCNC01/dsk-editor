@@ -201,21 +201,7 @@
           400,
         insetY: (inst, p) => p.underframeInsetV,
       },
-      small: {
-        anchor: 'top',
-        insetX: (inst, p) => {
-          const tray = p.trays && p.trays[0];
-          if (!tray || !tray.type || tray.type === 'none') return 250;
-          if (tray.type === '60') return (tray.insetX || 0) + 250;
-          if (tray.type === '80') return (tray.insetX || 0) + 400;
-          return 250;
-        },
-        insetY: (inst, p) => {
-          const tray = p.trays && p.trays[0];
-          if (!tray || !tray.type || tray.type === 'none') return 115;
-          return tray.insetY || 0;
-        },
-      },
+      small: { anchor: 'top', insetX: 250, insetY: 115 },
     },
     typeSelector: {
       label: 'Тип выемки',

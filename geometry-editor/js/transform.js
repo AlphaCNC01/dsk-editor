@@ -10,17 +10,32 @@
 // only ever offered whole-document transforms, which is fine for "this
 // entire traced SVG needs shifting to a new origin" but awkward for "this
 // one mounting hole is 2mm off, nudge just it".
+//
+// Hole groups ({ hole: {x,y,kind} }, see Registry's own header comment) 
+// carry no `contours` — they're transformed by running the SAME Geo
+// functions over a single synthetic point [{x, y, bulge:0}] standing in
+// for the hole's center, then writing the result back into hole.x/y.
+// bulge is irrelevant for a lone point (nothing consumes it) but Geo's
+// functions expect vertex-shaped objects, so a dummy 0 keeps this a
+// pass-through of the exact same math every contour transform already
+// uses, rather than a hand-rolled second copy of rotate/mirror trig.
 // ============================================================================
 const Transform = (() => {
 
-  function targetContours(scope){
+  // Every group targeted by `scope`, tagged with enough to write results
+  // back to the right place: contour groups carry {contour: verts}, hole
+  // groups carry {hole: theHoleObject} (the live object inside
+  // EditorState's groups, mutated in place by applyInPlace).
+  function targetItems(scope){
     const groups = EditorState.getGroups();
     if (scope === 'selected') {
       const sel = EditorState.getSelection();
       if (!sel) return [];
-      return [groups[sel.groupIndex].contours[sel.contourIndex]];
+      const g = groups[sel.groupIndex];
+      if (!g) return [];
+      return g.hole ? [{ hole: g.hole }] : [{ contour: g.contours[sel.contourIndex] }];
     }
-    return groups.flatMap(g => g.contours);
+    return groups.flatMap(g => g.hole ? [{ hole: g.hole }] : g.contours.map(contour => ({ contour })));
   }
 
   function roundVerts(verts){
@@ -31,10 +46,16 @@ const Transform = (() => {
     }));
   }
 
-  function applyInPlace(contours, fn){
-    contours.forEach(contour => {
-      const result = fn(contour);
-      const rounded = roundVerts(result);
+  function applyInPlace(items, fn){
+    items.forEach(item => {
+      if (item.hole) {
+        const [pt] = roundVerts(fn([{ x: item.hole.x, y: item.hole.y, bulge: 0 }]));
+        item.hole.x = pt.x;
+        item.hole.y = pt.y;
+        return;
+      }
+      const contour = item.contour;
+      const rounded = roundVerts(fn(contour));
       contour.length = 0;
       rounded.forEach(v => contour.push(v));
     });
@@ -42,18 +63,18 @@ const Transform = (() => {
 
   function offset(scope, dx, dy){
     if (dx === 0 && dy === 0) return;
-    applyInPlace(targetContours(scope), c => Geo.translate(c, dx, dy));
+    applyInPlace(targetItems(scope), c => Geo.translate(c, dx, dy));
     EditorState.setGroups(EditorState.getGroups());
   }
 
   function rotate(scope, degrees, pivot){
     if (!degrees) return;
-    applyInPlace(targetContours(scope), c => Geo.rotate(c, degrees, pivot || { x: 0, y: 0 }));
+    applyInPlace(targetItems(scope), c => Geo.rotate(c, degrees, pivot || { x: 0, y: 0 }));
     EditorState.setGroups(EditorState.getGroups());
   }
 
   function mirror(scope, axisKind, pivot){
-    applyInPlace(targetContours(scope), c => Geo.mirror(c, axisKind, pivot || { x: 0, y: 0 }));
+    applyInPlace(targetItems(scope), c => Geo.mirror(c, axisKind, pivot || { x: 0, y: 0 }));
     EditorState.setGroups(EditorState.getGroups());
   }
 
@@ -77,13 +98,21 @@ const Transform = (() => {
     return { minX, minY, maxX, maxY };
   }
 
+  // A hole group's extents use its counterbore radius (the larger of the
+  // pair — see Holes.KINDS) so bbox/setOrigin/preview framing account for
+  // its full visible footprint, not just its center point.
+  function holeExtents(hole){
+    const kindDef = Holes.KINDS[hole.kind];
+    const r = kindDef ? kindDef.csDia / 2 : 0;
+    return { minX: hole.x - r, maxX: hole.x + r, minY: hole.y - r, maxY: hole.y + r };
+  }
+
   function combinedExtents(scope){
-    const contours = targetContours(scope);
+    const items = targetItems(scope);
     let box = null;
-    for (const c of contours) {
-      if (!c || c.length < 1) continue;
-      const e = contourExtents(c);
-      if (e.minX === Infinity) continue;
+    for (const item of items) {
+      const e = item.hole ? holeExtents(item.hole) : (item.contour && item.contour.length >= 1 ? contourExtents(item.contour) : null);
+      if (!e || e.minX === Infinity) continue;
       if (!box) box = { ...e };
       else {
         box.minX = Math.min(box.minX, e.minX);
@@ -110,5 +139,5 @@ const Transform = (() => {
     offset(scope, dx, dy);
   }
 
-  return { offset, rotate, mirror, setOrigin, combinedExtents, contourExtents };
+  return { offset, rotate, mirror, setOrigin, combinedExtents, contourExtents, holeExtents };
 })();

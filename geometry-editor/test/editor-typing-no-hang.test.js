@@ -50,8 +50,7 @@ function makeEl(id, tag){ const el = new FakeElement(tag); if (id) elementsById[
   ['rotateAngle','input'],['applyRotateBtn','button'],['mirrorHBtn','button'],['mirrorVBtn','button'],
   ['scopeSelected','input'],['previewMeta','div'],['preview','div'],['stage','svg'],['previewInfoBar','div'],
   ['status','div'],['zoomControls','div'],['zoomOutBtn','button'],['zoomResetBtn','button'],['zoomInBtn','button'],
-  ['sideCol','div'],['metaFieldset','fieldset'],['skuInput','input'],['labelInput','input'],['contourCount','span'],
-  ['contourList','div'],['addContourRow','div'],['newContourLayer','select'],['addContourBtn','button'],
+  ['sideCol','div'],['metaFieldset','fieldset'],['skuInput','input'],['labelInput','input'],
   ['jsonEditor','textarea'],['jsonError','div'],['jsonEditorHost','div'],['mainCol','div'],['resizeHandle','div'],['app','div'],
 ].forEach(([id,tag])=>makeEl(id,tag));
 const originGridButtons = ['tl','t','tr','l','c','r','bl','b','br'].map(pos=>{ const b=new FakeElement('button'); b.dataset.pos=pos; b._attrs['data-pos']=pos; return b; });
@@ -70,6 +69,10 @@ FakeCodeMirror.prototype.setValue = function(v){ setValueCallCount++; this._valu
 FakeCodeMirror.prototype.getValue = function(){ return this._value; };
 FakeCodeMirror.prototype.on = function(type, fn){ (this._listeners[type]=this._listeners[type]||[]).push(fn); };
 FakeCodeMirror.prototype.refresh = function(){};
+FakeCodeMirror.prototype.setCursor = function(){};
+FakeCodeMirror.prototype.scrollIntoView = function(){};
+FakeCodeMirror.prototype.addLineClass = function(){};
+FakeCodeMirror.prototype.removeLineClass = function(){};
 const CodeMirror = { fromTextArea: (ta) => new FakeCodeMirror(ta) };
 
 const ctx = {
@@ -90,7 +93,7 @@ const files = [
   'js/elements/cable-pocket.js','js/elements/cable-channels.js','js/render/svg.js',
   'geometry-editor/js/ui-shim.js','geometry-editor/js/zoom.js',
   'geometry-editor/js/registry.js','geometry-editor/js/editor-state.js','geometry-editor/js/transform.js','geometry-editor/js/render.js',
-  'geometry-editor/js/contour-list.js','geometry-editor/js/save.js','geometry-editor/js/svg-import.js','geometry-editor/js/main.js',
+  'geometry-editor/js/save.js','geometry-editor/js/svg-import.js','geometry-editor/js/main.js',
 ];
 for (const f of files) vm.runInContext(fs.readFileSync(f,'utf8'), ctx, { filename: f });
 

@@ -51,8 +51,22 @@ const Render = (() => {
     const groups = EditorState.getGroups();
     const selection = EditorState.getSelection();
 
+    // Hole groups ({hole:{x,y,kind}}, see Registry's own header comment)
+    // carry no `contours` of their own — Holes.at() is the single source
+    // of truth for what a hole actually looks like, so the preview asks
+    // it to rebuild the real hole+counterbore contour pair here rather
+    // than duplicating that geometry a second time in this file. Both
+    // resulting entries point at the SAME group/selection index (there's
+    // only one hole "contour" from the editor's point of view — see
+    // EditorState.lineForSelection in main.js, which treats a hole group
+    // as a single selectable unit, not two).
     const entries = [];
     groups.forEach((group, gi) => {
+      if (group.hole) {
+        const parts = Holes.at(group.hole.x, group.hole.y, group.hole.kind);
+        parts.forEach(p => entries.push({ contour: p.verts, layer: p.layer, closed: true, _gi: gi, _ci: 0 }));
+        return;
+      }
       group.contours.forEach((contour, ci) => {
         if (!contour || contour.length < 1) return;
         const closed = contour.length > 2 || (contour.length === 2 && Math.abs(contour[0].bulge || 0) > 1e-6);

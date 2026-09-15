@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <title>DSK Editor</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/decimal.js/10.4.3/decimal.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/clipper-lib@6.4.2/clipper.js"></script>
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -62,7 +61,6 @@
           <button type="button" data-format="dxf" role="menuitem">Экспортировать DXF</button>
           <button type="button" data-format="svg" role="menuitem">Экспортировать SVG</button>
           <button type="button" data-format="png" role="menuitem">Экспортировать PNG</button>
-          <button type="button" data-format="gcode" role="menuitem">Экспортировать G-code</button>
         </div>
       </div>
       <div id="projectRow">
@@ -102,10 +100,7 @@
       </div>
       <div class="field">
         <label>Толщина <span class="unit">мм</span></label>
-        <select id="rectThickness">
-          <option value="30" selected>30</option>
-          <option value="40">40</option>
-        </select>
+        <input type="number" id="rectThickness" value="30" min="1" step="1">
       </div>
 	  <div class="row2">
         <div class="field">
@@ -204,7 +199,6 @@
 <script src="js/export/dxf.js"></script>
 <script src="js/export/svg.js"></script>
 <script src="js/export/png.js"></script>
-<script src="js/export/gcode.js"></script>
 <!-- UI -->
 <script src="js/ui/instance-list.js"></script>
 <script src="js/ui/field-helpers.js"></script>

@@ -175,22 +175,12 @@
     }
   }
 
-  function exportGcode(){
-    const p = readParams();
-    if (p.W <= 0 || p.H <= 0) { alert('Укажите положительные ширину и высоту.'); return; }
-    // Dimension lines carry no `machining` in layers.js, so ExportGCode
-    // already skips them on its own; passed as just Drawing's own
-    // entries here (no need to add dims.entries) for the same result.
-    const entries = Drawing.build(p);
-    ExportGCode.downloadAs(entries, p, (inputs.orderNumber.value || '').trim());
-  }
-
   // The split-button's main action always exports PNG (the common case);
-  // DXF/SVG/G-code live in the dropdown next to it, opened via the chevron.
+  // DXF/SVG live in the dropdown next to it, opened via the chevron.
   // EXPORT_FORMATS keys off data-format so both the main button and each
   // dropdown entry can share one dispatch function instead of three
   // separate listeners repeating the same lookup.
-  const EXPORT_FORMATS = { dxf: exportDxf, svg: exportSvg, png: exportPng, gcode: exportGcode };
+  const EXPORT_FORMATS = { dxf: exportDxf, svg: exportSvg, png: exportPng };
 
   function runExport(format){
     UI.closeExportMenu();

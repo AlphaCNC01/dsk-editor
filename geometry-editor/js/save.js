@@ -32,12 +32,18 @@ const Save = (() => {
     return '[' + verts.map(v => `{x:${fmtCoord(v.x)},y:${fmtCoord(v.y)},bulge:${fmtBulge(v.bulge)}}`).join(',') + ']';
   }
 
-  // Re-flattens the normalized {groups} model back into parts:[{verts,
-  // layer}], one entry per contour, in the same order groups/contours were
-  // originally read (Registry.groupsFromParts keeps one group per original
-  // part, so groups.flatMap here is the exact inverse of that).
-  function groupsToParts(groups){
-    return groups.flatMap(g => g.contours.map(verts => ({ verts, layer: g.layer })));
+  // Renders one group as the line(s) it should appear as inside a
+  // parts: [ ... ] array. A hole group becomes a spread of the real
+  // Holes.at(x, y, 'kind') call (see js/elements/hole.js) — exactly what
+  // a hand-written element file uses — rather than the two raw
+  // {verts,layer} contours that call would expand into; anything else
+  // becomes one `{ verts: [...], layer: '...' },` line per contour,
+  // unchanged from before.
+  function partsLinesFor(groups){
+    return groups.flatMap(g => g.hole
+      ? [`      ...Holes.at(${fmtCoord(g.hole.x)}, ${fmtCoord(g.hole.y)}, '${g.hole.kind}'),`]
+      : g.contours.map(verts => `      { verts: ${vertsToLiteral(verts)}, layer: '${g.layer}' },`)
+    );
   }
 
   function serializePassthrough(passthrough){
@@ -52,8 +58,7 @@ const Save = (() => {
   }
 
   function repeatableVariantSnippet(meta, groups){
-    const parts = groupsToParts(groups);
-    const partsLines = parts.map(p => `      { verts: ${vertsToLiteral(p.verts)}, layer: '${p.layer}' },`).join('\n');
+    const partsLines = partsLinesFor(groups).join('\n');
     const passthroughLines = serializePassthrough(meta.passthrough);
     return `    ${meta.variantKey}: {
       sku: ${JSON.stringify(meta.sku)},
@@ -64,30 +69,6 @@ ${partsLines}
 ${passthroughLines ? passthroughLines + '\n' : ''}    },`;
   }
 
-  function underframeVariantSnippet(meta, groups){
-    const outline = groups.find(g => g.name === 'frameOutline');
-    const holes = groups.find(g => g.name === 'frameHoles');
-    const outlineLiteral = '[' + (outline ? outline.contours : []).map(vertsToLiteral).join(',') + ']';
-    const holesLiteral = '[' + (holes ? holes.contours : []).map(vertsToLiteral).join(',') + ']';
-    // width/height are NOT geometry this editor touches (they're used by
-    // buildContours for placement math, not derived from the contours
-    // themselves — see underframe.js), so they're read back from
-    // passthrough rather than recomputed, and flagged clearly if somehow
-    // missing rather than silently writing 0 (which would silently break
-    // placement on paste).
-    const width = meta.passthrough.width;
-    const height = meta.passthrough.height;
-    const widthLine = width !== undefined ? width : '/* ЗАПОЛНИТЕ: width отсутствовал в исходных данных */';
-    const heightLine = height !== undefined ? height : '/* ЗАПОЛНИТЕ: height отсутствовал в исходных данных */';
-    return `    '${meta.variantKey}': {
-      sku: ${JSON.stringify(meta.sku)},
-      label: ${JSON.stringify(meta.label)},
-      width: ${widthLine}, height: ${heightLine},
-      frameOutline: ${outlineLiteral},
-      frameHoles: ${holesLiteral},
-    },`;
-  }
-
   function buildSnippet(){
     const meta = EditorState.getMeta();
     const groups = EditorState.getGroups();
@@ -95,12 +76,9 @@ ${passthroughLines ? passthroughLines + '\n' : ''}    },`;
       // Blank/scratch geometry with no source element attached — just the
       // parts[] array on its own, for pasting into a brand NEW element's
       // variants block (see README "как добавить новый элемент").
-      const parts = groupsToParts(groups);
-      return parts.map(p => `      { verts: ${vertsToLiteral(p.verts)}, layer: '${p.layer}' },`).join('\n');
+      return partsLinesFor(groups).join('\n');
     }
-    return meta.kind === 'singleton'
-      ? underframeVariantSnippet(meta, groups)
-      : repeatableVariantSnippet(meta, groups);
+    return repeatableVariantSnippet(meta, groups);
   }
 
   function downloadFile(text, filename){
