@@ -1,6 +1,8 @@
 {
-  "dependencies": {
-    "clipper-lib": "^6.4.2",
-    "decimal.js": "^10.6.0"
-  }
+  "name": "dsk-editor",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
 }
