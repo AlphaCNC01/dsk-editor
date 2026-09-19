@@ -1,25 +1,26 @@
-# Зависимости (обязательно)
+# Dependencies — restored via `npm install`, never committed.
 node_modules/
 
-# Результаты сборки
+# Vite build output (each app's own dist/, wherever it lives in the tree).
 dist/
 dist-ssr/
 
-# Локальные файлы окружения
-.env
-.env.local
-.env.*.local
+# Vite's own local cache.
+.vite/
 
-# Логи
+# Editor/OS noise.
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+
+# npm/yarn logs from a failed install.
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Файлы ОС
-.DS_Store
-Thumbs.db
-
-# Файлы редакторов
-.vscode/
-.idea/
+# Local env files, if any app ever adds one (API keys, etc — never commit these).
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,58 @@
+name: Deploy engineer app to GitHub Pages
+
+# Runs on every push to main that touches the engineer app or anything it
+# depends on (the shared packages), plus manually via the Actions tab
+# ("Run workflow" button) if you ever want to redeploy without a new
+# commit — e.g. after changing a GitHub Pages setting.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/engineer/**'
+      - 'packages/**'
+      - '.github/workflows/deploy-engineer.yml'
+  workflow_dispatch:
+
+# Pages deploys need these two permissions on the workflow's own token;
+# GitHub doesn't grant them by default.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Only one deploy should run at a time; a second push while one is still
+# building cancels the in-progress one rather than racing it.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/engineer/package-lock.json
+      - name: Install dependencies
+        working-directory: apps/engineer
+        run: npm ci
+      - name: Build
+        working-directory: apps/engineer
+        run: npm run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/engineer/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
