@@ -9,12 +9,6 @@
     "preview": "vite preview",
     "test": "node --import ../../alias-loader.mjs test/render-viewbox.test.js && node --import ../../alias-loader.mjs test/resize.test.js && node --import ../../alias-loader.mjs test/editor-typing-no-hang.test.js && node --import ../../alias-loader.mjs test/holes-editing.test.js"
   },
-  "dependencies": {
-    "decimal.js": "^10.4.3"
-  },
-  "devDependencies": {
-    "vite": "^8.3.0"
-  },
   "imports": {
     "#core/*": "../../packages/core/*",
     "#elements/*": "../../packages/elements/*",
