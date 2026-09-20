@@ -24,6 +24,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // ============================================================================
 export default defineConfig({
   base: '/dsk-editor/',
+  // `server.host: true` makes the dev server listen on every network
+  // interface (not just loopback), printing a "Network:" address
+  // (e.g. http://192.168.x.x:5173/) alongside the usual localhost one —
+  // works around VPN clients that hijack loopback traffic at the OS
+  // level (common with WireGuard/V2Ray-style TUN-adapter VPNs, e.g.
+  // Happ): the machine's real LAN address is often still reachable even
+  // when 127.0.0.1/localhost isn't. Only affects `vite dev`; ignored by
+  // `vite build`.
+  server: {
+    host: true,
+  },
   resolve: {
     alias: {
       '@core': path.resolve(__dirname, '../../packages/core'),

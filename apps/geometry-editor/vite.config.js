@@ -13,6 +13,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // future need arises.
 // ============================================================================
 export default defineConfig({
+  // `server.host: true` — see apps/engineer's own vite.config.js comment
+  // (works around a VPN client hijacking loopback traffic at the OS level).
+  server: {
+    host: true,
+  },
   resolve: {
     alias: {
       '@core': path.resolve(__dirname, '../../packages/core'),
