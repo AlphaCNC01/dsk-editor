@@ -4,12 +4,5 @@
   "workspaces": [
     "apps/*",
     "packages/*"
-  ],
-  "dependencies": {
-    "clipper-lib": "^6.4.2",
-    "decimal.js": "^10.4.3"
-  },
-  "devDependencies": {
-    "vite": "^8.3.0"
-  }
+  ]
 }
