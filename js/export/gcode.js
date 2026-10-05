@@ -32,7 +32,7 @@
 // Production normally mounts the panel vertically on the machine (rotated
 // 90° counter-clockwise from this app's own design view) rather than flat
 // the way it's drawn. That's a second, independent transform layered on
-// top of the flip above (see ORIENTATION.vertical below) — hardcoded for
+// top of the flip above (see ORIENTATIONS.vertical below) — hardcoded for
 // now since every job today is milled vertically, but written as a single
 // swappable transform so horizontal or other 90°-multiple mounts can be
 // added later without touching the rest of this file.
@@ -151,11 +151,15 @@ const ExportGCode = (() => {
   const ORIENTATIONS = {
     vertical: {
       // (x, y) in design space (Y-up, origin at the panel's own
-      // bottom-left) -> (x, y) in machine space, rotated 90 CCW.
-      apply: (x, y) => ({ x: -y, y: x }),
+      // bottom-left) -> (x, y) in machine space, rotated 90 CCW and
+      // shifted by the panel height so the whole panel lands in X >= 0.
+      // Without the shift the rotation alone puts the panel at
+      // X in [-H, 0], i.e. the XY zero ends up at the bottom-RIGHT of the
+      // machine-side view; with it the zero is the bottom-LEFT corner.
+      apply: (x, y, W, H) => ({ x: H - y, y: x }),
     },
     horizontal: {
-      apply: (x, y) => ({ x, y }),
+      apply: (x, y, W, H) => ({ x, y }),
     },
   };
   const ACTIVE_ORIENTATION = 'vertical'; // hardcoded for now, see file comment
@@ -250,13 +254,13 @@ const ExportGCode = (() => {
   // inside/outside from the polygon's own orientation internally, so
   // there's no need to normalize to CCW here the way the old hand-rolled
   // offsetter required.
-  function toMachinePolyline(contour, side, boardWidth){
+  function toMachinePolyline(contour, side, boardWidth, boardHeight){
     let pts = Geo.tessellateContour(contour, ARC_SEGMENTS_PER_CIRCLE, true);
     if (side === 'bottom') {
       pts = pts.map(p => ({ x: boardWidth - p.x, y: p.y }));
     }
     const orient = ORIENTATIONS[ACTIVE_ORIENTATION];
-    pts = pts.map(p => orient.apply(p.x, p.y));
+    pts = pts.map(p => orient.apply(p.x, p.y, boardWidth, boardHeight));
     return pts;
   }
 
@@ -462,7 +466,7 @@ const ExportGCode = (() => {
   // `p`       — the full params object from readParams (needs W, thickness).
   // `orderNumber` — raw order-number string, sanitized into the filename.
   function buildFiles(entries, p, orderNumber){
-    const { W, thickness } = p;
+    const { W, H, thickness } = p;
     const groups = new Map(); // key `${side}|${toolId}` -> { side, tool, items: [{pts,targetZ}] }
 
     for (const entry of entries){
@@ -485,7 +489,7 @@ const ExportGCode = (() => {
       if (!groups.has(key)) groups.set(key, { side: machining.side, tool, items: [] });
       const group = groups.get(key);
 
-      const machinePts = toMachinePolyline(entry.contour, machining.side, W);
+      const machinePts = toMachinePolyline(entry.contour, machining.side, W, H);
       const toolpaths = buildToolpaths(machinePts, millType, toolRadius, tool.stepover);
       for (const pts of toolpaths) group.items.push({ pts, targetZ });
     }
