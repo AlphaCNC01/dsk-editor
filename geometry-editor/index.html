@@ -120,6 +120,7 @@
      it only reads Elements.all() / Layers.registry, and reuses
      RenderSVG.build / zoom.js outright instead of reimplementing them. -->
 <script src="../js/core/geo.js"></script>
+<script src="../js/core/routing.js"></script>
 <script src="../js/core/layers.js"></script>
 <script src="../js/core/elements.js"></script>
 <script src="../js/core/drawing.js"></script>
@@ -137,22 +138,19 @@
 <script src="../js/elements/cable-channels.js"></script>
 <script src="../js/render/svg.js"></script>
 
-<!-- js/ui/zoom.js is copied in verbatim (own file, own header explaining
-     that) rather than linked directly from ../js/ui/, since that file
-     also expects UI.el to already exist — this editor's own main.js
-     defines the same trivial UI.el = document.getElementById shim before
-     zoom.js runs, without pulling in the rest of js/ui/ (instance lists,
-     anchor pickers, cable-channel UI) that has no purpose here. -->
-<!-- Minimal UI.el shim, defined before zoom.js needs it (see zoom.js's
-     own header comment for why it's a verbatim copy rather than a live
-     include of ../js/ui/zoom.js). This is genuinely the entire UI
+<!-- js/ui/zoom.js is loaded straight from the main app (no copy). It
+     expects UI.el to already exist, so this editor defines the same trivial
+     UI.el = document.getElementById shim (js/ui-shim.js) before it, without
+     pulling in the rest of js/ui/ (instance lists, anchor pickers,
+     cable-channel UI) that has no purpose here. -->
+<!-- Minimal UI.el shim, defined before zoom.js needs it. This is genuinely the entire UI
      namespace this editor uses — kept as its own one-line file rather
      than folded into main.js so the ordering requirement (must exist
      before zoom.js runs) is visible from index.html's own script list,
      not hidden inside main.js's larger bootstrap logic which belongs
      after every module it wires together, not before zoom.js. -->
 <script src="js/ui-shim.js"></script>
-<script src="js/zoom.js"></script>
+<script src="../js/ui/zoom.js"></script>
 
 <!-- This editor's own modules -->
 <script src="js/registry.js"></script>

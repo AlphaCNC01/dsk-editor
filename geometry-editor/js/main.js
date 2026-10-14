@@ -7,7 +7,7 @@
 // comes from the real project's own files, reused directly rather than
 // reimplemented or pulled from a library.
 //
-// UI.el (needed by js/zoom.js, loaded earlier — see index.html) is
+// UI.el (needed by ../js/ui/zoom.js, loaded earlier — see index.html) is
 // defined in js/ui-shim.js, not here.
 // ============================================================================
 

@@ -19,7 +19,7 @@
 //
 // UI chrome (zoom controls, the #preview/#stage/#zoomControls DOM
 // structure) also matches index.html's own markup exactly, so js/ui/
-// zoom.js — copied in unmodified — works without any changes.
+// js/ui/zoom.js — loaded directly from the main app — works without any changes.
 // ============================================================================
 const Render = (() => {
   let stageEl, statusEl, infoEl, centerInfoEl;

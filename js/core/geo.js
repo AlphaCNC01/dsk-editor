@@ -501,5 +501,17 @@ const Geo = (() => {
     return signedArea(contour) >= 0 ? contour : reverseContour(contour);
   }
 
-  return { dist, filletCorner, roundedPolygon, bulgeRadius, contourToSvgPath, tessellateContour, cleanRound, translate, signedArea, reverseContour, rotate, mirror, groovePolyline };
+  // True if segments p1-p2 and p3-p4 properly cross (strictly interior
+  // to both; touching at endpoints and parallel/collinear overlap do NOT
+  // count). Points are {x,y}.
+  function segmentsIntersect(p1, p2, p3, p4){
+    const d1x = p2.x-p1.x, d1y = p2.y-p1.y, d2x = p4.x-p3.x, d2y = p4.y-p3.y;
+    const denom = d1x*d2y - d1y*d2x;
+    if (Math.abs(denom) < 1e-9) return false;
+    const t = ((p3.x-p1.x)*d2y - (p3.y-p1.y)*d2x) / denom;
+    const u = ((p3.x-p1.x)*d1y - (p3.y-p1.y)*d1x) / denom;
+    return t > 1e-6 && t < 1-1e-6 && u > 1e-6 && u < 1-1e-6;
+  }
+
+  return { segmentsIntersect, dist, filletCorner, roundedPolygon, bulgeRadius, contourToSvgPath, tessellateContour, cleanRound, translate, signedArea, reverseContour, rotate, mirror, groovePolyline };
 })();
