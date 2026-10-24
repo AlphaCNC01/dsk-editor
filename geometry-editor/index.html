@@ -4,11 +4,11 @@
 <meta charset="UTF-8">
 <title>DSK — Редактор геометрии элементов</title>
 <link rel="stylesheet" href="../css/styles.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/javascript/javascript.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<link rel="stylesheet" href="../vendor/codemirror/codemirror.min.css">
+<link rel="stylesheet" href="../vendor/codemirror/dracula.min.css">
+<script defer src="../vendor/codemirror/codemirror.min.js"></script>
+<script defer src="../vendor/codemirror/javascript.min.js"></script>
+<script defer src="../vendor/codemirror/matchbrackets.min.js"></script>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -119,24 +119,24 @@
 <!-- Real project core — read-only. This editor never modifies these files;
      it only reads Elements.all() / Layers.registry, and reuses
      RenderSVG.build / zoom.js outright instead of reimplementing them. -->
-<script src="../js/core/geo.js"></script>
-<script src="../js/core/routing.js"></script>
-<script src="../js/core/layers.js"></script>
-<script src="../js/core/elements.js"></script>
-<script src="../js/core/drawing.js"></script>
-<script src="../js/elements/tabletop.js"></script>
-<script src="../js/elements/hole.js"></script>
-<script src="../js/elements/underframe.js"></script>
-<script src="../js/elements/pult.js"></script>
-<script src="../js/elements/wireless-charger.js"></script>
-<script src="../js/elements/outlet-block.js"></script>
-<script src="../js/elements/phone-stand.js"></script>
-<script src="../js/elements/tray.js"></script>
-<script src="../js/elements/pullout.js"></script>
-<script src="../js/elements/usb-charger.js"></script>
-<script src="../js/elements/cable-pocket.js"></script>
-<script src="../js/elements/cable-channels.js"></script>
-<script src="../js/render/svg.js"></script>
+<script defer src="../js/core/geo.js"></script>
+<script defer src="../js/core/routing.js"></script>
+<script defer src="../js/core/layers.js"></script>
+<script defer src="../js/core/elements.js"></script>
+<script defer src="../js/core/drawing.js"></script>
+<script defer src="../js/elements/tabletop.js"></script>
+<script defer src="../js/elements/hole.js"></script>
+<script defer src="../js/elements/underframe.js"></script>
+<script defer src="../js/elements/pult.js"></script>
+<script defer src="../js/elements/wireless-charger.js"></script>
+<script defer src="../js/elements/outlet-block.js"></script>
+<script defer src="../js/elements/phone-stand.js"></script>
+<script defer src="../js/elements/tray.js"></script>
+<script defer src="../js/elements/pullout.js"></script>
+<script defer src="../js/elements/usb-charger.js"></script>
+<script defer src="../js/elements/cable-pocket.js"></script>
+<script defer src="../js/elements/cable-channels.js"></script>
+<script defer src="../js/render/svg.js"></script>
 
 <!-- js/ui/zoom.js is loaded straight from the main app (no copy). It
      expects UI.el to already exist, so this editor defines the same trivial
@@ -149,17 +149,17 @@
      before zoom.js runs) is visible from index.html's own script list,
      not hidden inside main.js's larger bootstrap logic which belongs
      after every module it wires together, not before zoom.js. -->
-<script src="js/ui-shim.js"></script>
-<script src="../js/ui/zoom.js"></script>
+<script defer src="js/ui-shim.js"></script>
+<script defer src="../js/ui/zoom.js"></script>
 
 <!-- This editor's own modules -->
-<script src="js/registry.js"></script>
-<script src="js/editor-state.js"></script>
-<script src="js/transform.js"></script>
-<script src="js/render.js"></script>
-<script src="js/save.js"></script>
-<script src="js/svg-import.js"></script>
-<script src="js/resize.js"></script>
-<script src="js/main.js"></script>
+<script defer src="js/registry.js"></script>
+<script defer src="js/editor-state.js"></script>
+<script defer src="js/transform.js"></script>
+<script defer src="js/render.js"></script>
+<script defer src="js/save.js"></script>
+<script defer src="js/svg-import.js"></script>
+<script defer src="js/resize.js"></script>
+<script defer src="js/main.js"></script>
 </body>
 </html>

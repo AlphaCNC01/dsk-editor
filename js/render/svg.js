@@ -19,7 +19,7 @@ const RenderSVG = (() => {
   // The wood-grain preview is generated procedurally — a grid of lamella
   // boards, each filled with its own SVG feTurbulence noise standing in
   // for grain — rather than drawn from a photo. This avoids needing an
-  // image asset at all (no assets/wood_texture.jpg, no fetch, no
+  // image asset at all (no assets/wood_texture.webp, no fetch, no
   // cover-fit crop math; the photo variant is still available via the
   // switch below), scales exactly to any tabletop size with no
   // stretching or tiling seam, and can be re-tinted by swapping two
@@ -34,7 +34,7 @@ const RenderSVG = (() => {
   //   'generated'           — procedural lamella boards + feTurbulence grain
   //                           (described above; no image asset needed).
   //   'photo' (default)     — the older approach: one photo
-  //                           (assets/wood_texture.jpg) drawn once over the
+  //                           (assets/wood_texture.webp) drawn once over the
   //                           whole tabletop like CSS `background-size:
   //                           cover`, tinted with a multiply blend.
   // Everything else (edge bevel, vignette, drop shadow, per-layer
@@ -55,9 +55,9 @@ const RenderSVG = (() => {
   const WOOD_TEXTURE_URL = (() => {
     try {
       const cur = document.currentScript;
-      if (cur && cur.src) return new URL('../../assets/wood_texture.jpg', cur.src).href;
+      if (cur && cur.src) return new URL('../../assets/wood_texture.webp', cur.src).href;
     } catch (e) { /* fall through */ }
-    return 'assets/wood_texture.jpg';
+    return 'assets/wood_texture.webp';
   })();
   // Photo's own pixel aspect ratio (width/height) — 1750x861 — needed to
   // compute the "cover" crop without distorting grain direction.
