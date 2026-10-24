@@ -20,12 +20,50 @@ const RenderSVG = (() => {
   // boards, each filled with its own SVG feTurbulence noise standing in
   // for grain — rather than drawn from a photo. This avoids needing an
   // image asset at all (no assets/wood_texture.jpg, no fetch, no
-  // cover-fit crop math), scales exactly to any tabletop size with no
+  // cover-fit crop math; the photo variant is still available via the
+  // switch below), scales exactly to any tabletop size with no
   // stretching or tiling seam, and can be re-tinted by swapping two
   // colors per preset instead of re-processing a photo. It's still
   // preview-only decoration: none of this touches geometry, DXF, or
   // Export.SVG/Export.PNG.
   //
+  // ---- Render mode switch -------------------------------------------
+  // Which wood-surface renderer the 'render' view uses. Change this one
+  // constant (or override it before the page's scripts run, e.g.
+  // `window.DSK_WOOD_RENDER_MODE = 'photo'`) to switch:
+  //   'generated'           — procedural lamella boards + feTurbulence grain
+  //                           (described above; no image asset needed).
+  //   'photo' (default)     — the older approach: one photo
+  //                           (assets/wood_texture.jpg) drawn once over the
+  //                           whole tabletop like CSS `background-size:
+  //                           cover`, tinted with a multiply blend.
+  // Everything else (edge bevel, vignette, drop shadow, per-layer
+  // treatments in build) is shared and identical in both modes.
+  const WOOD_RENDER_MODES = ['generated', 'photo'];
+  const WOOD_RENDER_MODE = WOOD_RENDER_MODES.includes(window.DSK_WOOD_RENDER_MODE)
+    ? window.DSK_WOOD_RENDER_MODE
+    : 'photo';
+
+  // ---- 'photo' mode constants ----------------------------------------
+  // The photo is preview-only decoration: it plays no part in geometry,
+  // DXF, or any other export. The panel is never bigger than 2m x 1m, so
+  // there's no tiling — one photo covers the tabletop's own W x H,
+  // cropping whichever axis has spare length rather than stretching.
+  // The URL is resolved relative to THIS script (js/render/svg.js ->
+  // ../../assets/...), so it works from both index.html and
+  // geometry-editor/index.html, including under file://.
+  const WOOD_TEXTURE_URL = (() => {
+    try {
+      const cur = document.currentScript;
+      if (cur && cur.src) return new URL('../../assets/wood_texture.jpg', cur.src).href;
+    } catch (e) { /* fall through */ }
+    return 'assets/wood_texture.jpg';
+  })();
+  // Photo's own pixel aspect ratio (width/height) — 1750x861 — needed to
+  // compute the "cover" crop without distorting grain direction.
+  const WOOD_TEXTURE_ASPECT = 1750 / 861;
+
+  // ---- 'generated' mode constants ------------------------------------
   // Board layout, in mm — tunable constants rather than buried in the
   // math below:
   const LAMELLA_HEIGHT_MM = 40;   // width of each board (the panel's own short axis per board)
@@ -57,19 +95,22 @@ const RenderSVG = (() => {
   // markup.
   const SEAM_STROKE_OPACITY = 0.18;
 
-  // Preview-only wood-tint presets (point 5 of an earlier round): each
-  // preset is a base board color plus a grain color the noise darkens
-  // toward — swapping these two colors is the entire retint, no
-  // image processing involved. 'natural' is the default oak look.
-  // Picked in the UI's finish-color <select>; purely cosmetic, never
-  // touches geometry/DXF/SVG-export.
+  // Preview-only wood-tint presets. One shared list for both render modes
+  // (the UI <select> is built from it), each preset carrying:
+  //   base, grain — 'generated' mode: board color + the color the noise
+  //                 darkens toward; swapping them is the entire retint.
+  //   photo       — 'photo' mode: flat color multiplied over the photo
+  //                 (SVG feBlend "multiply" — a stain, not a flat
+  //                 replacement); null = untinted photo.
+  // 'natural' is the default oak look. Purely cosmetic, never touches
+  // geometry/DXF/SVG-export.
   const WOOD_TINTS = {
-    natural: { label: 'Дуб натуральный', base: '#c8a87c', grain: '#3b2313' },
-    white:   { label: 'Белёный дуб',     base: '#dcd3c2', grain: '#8a7a63' },
-    honey:   { label: 'Медовый',         base: '#c98a3f', grain: '#3d2410' },
-    walnut:  { label: 'Тёмный орех',     base: '#8a6a4a', grain: '#2c1a0e' },
-    wenge:   { label: 'Венге',           base: '#4a3a2c', grain: '#170e08' },
-    gray:    { label: 'Серый матовый',   base: '#a8a49c', grain: '#4a4640' },
+    natural: { label: 'Дуб натуральный', base: '#c8a87c', grain: '#3b2313', photo: null },
+    white:   { label: 'Белёный дуб',     base: '#dcd3c2', grain: '#8a7a63', photo: '#e8e2d8' },
+    honey:   { label: 'Медовый',         base: '#c98a3f', grain: '#3d2410', photo: '#c98a3f' },
+    walnut:  { label: 'Тёмный орех',     base: '#8a6a4a', grain: '#2c1a0e', photo: '#5a3c28' },
+    wenge:   { label: 'Венге',           base: '#4a3a2c', grain: '#170e08', photo: '#2b211c' },
+    gray:    { label: 'Серый матовый',   base: '#a8a49c', grain: '#4a4640', photo: '#8a8782' },
   };
 
   // Imitated eased edge (a light roundover/chamfer, not a real geometric
@@ -181,31 +222,9 @@ const RenderSVG = (() => {
     return boards;
   }
 
-  // Builds the <defs> wood-grain bits plus the <path>s that paint them,
-  // all clipped to the tabletop's own OUTLINE contour(s) — a T-slot notch
-  // or the ergo notch is itself part of the OUTLINE contour (see
-  // tabletop.js), so it's automatically excluded rather than needing
-  // separate handling here. Returns '' if there's no OUTLINE entry to key
-  // off (shouldn't normally happen, but render() bails out before this on
-  // W/H <= 0 anyway).
-  //
-  // W/H are the tabletop's own nominal width/height (the rectangle before
-  // notches/trapezoid) — the board grid is laid out over exactly that
-  // area. `tint` is one of WOOD_TINTS' own keys (defaults to 'natural'
-  // for any unrecognized value, same as an unset one).
-  function woodTextureLayer(entries, W, H, tint){
-    const outlineEntries = entries.filter(e => e.layer === 'OUTLINE');
-    if (!outlineEntries.length) return '';
-    const clipId = 'woodTextureClip';
-    const bevelBlurId = 'woodBevelShadow';
-    const vignetteId = 'woodVignette';
-    const shadowFilterId = 'woodDropShadow';
-    const outlinePaths = outlineEntries
-      .map(({ contour, closed = true }) => Geo.contourToSvgPath(contour, true, H, closed))
-      .join(' ');
-
-    const tintDef = WOOD_TINTS[tint] || WOOD_TINTS.natural;
-
+  // 'generated' mode surface: staggered lamella boards, each with its own
+  // feTurbulence grain filter, plus faint seams between rows.
+  function generatedSurface(W, H, tintDef){
     // Board grid: rows run across the panel's own height, each row's own
     // boards run along its width — matches how a real glued panel's
     // lamellas are laid, staggered row to row like brickwork/parquet.
@@ -245,6 +264,75 @@ const RenderSVG = (() => {
       const y = row * LAMELLA_HEIGHT_MM;
       seamLines.push(`<line x1="0" y1="${y}" x2="${W}" y2="${y}" stroke="${tintDef.grain}" stroke-opacity="${SEAM_STROKE_OPACITY}" stroke-width="0.6"></line>`);
     }
+    return { defs: boardDefs.join(''), markup: boardRects.join('') + seamLines.join('') };
+  }
+
+  // 'photo' mode surface: one image, "cover"-fitted over W x H (crop the
+  // axis with spare length instead of stretching), tinted with a multiply
+  // blend when the preset has a photo color.
+  function photoSurface(W, H, tintDef){
+    const tintFilterId = 'woodTintFilter';
+    const topAspect = W / H;
+    let imgW, imgH, imgX, imgY;
+    if (topAspect > WOOD_TEXTURE_ASPECT) {
+      // Tabletop relatively wider than the photo -> match width, crop top/bottom.
+      imgW = W;
+      imgH = W / WOOD_TEXTURE_ASPECT;
+      imgX = 0;
+      imgY = (H - imgH) / 2;
+    } else {
+      // Tabletop relatively taller than the photo -> match height, crop sides.
+      imgH = H;
+      imgW = H * WOOD_TEXTURE_ASPECT;
+      imgY = 0;
+      imgX = (W - imgW) / 2;
+    }
+    // Multiply (not an opaque tint) darkens toward the color while keeping
+    // the grain's own light/dark variation. No filter for untinted presets.
+    const tintColor = tintDef.photo;
+    const tintFilterAttr = tintColor ? ` filter="url(#${tintFilterId})"` : '';
+    const defs = `
+        <pattern id="woodTexturePattern" patternUnits="userSpaceOnUse" width="${W}" height="${H}">
+          <image href="${WOOD_TEXTURE_URL}" x="${imgX}" y="${imgY}" width="${imgW}" height="${imgH}"${tintFilterAttr}></image>
+        </pattern>` + (tintColor ? `
+        <filter id="${tintFilterId}" x="0" y="0" width="100%" height="100%">
+          <feFlood flood-color="${tintColor}" result="tintColor"></feFlood>
+          <feBlend in="SourceGraphic" in2="tintColor" mode="multiply"></feBlend>
+        </filter>` : '');
+    return { defs, markup: `<rect x="0" y="0" width="${W}" height="${H}" fill="url(#woodTexturePattern)"></rect>` };
+  }
+
+  // Builds the <defs> wood-surface bits plus the <path>s that paint them,
+  // all clipped to the tabletop's own OUTLINE contour(s) — a T-slot notch
+  // or the ergo notch is itself part of the OUTLINE contour (see
+  // tabletop.js), so it's automatically excluded rather than needing
+  // separate handling here. Returns '' if there's no OUTLINE entry to key
+  // off (shouldn't normally happen, but render() bails out before this on
+  // W/H <= 0 anyway).
+  //
+  // W/H are the tabletop's own nominal width/height (the rectangle before
+  // notches/trapezoid) — the board grid is laid out over exactly that
+  // area. `tint` is one of WOOD_TINTS' own keys (defaults to 'natural'
+  // for any unrecognized value, same as an unset one).
+  function woodTextureLayer(entries, W, H, tint){
+    const outlineEntries = entries.filter(e => e.layer === 'OUTLINE');
+    if (!outlineEntries.length) return '';
+    const clipId = 'woodTextureClip';
+    const bevelBlurId = 'woodBevelShadow';
+    const vignetteId = 'woodVignette';
+    const shadowFilterId = 'woodDropShadow';
+    const outlinePaths = outlineEntries
+      .map(({ contour, closed = true }) => Geo.contourToSvgPath(contour, true, H, closed))
+      .join(' ');
+
+    const tintDef = WOOD_TINTS[tint] || WOOD_TINTS.natural;
+
+    // The wood surface itself: `surfaceDefs` goes into <defs>,
+    // `surfaceMarkup` is painted inside the OUTLINE clip. Depends only on
+    // WOOD_RENDER_MODE; everything after this is shared.
+    const surface = WOOD_RENDER_MODE === 'photo'
+      ? photoSurface(W, H, tintDef)
+      : generatedSurface(W, H, tintDef);
 
     // Imitated eased edge: every edge of the panel (including notch
     // walls — whatever shape OUTLINE traces) gets a soft dark band
@@ -260,7 +348,7 @@ const RenderSVG = (() => {
     const edgeShadowMm = EDGE_SHADOW_MM;
 
     return `<defs>
-        ${boardDefs.join('')}
+        ${surface.defs}
         <clipPath id="${clipId}">
           <path d="${outlinePaths}"></path>
         </clipPath>
@@ -277,8 +365,7 @@ const RenderSVG = (() => {
       </defs>
       <g filter="url(#${shadowFilterId})">
         <g clip-path="url(#${clipId})">
-          ${boardRects.join('')}
-          ${seamLines.join('')}
+          ${surface.markup}
         </g>
         <path d="${outlinePaths}" fill="url(#${vignetteId})" clip-path="url(#${clipId})"></path>
         <g clip-path="url(#${clipId})">
@@ -366,5 +453,5 @@ const RenderSVG = (() => {
     return woodLayer + '\n' + parts.join('\n') + (textParts.length ? '\n' + textParts.join('\n') : '');
   }
 
-  return { build, WOOD_TINTS };
+  return { build, WOOD_TINTS, WOOD_RENDER_MODE };
 })();
