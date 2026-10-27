@@ -80,7 +80,27 @@
     return p;
   }
 
+  // Mirrors the order number into the browser tab's title, but only when
+  // it actually differs from the default ('DSK' — the value the empty
+  // form ships with). A plain 'DSK' (or a blank field) leaves the title
+  // at its default 'DSK Editor', so the usual case doesn't clutter the
+  // tab bar; a real project number makes the tab identifiable at a
+  // glance when several editor tabs are open. Wired into render() so it
+  // updates on every path that can change the field: typing, loading a
+  // project file / history entry / share link, restoring the session
+  // draft, and reset (a full reload back to the default title).
+  const DEFAULT_ORDER_NUMBER = 'DSK';
+  const DEFAULT_DOC_TITLE = 'DSK Editor';
+  function updateDocTitle(){
+    const order = (inputs.orderNumber.value || '').trim();
+    document.title = (order && order !== DEFAULT_ORDER_NUMBER)
+      ? `${order} · ${DEFAULT_DOC_TITLE}`
+      : DEFAULT_DOC_TITLE;
+  }
+
   function render(){
+    updateDocTitle();
+
     // Show/hide the field groups that only make sense when their own
     // toggle is on (the ergo notch, the top notch, the underframe, and
     // the finish-color picker — that one's meaningless in schematic view
