@@ -25,6 +25,7 @@
   const notchFieldsWrap = el('notchFields');
   const underframeFieldsWrap = el('underframeFields');
   const woodTintFieldWrap = el('woodTintField');
+  const thicknessBadge = el('thicknessBadge');
   const svg = el('stage');
 
   // The finish-color <select>'s own options come straight from
@@ -98,6 +99,26 @@
       : DEFAULT_DOC_TITLE;
   }
 
+  // Mirrors the tabletop's thickness into a small badge pinned to the
+  // preview pane's top-right corner — the on-screen counterpart of the
+  // "Толщина: N мм" caption ExportPNG bakes into exported PNGs (see
+  // js/export/png.js drawCaption), adapted for the preview: same wording,
+  // but a compact screen-space chip (see #thicknessBadge in styles.css)
+  // instead of canvas pixels, so it stays legible at any zoom level and
+  // for any panel size. Hidden when no thickness is selected. Wired into
+  // render(), so it updates on every path that can change the value:
+  // picking from the dropdown, loading a project/history/share link, and
+  // restoring the session draft. Preview-only — never touches geometry
+  // or any export path.
+  function updateThicknessBadge(thickness){
+    if (!thickness){
+      thicknessBadge.hidden = true;
+      return;
+    }
+    thicknessBadge.textContent = `Толщина: ${thickness} мм`;
+    thicknessBadge.hidden = false;
+  }
+
   function render(){
     updateDocTitle();
 
@@ -111,6 +132,7 @@
     woodTintFieldWrap.classList.toggle('disabled', viewMode === 'schematic');
 
     const p = readParams();
+    updateThicknessBadge(p.thickness);
     if (p.W <= 0 || p.H <= 0) return;
 
     // Refresh every element's own placeholder numbers to match the
