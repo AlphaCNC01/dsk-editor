@@ -68,7 +68,7 @@
      viewBox, which would scale with the drawing. */
   #thicknessBadge{
     position:absolute;
-    top:16px; right:20px;
+    top:16px; left:20px;
     font-family:var(--mono);
     font-size:12px;
     line-height:1;
