@@ -56,6 +56,32 @@
   #preview.zoomed svg#stage{ cursor:grab; }
   #preview.zoomed.panning svg#stage{ cursor:grabbing; }
 
+  /* Thickness badge: the tabletop's thickness pinned to the preview pane's
+     top-right corner — the on-screen counterpart of the "Толщина: N мм"
+     caption ExportPNG bakes into exported PNGs (see js/export/png.js
+     drawCaption). Adapted for the preview: a compact screen-space chip
+     instead of big canvas pixels, in the top-right (the PNG's own margin
+     is fully visible there, and #zoomControls lives bottom-right), styled
+     after #zoomControls so the two overlay elements read as one family.
+     Positioned/sized in CSS pixels, so it stays legible at any zoom level
+     and for any panel dimensions — unlike text drawn inside the SVG's mm
+     viewBox, which would scale with the drawing. */
+  #thicknessBadge{
+    position:absolute;
+    top:16px; left:20px;
+    font-family:var(--mono);
+    font-size:12px;
+    line-height:1;
+    color:var(--ink);
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:6px;
+    padding:8px 12px;
+    z-index:5;
+    pointer-events:none; /* never blocks pan/zoom gestures over the preview */
+  }
+  #thicknessBadge b{ color:var(--ink); font-weight:600; }
+
   /* Zoom controls: a small pill of icon buttons pinned to the bottom-right
      of the preview pane, kept visually consistent with .btn-icon
      elsewhere. zoomResetBtn doubles as the live percentage readout — its
@@ -535,4 +561,4 @@
   .btn-icon:hover{ border-color:var(--accent); color:var(--accent); }
   .btn-icon:active{ transform:translateY(1px); }
   .btn-icon svg{ width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
-  .btn-icon-danger:hover{ border-color:#c0392b; color:#c0392b; }
+  .btn-icon-danger:hover{ border-color:#c0392b; color:#c0392b; }

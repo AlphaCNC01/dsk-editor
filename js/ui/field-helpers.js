@@ -146,7 +146,7 @@
     return `
       <div class="anchor-row">
         <div class="field">
-          <label class="anchor-grid-label">Точка отсчёта</label>
+          <label class="anchor-grid-label" title="Shift+клик — сменить точку отсчёта, не сдвигая элемент">Точка отсчёта</label>
           ${anchorGridHtml(idx, inst.anchor)}
         </div>
         <div class="field-col">
@@ -257,6 +257,20 @@
       },
       onChange: () => UI.render(),
       onFieldChange: () => UI.debouncedRender(),
+      // Shift+click on an anchor-grid cell: switch the anchor and rewrite
+      // insetX/insetY so the element's position on the tabletop is
+      // unchanged (a plain click keeps the insets, so the element moves).
+      // Current position is resolved with the same defaults the geometry
+      // code sees (empty inset = live default), so blank fields work too.
+      onAnchorShiftClick: (inst, newAnchor) => {
+        const p = UI.readParams();
+        const d = defaultsForType(inst.type);
+        const curX = inst.insetX != null ? inst.insetX : evalVal(d.insetX, inst, p);
+        const curY = inst.insetY != null ? inst.insetY : evalVal(d.insetY, inst, p);
+        const bounds = { minX: 0, minY: 0, maxX: p.W, maxY: p.H };
+        const point = Elements.resolveInset(inst.anchor, curX, curY, bounds);
+        Object.assign(inst, { anchor: newAnchor }, Elements.insetsForPoint(newAnchor, point, bounds));
+      },
       // Called whenever an existing instance's own `type` select changes
       // (see createInstanceListManager's generic field handler) — resets
       // `anchor` to the new type's own default, same one-time resolution

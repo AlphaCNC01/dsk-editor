@@ -88,7 +88,23 @@ const Elements = (() => {
     return resolveAnchor(anchor, offset, bounds);
   }
 
-  return { register, all, resolveAnchor, resolveInset, ANCHOR_INSET };
+  // Inverse of resolveInset: given an absolute point and a (new) anchor,
+  // returns the insetX/insetY that make resolveInset(anchor, ...) land on
+  // exactly that point. Used to switch an element's anchor without moving
+  // it. Rounded to 0.01 mm to keep the fields free of float noise. For a
+  // corner anchor a point on the "wrong" side of it yields a negative
+  // inset — still geometrically exact, the field's min="0" is only a hint.
+  function insetsForPoint(anchor, point, bounds){
+    const sign = ANCHOR_INSET[anchor] || ANCHOR_INSET.center;
+    const base = resolveAnchor(anchor, null, bounds);
+    const round = v => Math.round(v * 100) / 100 + 0; // +0 turns -0 into 0
+    return {
+      insetX: round((point.x - base.x) * sign.signX),
+      insetY: round((point.y - base.y) * sign.signY),
+    };
+  }
+
+  return { register, all, resolveAnchor, resolveInset, insetsForPoint, ANCHOR_INSET };
 })();
 
 // Resolves one embeddable instance's world placement (center + rotation +

@@ -23,7 +23,7 @@ const UI = (() => {
   // lists any select fields (besides the anchor field every list has)
   // that need special "changing this repaints the whole row" handling,
   // e.g. a variant/type selector.
-  function createInstanceListManager({ containerId, addBtnId, itemLabel, defaults, rowHtml, onChange, onFieldChange, dimensionsDefault = true, onTypeChange = null }){
+  function createInstanceListManager({ containerId, addBtnId, itemLabel, defaults, rowHtml, onChange, onFieldChange, dimensionsDefault = true, onTypeChange = null, onAnchorShiftClick = null }){
     // A new project starts with none of these instances — the user adds
     // only what they actually need, rather than getting one by default
     // and having to delete it. (Loading a saved project still restores
@@ -126,10 +126,13 @@ const UI = (() => {
       // effect as a select change (anchor affects which X/Y fields this
       // row shows), so it re-renders the list the same way.
       container.querySelectorAll('.anchor-grid-btn[data-field]').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
           const idx = parseInt(btn.dataset.idx, 10);
           const field = btn.dataset.field;
-          items[idx][field] = btn.dataset.value;
+          // Shift+click: change the anchor AND recompute the insets so the
+          // element stays where it is (see createEmbeddableManager).
+          if (e.shiftKey && onAnchorShiftClick) onAnchorShiftClick(items[idx], btn.dataset.value);
+          else items[idx][field] = btn.dataset.value;
           renderList();
           onChange();
         });

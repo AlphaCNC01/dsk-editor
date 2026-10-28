@@ -25,6 +25,7 @@
   const notchFieldsWrap = el('notchFields');
   const underframeFieldsWrap = el('underframeFields');
   const woodTintFieldWrap = el('woodTintField');
+  const thicknessBadge = el('thicknessBadge');
   const svg = el('stage');
 
   // The finish-color <select>'s own options come straight from
@@ -80,7 +81,47 @@
     return p;
   }
 
+  // Mirrors the order number into the browser tab's title, but only when
+  // it actually differs from the default ('DSK' — the value the empty
+  // form ships with). A plain 'DSK' (or a blank field) leaves the title
+  // at its default 'DSK Editor', so the usual case doesn't clutter the
+  // tab bar; a real project number makes the tab identifiable at a
+  // glance when several editor tabs are open. Wired into render() so it
+  // updates on every path that can change the field: typing, loading a
+  // project file / history entry / share link, restoring the session
+  // draft, and reset (a full reload back to the default title).
+  const DEFAULT_ORDER_NUMBER = 'DSK';
+  const DEFAULT_DOC_TITLE = 'DSK Editor';
+  function updateDocTitle(){
+    const order = (inputs.orderNumber.value || '').trim();
+    document.title = (order && order !== DEFAULT_ORDER_NUMBER)
+      ? `${order} · ${DEFAULT_DOC_TITLE}`
+      : DEFAULT_DOC_TITLE;
+  }
+
+  // Mirrors the tabletop's thickness into a small badge pinned to the
+  // preview pane's top-right corner — the on-screen counterpart of the
+  // "Толщина: N мм" caption ExportPNG bakes into exported PNGs (see
+  // js/export/png.js drawCaption), adapted for the preview: same wording,
+  // but a compact screen-space chip (see #thicknessBadge in styles.css)
+  // instead of canvas pixels, so it stays legible at any zoom level and
+  // for any panel size. Hidden when no thickness is selected. Wired into
+  // render(), so it updates on every path that can change the value:
+  // picking from the dropdown, loading a project/history/share link, and
+  // restoring the session draft. Preview-only — never touches geometry
+  // or any export path.
+  function updateThicknessBadge(thickness){
+    if (!thickness){
+      thicknessBadge.hidden = true;
+      return;
+    }
+    thicknessBadge.textContent = `Толщина: ${thickness} мм`;
+    thicknessBadge.hidden = false;
+  }
+
   function render(){
+    updateDocTitle();
+
     // Show/hide the field groups that only make sense when their own
     // toggle is on (the ergo notch, the top notch, the underframe, and
     // the finish-color picker — that one's meaningless in schematic view
@@ -91,6 +132,7 @@
     woodTintFieldWrap.classList.toggle('disabled', viewMode === 'schematic');
 
     const p = readParams();
+    updateThicknessBadge(p.thickness);
     if (p.W <= 0 || p.H <= 0) return;
 
     // Refresh every element's own placeholder numbers to match the
