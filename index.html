@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <title>DSK Editor</title>
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f1722">
 <script defer src="vendor/decimal.min.js"></script>
 <script defer src="vendor/clipper.min.js"></script>
 <link rel="stylesheet" href="css/styles.css">
@@ -219,5 +221,10 @@
 <script defer src="js/ui/app-history.js"></script>
 <script defer src="js/ui/app-state.js"></script>
 
+<script>
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+</script>
 </body>
 </html>
