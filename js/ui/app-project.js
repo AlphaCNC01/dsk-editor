@@ -93,12 +93,16 @@
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const data = JSON.parse(reader.result);
+        // Accepts this app's own project files and the deskos.ru
+        // configurator's export (JSON or share link) — see
+        // configurator-import.js.
+        const { data, warnings } = ConfiguratorImport.parseText(reader.result);
         applyProjectData(data);
         // Loading a project from disk is a new work session, distinct
         // from whatever was open before — see app-history.js.
         if (UI.startNewHistorySession) UI.startNewHistorySession();
         if (UI.upsertHistoryEntry) UI.upsertHistoryEntry();
+        if (warnings.length) alert('Проект загружен, но:\n• ' + warnings.join('\n• '));
       } catch (err) {
         alert('Не удалось загрузить проект: ' + err.message);
       }
