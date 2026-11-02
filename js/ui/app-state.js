@@ -227,6 +227,16 @@
         // render rather than blocking the app from opening at all.
       }
     }
+    // Blank default project: two standard control panels, one anchored to
+    // the bottom-right corner and a mirrored one to the bottom-left. Inset
+    // fields are left unset so both follow the underframe-linked default.
+    const pultEntry = UI.ELEMENT_MANAGERS.find(e => e.key === 'pults');
+    if (pultEntry) {
+      pultEntry.mgr.setItems([
+        { type: 'standard', anchor: 'bottomRight' },
+        { type: 'standard', anchor: 'bottomLeft', mirror: 'vertical' },
+      ]);
+    }
     UI.render();
   }
 
