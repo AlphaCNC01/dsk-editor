@@ -90,6 +90,7 @@
         </button>
       </div>
       <input type="file" id="loadProjectInput" accept="application/json,.json" style="display:none;">
+      <div class="hint">Совет: JSON-файл проекта можно перетащить мышью в окно редактора.</div>
     </fieldset>
 
     <fieldset id="tabletopSizeSection">
@@ -226,5 +227,16 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
 }
 </script>
+
+<!-- Drag'n'drop project loading feedback (see js/ui/app-project.js).
+     Lives outside #app so the fixed overlay isn't clipped by the grid;
+     pointer-events:none in CSS lets the drag events pass through to
+     window. -->
+<div id="dropOverlay" aria-hidden="true">
+  <div class="drop-box">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/></svg>
+    <span>Отпустите JSON-файл проекта, чтобы загрузить его</span>
+  </div>
+</div>
 </body>
 </html>

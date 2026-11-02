@@ -562,3 +562,47 @@
   .btn-icon:active{ transform:translateY(1px); }
   .btn-icon svg{ width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
   .btn-icon-danger:hover{ border-color:#c0392b; color:#c0392b; }
+
+  .hint{
+    margin-top:10px;
+    font-size:12px;
+    line-height:1.4;
+    color:var(--ink-dim);
+  }
+
+  /* ---------- Drag'n'drop project loading overlay ----------
+     Shown while a file is dragged anywhere over the page (see
+     app-project.js). pointer-events:none so the underlying dragover/
+     drop events keep firing on window instead of bouncing off this
+     layer itself. */
+  #dropOverlay{
+    position:fixed;
+    inset:0;
+    z-index:100;
+    display:none;
+    align-items:center;
+    justify-content:center;
+    background:rgba(15, 23, 34, 0.72);
+    backdrop-filter:blur(2px);
+    pointer-events:none;
+  }
+  body.dragover #dropOverlay{ display:flex; }
+  #dropOverlay .drop-box{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:14px;
+    padding:40px 60px;
+    border:2px dashed var(--accent);
+    border-radius:14px;
+    color:var(--ink);
+    font-size:16px;
+    background:rgba(27, 33, 38, 0.85);
+  }
+  #dropOverlay .drop-box svg{
+    width:44px;
+    height:44px;
+    stroke:var(--accent);
+    fill:none;
+    stroke-width:1.8;
+  }
