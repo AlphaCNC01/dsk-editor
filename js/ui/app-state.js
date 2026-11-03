@@ -228,7 +228,7 @@
       }
     }
     // Blank default project: two standard control panels, one anchored to
-    // the bottom-right corner and a mirrored one to the bottom-left. Inset
+    // the bottom-right corner and one to the bottom-left. Inset
     // fields are left unset so both follow the underframe-linked default.
     const pultEntry = UI.ELEMENT_MANAGERS.find(e => e.key === 'pults');
     if (pultEntry) {
