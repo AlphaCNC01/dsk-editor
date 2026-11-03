@@ -155,9 +155,14 @@
   const pulloutMgr = UI.createEmbeddableManager({
     key: 'pullouts', label: 'Выдвижные подставки', addLabel: 'Добавить подставку',
     defaults: {
+	  type: 'standard',
 	  anchor: 'bottom',
 	  insetX: 0,
 	  insetY: (inst, p) => (p.notchOn ? p.notchH : 0), },
+    typeSelector: {
+      label: 'Тип',
+      options: optionsFromVariants(PULLOUT_VARIANTS)
+    },
     dimensionsDefault: false
   });
 
