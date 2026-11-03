@@ -109,10 +109,6 @@
       insetX: (inst, p) => (p.underframeInsetH || 0) + (inst.type === 'embeddedUsb' ? 120 : 110),
       insetY: 0
     },
-    typeSelector: {
-      label: 'Тип пульта',
-      options: optionsFromVariants(PULT_VARIANTS)
-    },
     // Only the embeddedUsb variant has a USB module cutout to route a
     // channel from (see the pult element's own cableNode, defined only on
     // that variant) — Standard has nothing for a channel to start at.
@@ -155,14 +151,9 @@
   const pulloutMgr = UI.createEmbeddableManager({
     key: 'pullouts', label: 'Выдвижные подставки', addLabel: 'Добавить подставку',
     defaults: {
-	  type: 'standard',
 	  anchor: 'bottom',
 	  insetX: 0,
 	  insetY: (inst, p) => (p.notchOn ? p.notchH : 0), },
-    typeSelector: {
-      label: 'Тип',
-      options: optionsFromVariants(PULLOUT_VARIANTS)
-    },
     dimensionsDefault: false
   });
 

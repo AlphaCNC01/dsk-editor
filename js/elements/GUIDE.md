@@ -223,14 +223,16 @@ Nothing else needs to be changed for a plain element.
 
 # Optional — Type Selector
 
-If the element has multiple variants that the user can choose between, add a `typeSelector`.
+If the element has multiple variants (more than one key in `variants`), the type selector appears **automatically**: `createEmbeddableManager` finds the element by its `paramsKey`, builds the options from each variant's `sku` and `label` (as `SKU — label`) and starts new instances on `defaultVariant`. Adding a variant to the element file is enough — nothing to edit in `element-managers.js`.
+
+Pass an explicit `typeSelector` only when you need your own option texts (it takes priority over the automatic one).
 
 Examples include:
 
 - pult: `Стандартный` / `Встраиваемый с USB`
 - cablePocket: `Большая` / `Малая`
 
-Add the selector to the `createEmbeddableManager` configuration:
+Custom selector in the `createEmbeddableManager` configuration:
 
 ```js
 typeSelector: {

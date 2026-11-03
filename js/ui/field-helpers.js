@@ -208,7 +208,25 @@
   }
 
   function createEmbeddableManager(cfg) {
-    const { key, label, typeSelector = null, cableTargetLabel = null, cableTargetWhen = null, addLabel, dimensionsDefault = true, typeDefaults = null } = cfg;
+    const { key, label, cableTargetLabel = null, cableTargetWhen = null, addLabel, dimensionsDefault = true, typeDefaults = null } = cfg;
+    // Type selector: an explicit cfg.typeSelector always wins (custom
+    // labels, e.g. the tray's "Лоток 60 см"). Otherwise, if the element
+    // registered under this `key` (registerSimpleEmbeddable's paramsKey)
+    // has more than one variant, the selector is built automatically from
+    // its VARIANTS as "sku — label" — adding a variant to the element
+    // file is then enough for it to appear in the UI. A single-variant
+    // element gets no selector.
+    const element = Elements.all().find(e => e.paramsKey === key);
+    let typeSelector = cfg.typeSelector || null;
+    if (!typeSelector && element && element.VARIANTS && Object.keys(element.VARIANTS).length > 1) {
+      typeSelector = {
+        label: 'Тип',
+        options: Object.keys(element.VARIANTS).map(k => {
+          const v = element.VARIANTS[k];
+          return { value: k, text: v.sku && v.label ? `${v.sku} — ${v.label}` : (v.label || v.sku || k) };
+        })
+      };
+    }
     // Every element's UI section is auto-created from `key`+`label` — see
     // ensureElementSection — so there's no hand-written HTML to keep in
     // sync when adding a new element, and the panel's own visible order
@@ -219,6 +237,11 @@
     // (evaluated lazily per-instance, per-render — see evalVal) rather
     // than a plain literal.
     const rawDefaults = { rotation: 0, mirror: 'none', ...cfg.defaults };
+    // New instances start on the element's own defaultVariant, so the
+    // select shows what the geometry actually draws.
+    if (typeSelector && rawDefaults.type === undefined && element && element.defaultVariant) {
+      rawDefaults.type = element.defaultVariant;
+    }
     const showTypeSelector = typeSelector && typeSelector.options.length > 1;
 
     // Resolves a default value that may be a plain literal or a function

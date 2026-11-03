@@ -202,6 +202,8 @@ function registerSimpleEmbeddable({ id, paramsKey, variants, defaultVariant }){
   // instead of needing its own hardcoded list of every element's params
   // key (the exact kind of manually-kept-in-sync list that's caused
   // elements to be silently skipped before).
-  Elements.register({ id, paramsKey, buildContours, VARIANTS: variants });
+  // `defaultVariant` is exposed too so the UI (createEmbeddableManager)
+  // can build the type selector and the new-instance default on its own.
+  Elements.register({ id, paramsKey, buildContours, VARIANTS: variants, defaultVariant });
   return variants;
 }
