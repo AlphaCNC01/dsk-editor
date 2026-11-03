@@ -234,7 +234,7 @@
     if (pultEntry) {
       pultEntry.mgr.setItems([
         { type: 'standard', anchor: 'bottomRight' },
-        { type: 'standard', anchor: 'bottomLeft', mirror: 'vertical' },
+        { type: 'standard', anchor: 'bottomLeft' },
       ]);
     }
     UI.render();
