@@ -105,6 +105,39 @@ Elements.register((() => {
       ...Holes.at(538, 0, 'A'),
       ],
     },
+    'MoveDesk-MAX': {
+      sku: 'NT33-2AF3-D5',
+      label: 'Подстолье MoveDesk MAX',
+      width: 475, height: 700,
+      parts: [
+      { verts: [{x:0,y:287.5,bulge:0},{x:30,y:287.5,bulge:0},{x:30,y:-287.5,bulge:0},{x:0,y:-287.5,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:35,y:-350,bulge:0},{x:100,y:-350,bulge:0.414214},{x:105,y:-345,bulge:0},{x:105,y:345,bulge:0.414214},{x:100,y:350,bulge:0},{x:35,y:350,bulge:0.414214},{x:30,y:345,bulge:0},{x:30,y:-345,bulge:0.414214}], layer: 'PHYSICAL' },
+      { verts: [{x:30,y:-75,bulge:0},{x:475,y:-75,bulge:0},{x:475,y:-50,bulge:0},{x:30,y:-50,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:30,y:50,bulge:0},{x:475,y:50,bulge:0},{x:475,y:75,bulge:0},{x:30,y:75,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:30,y:-49,bulge:0},{x:190,y:-49,bulge:0},{x:190,y:49,bulge:0},{x:30,y:49,bulge:0}], layer: 'PHYSICAL' },
+      ...Holes.at(15, -267.5, 'A'),
+      ...Holes.at(15, -120, 'A'),
+      ...Holes.at(15, 120, 'A'),
+      ...Holes.at(15, 267.5, 'A'),
+      ],
+    },
+    'Rival-Home': {
+      sku: 'D13',
+      label: 'Подстолье Rival Home',
+      width: 560, height: 580,
+      parts: [
+      { verts: [{x:0,y:250,bulge:0},{x:20,y:250,bulge:0},{x:20,y:-250,bulge:0},{x:0,y:-250,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:80,y:-260,bulge:0},{x:80,y:260,bulge:1},{x:20,y:260,bulge:0},{x:20,y:-260,bulge:1}], layer: 'PHYSICAL' },
+      { verts: [{x:20,y:-75,bulge:0},{x:560,y:-75,bulge:0},{x:560,y:-55,bulge:0},{x:20,y:-55,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:20,y:55,bulge:0},{x:560,y:55,bulge:0},{x:560,y:75,bulge:0},{x:20,y:75,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:20,y:-54,bulge:0},{x:210,y:-54,bulge:0},{x:210,y:54,bulge:0},{x:20,y:54,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:270,y:-55,bulge:0},{x:290,y:-55,bulge:0},{x:290,y:55,bulge:0},{x:270,y:55,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:420,y:-55,bulge:0},{x:440,y:-55,bulge:0},{x:440,y:55,bulge:0},{x:420,y:55,bulge:0}], layer: 'PHYSICAL' },
+      ...Holes.at(10, -223.75, 'A'),
+      ...Holes.at(10, 223.75, 'A'),
+      ...Holes.at(430, 0, 'A'),
+      ],
+    },
   };
   
   // Builds one leg-side's geometry at a given placement, optionally

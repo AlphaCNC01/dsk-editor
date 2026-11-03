@@ -72,5 +72,25 @@ const PULT_VARIANTS = registerSimpleEmbeddable({
       // (straight out the top).
       cableNode: { x: -27, y: 51, dir: { x: 0, y: 1 } },
     },
+    moveDeskMax: {
+      sku: 'NT33-2AF3-D5',
+      label: 'Пульт MoveDesk MAX',
+      parts: [
+        { verts: [{x:-65.0,y:-25.0,bulge:0},{x:65.0,y:-25.0,bulge:0},{x:65.0,y:40.0,bulge:0},{x:-65.0,y:40.0,bulge:0}], layer: 'PHYSICAL' },
+        { verts: [{x:-65.0,y:0.0,bulge:0},{x:65.0,y:0.0,bulge:0},{x:65.0,y:40.0,bulge:0},{x:-65.0,y:40.0,bulge:0}], layer: 'PHYSICAL' },
+        ...Holes.at(-48, 25, 'B'),
+        ...Holes.at(48, 25, 'B'),
+      ],
+    },
+    rivalHome: {
+      sku: 'D13',
+      label: 'Пульт Rival Home',
+      parts: [
+        { verts: [{x:-67.0,y:-20.0,bulge:0},{x:67.0,y:-20.0,bulge:0},{x:67.0,y:50.0,bulge:0},{x:-67.0,y:50.0,bulge:0}], layer: 'PHYSICAL' },
+        { verts: [{x:-67.0,y:0.0,bulge:0},{x:67.0,y:0.0,bulge:0},{x:67.0,y:50.0,bulge:0},{x:-67.0,y:50.0,bulge:0}], layer: 'PHYSICAL' },
+        ...Holes.at(-52.5, 25, 'B'),
+        ...Holes.at(52.5, 25, 'B'),
+      ],
+    },
   },
 });
