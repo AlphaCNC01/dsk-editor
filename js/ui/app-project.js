@@ -134,6 +134,46 @@
     e.target.value = ''; // allow re-selecting the same file later
   });
 
+  // ---------- Drag'n'drop project loading ----------
+  // Dropping a .json file anywhere on the page loads it through the exact
+  // same path as the "Загрузить" button (loadProject -> ConfiguratorImport
+  // -> applyProjectData), so own project files and deskos.ru configurator
+  // exports both work. The overlay (#dropOverlay in index.html) is shown
+  // only when the dragged thing actually looks like a file — dragging text
+  // or internal selections shouldn't trigger it. dragDepth counts nested
+  // dragenter/dragleave pairs (every element the cursor crosses fires its
+  // own pair), so the overlay hides only when the outermost drag leaves.
+  let dragDepth = 0;
+  const hasFiles = (e) => Array.from(e.dataTransfer ? e.dataTransfer.types || [] : [])
+                               .includes('Files');
+  window.addEventListener('dragenter', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    dragDepth++;
+    document.body.classList.add('dragover');
+  });
+  window.addEventListener('dragover', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault(); // required, otherwise the browser blocks 'drop'
+    e.dataTransfer.dropEffect = 'copy';
+  });
+  window.addEventListener('dragleave', () => {
+    if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragover'); }
+  });
+  window.addEventListener('drop', (e) => {
+    dragDepth = 0;
+    document.body.classList.remove('dragover');
+    if (!hasFiles(e)) return;
+    e.preventDefault(); // without this the browser would navigate to the file
+    const file = e.dataTransfer.files && e.dataTransfer.files[0];
+    if (!file) return;
+    if (!/\.json$/i.test(file.name) && file.type !== 'application/json') {
+      alert('Можно перетащить только JSON-файл проекта.');
+      return;
+    }
+    loadProject(file);
+  });
+
   // Exposed for app-state.js: URL-share/sessionStorage/reset use the exact
   // same "raw form values + raw instance arrays" serialization as the
   // JSON project file, and applying it goes through the same migration
