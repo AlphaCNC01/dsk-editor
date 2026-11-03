@@ -35,5 +35,17 @@ const PULLOUT_VARIANTS = registerSimpleEmbeddable({
         ...Holes.at(255, 71, 'B'),
       ],
     },
+    drawer: {
+      sku: 'ВЫДВ-786',
+      label: 'Выдвижной ящик',
+      parts: [
+        { verts: [{x:365,y:0,bulge:0},{x:365,y:265,bulge:0},{x:-365,y:265,bulge:0},{x:-365,y:0,bulge:0}], layer: 'PHYSICAL' },
+        { verts: [{x:393,y:0,bulge:0},{x:393,y:265,bulge:0},{x:-393,y:265,bulge:0},{x:-393,y:0,bulge:0}], layer: 'PHYSICAL' },
+        ...Holes.at(-383, 75, 'B'),
+        ...Holes.at(-383, 225, 'B'),
+        ...Holes.at(383, 225, 'B'),
+        ...Holes.at(383, 75, 'B'),
+      ],
+    },
   },
 });
