@@ -7,6 +7,10 @@
    handled by js/ui/zoom.js, so native touch scrolling is disabled on #preview.
    ============================================================================ */
 
+/* Pinch/pan is handled by zoom.js at any window width (e.g. a touch laptop or a
+   tablet in landscape), so the browser must not claim touch gestures here. */
+#preview{ touch-action:none; }
+
 @media (max-width: 820px){
   html, body{ height:100%; overflow:hidden; overscroll-behavior:none; }
 
@@ -24,7 +28,6 @@
     min-height:0;
     border-right:none;
     border-bottom:1px solid var(--line);
-    touch-action:none;            /* pinch/pan is handled by zoom.js */
     -webkit-user-select:none; user-select:none;
   }
   svg#stage{ max-width:96%; max-height:92%; }
