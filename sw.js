@@ -9,6 +9,7 @@ const CACHE = 'dsk-editor-' + CACHE_VERSION;
 const PRECACHE = [
   "./",
   "assets/wood_texture.webp",
+  "css/mobile.css",
   "css/styles.css",
   "favicon.svg",
   "geometry-editor/index.html",
