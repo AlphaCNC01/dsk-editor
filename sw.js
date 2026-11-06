@@ -3,12 +3,13 @@
 // а в фоне при наличии сети обновляется — свежая версия появляется при следующем открытии.
 // Поэтому вручную менять версию при каждом релизе не нужно. CACHE_VERSION меняйте только
 // если нужно принудительно сбросить кэш (например, переименовали/удалили файлы).
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE = 'dsk-editor-' + CACHE_VERSION;
 
 const PRECACHE = [
   "./",
   "assets/wood_texture.webp",
+  "css/mobile.css",
   "css/styles.css",
   "favicon.svg",
   "geometry-editor/index.html",
