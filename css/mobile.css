@@ -1,10 +1,10 @@
 /* ============================================================================
-   Мобильная адаптация. Подключается ПОСЛЕ css/styles.css и только переопределяет
-   то, что там уже есть — в styles.css ничего менять не нужно.
+   Mobile adaptation. Loaded AFTER css/styles.css and only overrides what is
+   already there — nothing in styles.css needs to change.
 
-   Раскладка на узком экране: превью сверху (фиксированная высота), панель
-   параметров под ним и скроллится независимо. Жесты в превью (щипок, перетаскивание)
-   обрабатывает js/ui/zoom.js, поэтому для #preview отключён нативный touch-скролл.
+   Narrow-screen layout: preview on top (fixed height), the parameters panel
+   below it, scrolling independently. Gestures in the preview (pinch, drag) are
+   handled by js/ui/zoom.js, so native touch scrolling is disabled on #preview.
    ============================================================================ */
 
 @media (max-width: 820px){
@@ -24,7 +24,7 @@
     min-height:0;
     border-right:none;
     border-bottom:1px solid var(--line);
-    touch-action:none;            /* щипок/пан обрабатывает zoom.js */
+    touch-action:none;            /* pinch/pan is handled by zoom.js */
     -webkit-user-select:none; user-select:none;
   }
   svg#stage{ max-width:96%; max-height:92%; }
@@ -37,12 +37,12 @@
   }
   fieldset{ padding:12px 12px 14px; }
 
-  /* Подсказка про drag'n'drop на телефоне бессмысленна */
+  /* The drag'n'drop hint is meaningless on a phone */
   #orderHeader .hint{ display:none; }
 }
 
-/* Всё, что связано с попаданием пальцем: крупные цели, шрифт 16px (иначе iOS
-   зумит страницу при фокусе на поле), без hover-эффектов. */
+/* Everything about finger targeting: large hit areas, 16px font (otherwise iOS
+   zooms the page when a field is focused). */
 @media (max-width: 820px), (pointer: coarse){
   .field input[type=number],
   .field input[type=text],
@@ -82,7 +82,7 @@
   #zoomControls{ bottom:10px; right:10px; }
   #thicknessBadge{ top:10px; left:10px; padding:6px 10px; font-size:11px; }
 }
-/* hover «прилипает» после тапа — на устройствах без hover сбрасываем */
+/* hover "sticks" after a tap — reset it on devices without hover */
 @media (hover:none){
   .btn-icon:hover{ border-color:var(--line); color:var(--ink); }
   .btn-add:hover{ background:transparent; border-color:var(--accent-dim); }
