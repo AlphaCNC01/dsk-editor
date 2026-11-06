@@ -70,9 +70,10 @@
   zoomOutBtn.addEventListener('click', () => zoomByButton(1 / BUTTON_STEP));
   zoomResetBtn.addEventListener('click', resetZoom);
 
-  // The wheel handler below accepts ctrlKey OR metaKey; on macOS the native
-  // trackpad pinch arrives as a wheel event with metaKey (and Cmd is the
-  // conventional modifier there), so show "Cmd" in the tooltips on Mac.
+  // Update the button tooltips to mention wheel zooming. The wheel handler
+  // below accepts ctrlKey OR metaKey; on macOS the native trackpad pinch
+  // arrives as a wheel event with metaKey (and Cmd is the conventional
+  // modifier there), so show "Cmd" instead of "Ctrl" on Mac.
   const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent);
   const modKey = isMac ? 'Cmd' : 'Ctrl';
   zoomOutBtn.title = `Уменьшить\n${modKey} + колесо мыши вниз`;
