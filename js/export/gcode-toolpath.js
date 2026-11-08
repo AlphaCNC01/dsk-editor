@@ -258,7 +258,13 @@ const GCodeToolpath = (() => {
       // Climb milling: inside cuts run counter-clockwise, outside cuts
       // clockwise, like the circles below.
       const wantCCW = millType !== 'outside';
-      return buildToolpaths(shape.pts, millType, toolRadius, stepover)
+      const rings = buildToolpaths(shape.pts, millType, toolRadius, stepover);
+      // Pockets are cut from the inside out, so the wall ring — the
+      // surface that stays — is the LAST cut, with only a stepover's worth
+      // of material left on it, instead of the first, full-width one
+      // (buildToolpaths generates the rings wall-first).
+      if (millType === 'pocket') rings.reverse();
+      return rings
         .map(pts => ({ pts: ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()] }));
     }
     const { cx, cy, r } = shape.circle;
