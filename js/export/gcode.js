@@ -56,7 +56,7 @@
 // ============================================================================
 const ExportGCode = (() => {
   const { TOOLS, pickTool, resolveDepth, feedFor, safeZ: profileSafeZ } = GCodeProfile;
-  const { clipperOffset, ringArea, toMachinePolyline, buildToolpaths, toolpathMoves } = GCodeToolpath;
+  const { clipperOffset, ringArea, toMachinePolyline, toMachineShape, buildToolpaths, buildShapePaths, toolpathMoves } = GCodeToolpath;
 
   // --------------------------------------------------------------------
   // Top-level: entries -> grouped files
@@ -71,7 +71,7 @@ const ExportGCode = (() => {
   // `orderNumber` — raw order-number string, sanitized into the filename.
   function buildFiles(entries, p, orderNumber){
     const { W, H, thickness } = p;
-    const groups = new Map(); // key `${side}|${toolId}` -> { side, tool, items: [{pts,targetZ}] }
+    const groups = new Map(); // key `${side}|${toolId}` -> { side, tool, items: [{path,targetZ,feed}] }
 
     for (const entry of entries){
       const layerId = entry.layer;
@@ -93,16 +93,22 @@ const ExportGCode = (() => {
       if (!groups.has(key)) groups.set(key, { side: machining.side, tool, items: [] });
       const group = groups.get(key);
 
-      const machinePts = toMachinePolyline(entry.contour, machining.side, W, H);
-      const toolpaths = buildToolpaths(machinePts, millType, toolRadius, tool.stepover);
+      const shape = toMachineShape(entry.contour, machining.side, W, H);
+      const toolpaths = buildShapePaths(shape, millType, toolRadius, tool.stepover);
       const feed = feedFor(tool, layerId);
-      for (const pts of toolpaths) group.items.push({ pts, targetZ, feed });
+      for (const path of toolpaths) group.items.push({ path, targetZ, feed });
     }
 
     const safeZ = profileSafeZ(thickness);
     const files = [];
     for (const { side, tool, items } of groups.values()){
-      const moves = items.flatMap(item => toolpathMoves(item.pts, thickness, item.targetZ, tool, safeZ, item.feed));
+      // Through-cuts last: once the part is cut free of the sheet the
+      // vacuum no longer holds it, so everything else is machined first.
+      // Stable sort keeps the drawing's own order within each class.
+      const ordered = items.map((item, idx) => ({ item, idx }))
+        .sort((a, b) => (a.item.targetZ <= 1e-6) - (b.item.targetZ <= 1e-6) || a.idx - b.idx)
+        .map(o => o.item);
+      const moves = ordered.flatMap(item => toolpathMoves(item.path, thickness, item.targetZ, tool, safeZ, item.feed));
       const text = GCodePost.render({ rpm: tool.rpm, safeZ, moves });
       files.push({ filename: buildFilename(orderNumber, side, tool), text });
     }

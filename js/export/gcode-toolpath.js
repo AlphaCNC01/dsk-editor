@@ -212,6 +212,179 @@ const GCodeToolpath = (() => {
     return seq;
   }
 
+  // --------------------------------------------------------------------
+  // Full circles (holes, round pockets) — handled analytically
+  // --------------------------------------------------------------------
+  // A circle is authored as two bulge:1 vertices (see js/elements/hole.js).
+  // Going through tessellation + Clipper would turn it into a 96-gon whose
+  // vertices sit slightly outside the true radius; since offsetting a
+  // circle is just changing its radius, circles skip all of that and are
+  // cut as real G2/G3 arcs with a helical entry, like the shop's own
+  // reference programs.
+  function isCircleContour(contour){
+    return contour.length === 2
+      && Math.abs(contour[0].bulge - 1) < 1e-9
+      && Math.abs(contour[1].bulge - 1) < 1e-9;
+  }
+
+  // Machine-space shape of one drawing contour: a circle
+  // { circle: {cx, cy, r} } when it is one, otherwise { pts } (tessellated
+  // polyline, as toMachinePolyline). Same bottom-side mirror and panel
+  // orientation as toMachinePolyline.
+  function toMachineShape(contour, side, boardWidth, boardHeight){
+    if (!isCircleContour(contour)) return { pts: toMachinePolyline(contour, side, boardWidth, boardHeight) };
+    let cx = (contour[0].x + contour[1].x) / 2;
+    const cy = (contour[0].y + contour[1].y) / 2;
+    const r = Math.hypot(contour[1].x - contour[0].x, contour[1].y - contour[0].y) / 2;
+    if (side === 'bottom') cx = boardWidth - cx;
+    const c = ORIENTATIONS[ACTIVE_ORIENTATION].apply(cx, cy, boardWidth, boardHeight);
+    return { circle: { cx: c.x, cy: c.y, r } };
+  }
+
+  // Tool paths for one shape, same millType semantics as buildToolpaths.
+  // Returns [{ pts }] (polyline) and/or [{ circle: {cx,cy}, radii, ccw }]:
+  // one circular path cuts every ring in `radii` (ascending) in one go.
+  // Circles are cut climb-style: inside cuts counter-clockwise (G3),
+  // outside cuts clockwise (G2) — as in the reference programs.
+  function buildShapePaths(shape, millType, toolRadius, stepover){
+    if (!shape.circle) return buildToolpaths(shape.pts, millType, toolRadius, stepover).map(pts => ({ pts }));
+    const { cx, cy, r } = shape.circle;
+    const MIN_R = 1e-3;
+    const one = (rr, ccw) => [{ circle: { cx, cy }, radii: [rr], ccw }];
+    if (millType === 'outside') return one(r + toolRadius, false);
+    if (millType === 'inside')  return r - toolRadius > MIN_R ? one(r - toolRadius, true) : [];
+    if (millType === 'pocket') {
+      // Concentric rings from the wall inward, until nothing is left —
+      // then cut from the centre outward (see circleMoves).
+      const radii = [];
+      for (let rr = r - toolRadius; rr > MIN_R && radii.length < 500; rr -= stepover) radii.push(rr);
+      return radii.length ? [{ circle: { cx, cy }, radii: radii.reverse(), ccw: true }] : [];
+    }
+    return one(r, true); // 'contour'
+  }
+
+  // How steeply the helical entry descends (mm of Z per revolution) and
+  // how finely a revolution is cut into straight G1 segments.
+  const HELIX_PITCH = 3;
+  const HELIX_SEGMENTS = 36;
+
+  // Moves for one circular path over all depth passes. Each pass: helical
+  // descent on the innermost ring, then every ring as a full circle of
+  // four 90° arcs, innermost to outermost, joined by short straight steps
+  // along +X without lifting — the same way the shop's reference programs
+  // clear round pockets. Every ring starts and ends at angle 0 (its +X
+  // point).
+  function circleMoves(path, thickness, targetZ, tool, safeZ, feed){
+    const { cx, cy } = path.circle;
+    const dir = path.ccw ? 1 : -1;
+    const at = (rr, a) => ({ x: cx + rr * Math.cos(a), y: cy + rr * Math.sin(a) });
+    const r0 = path.radii[0];
+    const moves = [{ t: 'rapid', x: cx + r0, y: cy }];
+    const startZ = thickness;
+    const totalDepth = startZ - targetZ;
+    if (totalDepth > 1e-6) {
+      const passCount = Math.max(1, Math.ceil(totalDepth / tool.depthPerPass));
+      let fromZ = startZ;
+      for (let pass = 0; pass < passCount; pass++){
+        const toZ = pass === passCount - 1 ? targetZ : startZ - (totalDepth * (pass + 1) / passCount);
+        // Back to the centre ring at the (already cleared) previous depth.
+        if (pass > 0) moves.push({ t: 'line', x: cx + r0, y: cy });
+        moves.push({ t: 'line', z: fromZ, f: feed });
+        const revs = Math.max(1, Math.ceil((fromZ - toZ) / HELIX_PITCH - 1e-9));
+        const steps = revs * HELIX_SEGMENTS;
+        for (let m = 1; m <= steps; m++){
+          const p = at(r0, dir * 2 * Math.PI * m / HELIX_SEGMENTS);
+          moves.push({ t: 'line', x: p.x, y: p.y, z: m === steps ? toZ : fromZ + (toZ - fromZ) * m / steps });
+        }
+        path.radii.forEach((rr, k) => {
+          if (k > 0) moves.push({ t: 'line', x: cx + rr, y: cy });
+          for (let q = 1; q <= 4; q++){
+            const p0 = at(rr, dir * (q - 1) * Math.PI / 2);
+            const p1 = q === 4 ? { x: cx + rr, y: cy } : at(rr, dir * q * Math.PI / 2);
+            moves.push({ t: 'arc', cw: !path.ccw, x: p1.x, y: p1.y, i: cx - p0.x, j: cy - p0.y });
+          }
+        });
+        fromZ = toZ;
+      }
+    }
+    moves.push({ t: 'rapid', z: safeZ });
+    return moves;
+  }
+
+  // --------------------------------------------------------------------
+  // Arc fitting — polyline -> lines and arcs
+  // --------------------------------------------------------------------
+  // Clipper only produces polylines; to cut real G2/G3 arcs, stretches of
+  // the polyline that lie on a common circle are replaced by one arc. An
+  // arc is accepted only if every vertex of the stretch is within
+  // ARC_FIT_TOLERANCE of it, it turns one way throughout, sweeps at most
+  // 90° (so the arc is never ambiguous for the controller) and bulges
+  // visibly (sagitta over ARC_MIN_SAGITTA — otherwise it is just a
+  // straight run and stays G1).
+  const ARC_FIT_TOLERANCE = 0.003;  // mm
+  const ARC_MIN_SAGITTA = 0.01;     // mm
+  const ARC_MAX_SWEEP = Math.PI / 2;
+  const ARC_MAX_RADIUS = 20000;     // mm
+
+  // Circle through three points, or null when they are (nearly) collinear.
+  function circumcircle(a, b, c){
+    const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+    if (Math.abs(d) < 1e-12) return null;
+    const a2 = a.x * a.x + a.y * a.y, b2 = b.x * b.x + b.y * b.y, c2 = c.x * c.x + c.y * c.y;
+    const x = (a2 * (b.y - c.y) + b2 * (c.y - a.y) + c2 * (a.y - b.y)) / d;
+    const y = (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d;
+    return { x, y, r: Math.hypot(a.x - x, a.y - y) };
+  }
+
+  // Tries to fit ONE arc to P[i..j]; returns { cw, ctr } or null.
+  function tryArc(P, i, j){
+    const a = P[i], c = P[j], b = P[(i + j) >> 1];
+    const ctr = circumcircle(a, b, c);
+    if (!ctr || ctr.r > ARC_MAX_RADIUS) return null;
+    const turn = (p, q, s) => (q.x - p.x) * (s.y - q.y) - (q.y - p.y) * (s.x - q.x);
+    const sign = Math.sign(turn(a, b, c));
+    if (sign === 0) return null;
+    for (let m = i; m <= j; m++){
+      if (Math.abs(Math.hypot(P[m].x - ctr.x, P[m].y - ctr.y) - ctr.r) > ARC_FIT_TOLERANCE) return null;
+      if (m > i && m < j && Math.sign(turn(P[m - 1], P[m], P[m + 1])) !== sign) return null;
+      if (m < j) {
+        // The arc must also hug each segment BETWEEN vertices: a long
+        // segment replaced by an arc bulges by its sagitta.
+        const half = Math.hypot(P[m + 1].x - P[m].x, P[m + 1].y - P[m].y) / 2;
+        if (half >= ctr.r || ctr.r - Math.sqrt(ctr.r * ctr.r - half * half) > ARC_FIT_TOLERANCE) return null;
+      }
+    }
+    // Sweep a -> c in the turning direction (sign > 0 is counter-clockwise).
+    let sweep = Math.atan2(c.y - ctr.y, c.x - ctr.x) - Math.atan2(a.y - ctr.y, a.x - ctr.x);
+    if (sign > 0) { while (sweep < 0) sweep += 2 * Math.PI; } else { while (sweep > 0) sweep -= 2 * Math.PI; }
+    sweep = Math.abs(sweep);
+    if (sweep > ARC_MAX_SWEEP) return null;
+    if (ctr.r * (1 - Math.cos(sweep / 2)) < ARC_MIN_SAGITTA) return null;
+    return { cw: sign < 0, ctr };
+  }
+
+  // Moves that travel P[0] -> P[last] (the tool is already at P[0]),
+  // using arcs where the polyline allows it and G1 lines elsewhere.
+  function fitArcMoves(P){
+    const moves = [];
+    let i = 0;
+    while (i < P.length - 1){
+      let best = null, bestJ = i + 1;
+      for (let j = i + 3; j < P.length; j++){
+        const arc = tryArc(P, i, j);
+        if (!arc) break;
+        best = arc; bestJ = j;
+      }
+      if (best) {
+        moves.push({ t: 'arc', cw: best.cw, x: P[bestJ].x, y: P[bestJ].y, i: best.ctr.x - P[i].x, j: best.ctr.y - P[i].y });
+      } else {
+        moves.push({ t: 'line', x: P[bestJ].x, y: P[bestJ].y });
+      }
+      i = bestJ;
+    }
+    return moves;
+  }
+
   // Ramped zigzag entry + full-depth pass of one closed polyline, as moves.
   // See buildRampIndexSequence for why the ramp must end on a forward leg.
   function rampedPassMoves(pts, fromZ, toZ, feed, moves){
@@ -234,10 +407,9 @@ const GCodeToolpath = (() => {
 
     // Remainder of the full lap at the reached depth, continuing forward
     // from wherever the ramp left off back around to the start point.
-    for (let i = rampCount + 1; i <= n; i++){
-      const p = pts[i % n];
-      moves.push({ t: 'line', x: p.x, y: p.y });
-    }
+    const rest = [];
+    for (let i = rampCount; i <= n; i++) rest.push(pts[i % n]);
+    moves.push(...fitArcMoves(rest));
   }
 
   // Every depth pass for one toolpath (already tool-radius compensated,
@@ -247,7 +419,9 @@ const GCodeToolpath = (() => {
   // pass, then retract to `safeZ`. Every contour starts fresh from the
   // up-face (no cross-layer Z-continuity) — the simple, always-correct
   // choice.
-  function toolpathMoves(pts, thickness, targetZ, tool, safeZ, feed){
+  function toolpathMoves(path, thickness, targetZ, tool, safeZ, feed){
+    if (path.circle) return circleMoves(path, thickness, targetZ, tool, safeZ, feed);
+    const pts = path.pts;
     // Minimum 2 vertices: a circle is two bulge:1 vertices before
     // tessellation (see js/elements/hole.js); the guard is the absolute
     // floor for "is this a shape at all".
@@ -272,6 +446,6 @@ const GCodeToolpath = (() => {
 
   return {
     ORIENTATIONS, ARC_SEGMENTS_PER_CIRCLE, clipperOffset, ringArea,
-    toMachinePolyline, buildToolpaths, toolpathMoves,
+    toMachinePolyline, toMachineShape, buildToolpaths, buildShapePaths, toolpathMoves,
   };
 })();
