@@ -121,6 +121,13 @@ const GCodeToolpath = (() => {
     return Math.abs(CL.Clipper.Area(scaled)) / (CLIPPER_SCALE * CLIPPER_SCALE);
   }
 
+  // True when a ring runs counter-clockwise (machine Y points up), by
+  // ClipperLib's own orientation convention.
+  function ringIsCCW(pts){
+    const CL = requireClipperLib();
+    return CL.Clipper.Orientation(pts.map(p => ({ X: Math.round(p.x * CLIPPER_SCALE), Y: Math.round(p.y * CLIPPER_SCALE) })));
+  }
+
   // Converts one drawing entry's rounded {x,y,bulge} contour into a
   // plain {x,y} polyline in MACHINE space: tessellate (bulge -> many
   // short line segments, reusing the same tessellation DXF export
@@ -247,7 +254,13 @@ const GCodeToolpath = (() => {
   // Circles are cut climb-style: inside cuts counter-clockwise (G3),
   // outside cuts clockwise (G2) — as in the reference programs.
   function buildShapePaths(shape, millType, toolRadius, stepover){
-    if (!shape.circle) return buildToolpaths(shape.pts, millType, toolRadius, stepover).map(pts => ({ pts }));
+    if (!shape.circle) {
+      // Climb milling: inside cuts run counter-clockwise, outside cuts
+      // clockwise, like the circles below.
+      const wantCCW = millType !== 'outside';
+      return buildToolpaths(shape.pts, millType, toolRadius, stepover)
+        .map(pts => ({ pts: ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()] }));
+    }
     const { cx, cy, r } = shape.circle;
     const MIN_R = 1e-3;
     const one = (rr, ccw) => [{ circle: { cx, cy }, radii: [rr], ccw }];

@@ -69,11 +69,48 @@ const ExportGCode = (() => {
   //             exporter already consumes (see Drawing.build / dxf.js).
   // `p`       — the full params object from readParams (needs W, thickness).
   // `orderNumber` — raw order-number string, sanitized into the filename.
+  // Where a toolpath's first cutting move starts.
+  function startOf(path){
+    if (path.circle) return { x: path.circle.cx + path.radii[0], y: path.circle.cy };
+    return path.pts[0];
+  }
+
+  // Machining order inside one file. Through-cuts go last: once the part
+  // is cut free of the sheet the vacuum no longer holds it. Inside each
+  // class, whole drawing entries (all rings of one pocket stay together,
+  // in their own order) are visited nearest-first from where the tool
+  // parked, to keep the rapid travel short.
+  function orderItems(items){
+    const isThrough = it => it.targetZ <= 1e-6;
+    const out = [];
+    let pos = { x: 0, y: 0 };
+    for (const through of [false, true]){
+      const byEntry = new Map();
+      for (const it of items) if (isThrough(it) === through) {
+        if (!byEntry.has(it.entryIdx)) byEntry.set(it.entryIdx, []);
+        byEntry.get(it.entryIdx).push(it);
+      }
+      const pending = [...byEntry.values()];
+      while (pending.length){
+        let bi = 0, bd = Infinity;
+        pending.forEach((grp, i) => {
+          const s = startOf(grp[0].path);
+          const d = Math.hypot(s.x - pos.x, s.y - pos.y);
+          if (d < bd - 1e-9) { bd = d; bi = i; }
+        });
+        const [grp] = pending.splice(bi, 1);
+        out.push(...grp);
+        pos = startOf(grp[grp.length - 1].path);
+      }
+    }
+    return out;
+  }
+
   function buildFiles(entries, p, orderNumber){
     const { W, H, thickness } = p;
     const groups = new Map(); // key `${side}|${toolId}` -> { side, tool, items: [{path,targetZ,feed}] }
 
-    for (const entry of entries){
+    for (const [entryIdx, entry] of entries.entries()){
       const layerId = entry.layer;
       const known = Layers.get(layerId);
       const machining = known && known.machining;
@@ -96,18 +133,13 @@ const ExportGCode = (() => {
       const shape = toMachineShape(entry.contour, machining.side, W, H);
       const toolpaths = buildShapePaths(shape, millType, toolRadius, tool.stepover);
       const feed = feedFor(tool, layerId);
-      for (const path of toolpaths) group.items.push({ path, targetZ, feed });
+      for (const path of toolpaths) group.items.push({ path, targetZ, feed, entryIdx });
     }
 
     const safeZ = profileSafeZ(thickness);
     const files = [];
     for (const { side, tool, items } of groups.values()){
-      // Through-cuts last: once the part is cut free of the sheet the
-      // vacuum no longer holds it, so everything else is machined first.
-      // Stable sort keeps the drawing's own order within each class.
-      const ordered = items.map((item, idx) => ({ item, idx }))
-        .sort((a, b) => (a.item.targetZ <= 1e-6) - (b.item.targetZ <= 1e-6) || a.idx - b.idx)
-        .map(o => o.item);
+      const ordered = orderItems(items);
       const moves = ordered.flatMap(item => toolpathMoves(item.path, thickness, item.targetZ, tool, safeZ, item.feed));
       const text = GCodePost.render({ rpm: tool.rpm, safeZ, moves });
       files.push({ filename: buildFilename(orderNumber, side, tool), text });
