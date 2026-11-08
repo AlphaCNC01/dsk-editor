@@ -308,7 +308,7 @@ const GCodeToolpath = (() => {
   // How steeply the helical entry descends (mm of Z per revolution) and
   // how finely a revolution is cut into straight G1 segments.
   const HELIX_PITCH = 3;
-  const HELIX_SEGMENTS = 36;
+  const HELIX_SEGMENTS = 24;
 
   // Moves for one circular path over all depth passes. Each pass: helical
   // descent on the innermost ring, then every ring as a full circle of
@@ -422,6 +422,54 @@ const GCodeToolpath = (() => {
     return { cw: s > 0, ctr };
   }
 
+  // Douglas-Peucker: drops vertices that lie within `tol` of the straight
+  // line between their neighbours. Keeps both end points.
+  function simplifyPolyline(pts, tol){
+    const keep = new Array(pts.length).fill(false);
+    keep[0] = keep[pts.length - 1] = true;
+    const stack = [[0, pts.length - 1]];
+    while (stack.length){
+      const [lo, hi] = stack.pop();
+      const a = pts[lo], b = pts[hi];
+      const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy);
+      let worst = -1, wi = -1;
+      for (let k = lo + 1; k < hi; k++){
+        const d = len < 1e-9
+          ? Math.hypot(pts[k].x - a.x, pts[k].y - a.y)
+          : Math.abs((pts[k].x - a.x) * dy - (pts[k].y - a.y) * dx) / len;
+        if (d > worst) { worst = d; wi = k; }
+      }
+      if (worst > tol) { keep[wi] = true; stack.push([lo, wi], [wi, hi]); }
+    }
+    return pts.filter((_, k) => keep[k]);
+  }
+
+  // Straight runs left after arc fitting are often hundreds of tiny
+  // segments (Clipper output on curves too noisy to fit an arc); thin
+  // them out so programs stay light. Arcs and run end points are kept.
+  const LINE_SIMPLIFY_TOLERANCE = 0.005; // mm
+  function simplifyLineRuns(start, moves){
+    const out = [];
+    let pos = start, run = null;
+    const flush = () => {
+      if (!run) return;
+      for (const p of simplifyPolyline(run, LINE_SIMPLIFY_TOLERANCE).slice(1)) out.push({ t: 'line', x: p.x, y: p.y });
+      run = null;
+    };
+    for (const m of moves){
+      if (m.t === 'line') {
+        if (!run) run = [pos];
+        run.push({ x: m.x, y: m.y });
+      } else {
+        flush();
+        out.push(m);
+      }
+      pos = { x: m.x, y: m.y };
+    }
+    flush();
+    return out;
+  }
+
   // Moves that travel P[0] -> P[last] (the tool is already at P[0]),
   // using arcs where the polyline allows it and G1 lines elsewhere.
   function fitArcMoves(P){
@@ -444,7 +492,7 @@ const GCodeToolpath = (() => {
       }
       i = bestJ;
     }
-    return moves;
+    return simplifyLineRuns(P[0], moves);
   }
 
   // Ramped zigzag entry + full-depth pass of one closed polyline, as moves.
