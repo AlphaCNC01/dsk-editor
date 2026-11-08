@@ -13,6 +13,7 @@
 //   - Axes that did not change since the last move are omitted.
 //   - Numbers have 3 decimals; feed is written as "F<value>.0".
 //   - Arc centres are written as I/J (offset from the arc's start point).
+//   - Arcs never change Z: descents (helix, ramps) are G1 segments.
 // ============================================================================
 const GCodePost = (() => {
 
@@ -52,6 +53,12 @@ const GCodePost = (() => {
         continue;
       }
       const code = m.t === 'line' ? 'G1' : (m.cw ? 'G2' : 'G3');
+      // G2/G3 only in the XY plane on this machine (a helical arc with a
+      // Z change does not run correctly) — anything that changes Z must be
+      // a G1 line. Fail loudly rather than write a program that cuts wrong.
+      if (m.t === 'arc' && m.z !== undefined && state.z !== null && Math.abs(m.z - state.z) > 1e-6) {
+        throw new Error('G2/G3 with a Z change is not supported; use G1 segments');
+      }
       let words = axisWords(m, state);
       if (m.t === 'arc') words += 'I' + fmt(m.i) + 'J' + fmt(m.j);
       if (m.f !== undefined) words += 'F' + m.f.toFixed(1);

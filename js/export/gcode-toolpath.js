@@ -11,9 +11,13 @@
 // Move shapes (absolute machine coordinates, mm; any axis may be omitted):
 //   { t: 'rapid', x?, y?, z? }                    -> G0
 //   { t: 'line',  x?, y?, z?, f? }                -> G1  (f = feed, mm/min)
-//   { t: 'arc', cw, x, y, i, j, z?, f? }          -> G2 (cw) / G3 (ccw),
+//   { t: 'arc', cw, x, y, i, j, f? }              -> G2 (cw) / G3 (ccw),
 //                                                    i/j = centre offset
-//                                                    from the arc's start
+//                                                    from the arc's start.
+//                                                    Arcs are flat (constant Z): the
+//                                                    controller does not handle them
+//                                                    with a Z change, so any move
+//                                                    that descends is a G1 line.
 // ============================================================================
 const GCodeToolpath = (() => {
 
