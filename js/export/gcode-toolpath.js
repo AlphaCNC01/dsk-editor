@@ -359,50 +359,67 @@ const GCodeToolpath = (() => {
   // Clipper only produces polylines; to cut real G2/G3 arcs, stretches of
   // the polyline that lie on a common circle are replaced by one arc. An
   // arc is accepted only if every vertex of the stretch is within
-  // ARC_FIT_TOLERANCE of it, it turns one way throughout, sweeps at most
+  // ARC_FIT_TOLERANCE of it, no segment between vertices is bulged past
+  // by more than ARC_SEGMENT_BULGE (the source curves are tessellated, so
+  // the polyline's own chords already sit that far inside the true
+  // curve), it advances steadily one way, sweeps at most
   // 90° (so the arc is never ambiguous for the controller) and bulges
   // visibly (sagitta over ARC_MIN_SAGITTA — otherwise it is just a
   // straight run and stays G1).
-  const ARC_FIT_TOLERANCE = 0.003;  // mm
+  const ARC_FIT_TOLERANCE = 0.02;   // mm, vertex distance from the arc
+  const ARC_SEGMENT_BULGE = 0.03;   // mm, how far the arc may bulge past a polyline segment
   const ARC_MIN_SAGITTA = 0.01;     // mm
   const ARC_MAX_SWEEP = Math.PI / 2;
   const ARC_MAX_RADIUS = 20000;     // mm
+  const ARC_LOOKAHEAD = 8;          // vertices tried past a failed fit
 
-  // Circle through three points, or null when they are (nearly) collinear.
-  function circumcircle(a, b, c){
-    const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
-    if (Math.abs(d) < 1e-12) return null;
-    const a2 = a.x * a.x + a.y * a.y, b2 = b.x * b.x + b.y * b.y, c2 = c.x * c.x + c.y * c.y;
-    const x = (a2 * (b.y - c.y) + b2 * (c.y - a.y) + c2 * (a.y - b.y)) / d;
-    const y = (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d;
-    return { x, y, r: Math.hypot(a.x - x, a.y - y) };
-  }
-
-  // Tries to fit ONE arc to P[i..j]; returns { cw, ctr } or null.
+  // Tries to fit ONE arc to P[i..j]: the circle through the stretch's two
+  // end points that follows the vertices in between best. (The source
+  // curves are tessellated, so their offset zigzags a few hundredths of a
+  // mm around the true circle — a circle forced through three vertices
+  // would sit on one side of that zigzag, so the bulge is fitted to all
+  // of them instead.) Returns { cw, ctr } or null.
   function tryArc(P, i, j){
-    const a = P[i], c = P[j], b = P[(i + j) >> 1];
-    const ctr = circumcircle(a, b, c);
-    if (!ctr || ctr.r > ARC_MAX_RADIUS) return null;
-    const turn = (p, q, s) => (q.x - p.x) * (s.y - q.y) - (q.y - p.y) * (s.x - q.x);
-    const sign = Math.sign(turn(a, b, c));
-    if (sign === 0) return null;
+    const a = P[i], c = P[j];
+    const L = Math.hypot(c.x - a.x, c.y - a.y);
+    if (L < 1e-6) return null;
+    const ux = (c.x - a.x) / L, uy = (c.y - a.y) / L; // along the chord
+    const nx = -uy, ny = ux;                          // left of travel
+    const mx = (a.x + c.x) / 2, my = (a.y + c.y) / 2;
+    // Chord-aligned coordinates of every vertex; least-squares sagitta
+    // from the parabola approximation v = s * (1 - 4u²/L²).
+    let sgv = 0, sgg = 0, prevU = -Infinity;
     for (let m = i; m <= j; m++){
-      if (Math.abs(Math.hypot(P[m].x - ctr.x, P[m].y - ctr.y) - ctr.r) > ARC_FIT_TOLERANCE) return null;
-      if (m > i && m < j && Math.sign(turn(P[m - 1], P[m], P[m + 1])) !== sign) return null;
+      const dx = P[m].x - mx, dy = P[m].y - my;
+      const u = dx * ux + dy * uy, v = dx * nx + dy * ny;
+      // The stretch must advance steadily along the chord.
+      if (u < prevU - ARC_FIT_TOLERANCE) return null;
+      prevU = Math.max(prevU, u);
+      const g = 1 - 4 * u * u / (L * L);
+      sgv += v * g; sgg += g * g;
+    }
+    if (sgg < 1e-9) return null;
+    const s = sgv / sgg;
+    const aS = Math.abs(s);
+    if (aS < ARC_MIN_SAGITTA) return null; // practically straight: stays G1
+    const r = (L * L / 4 + s * s) / (2 * aS);
+    if (r > ARC_MAX_RADIUS) return null;
+    const sweep = 2 * Math.asin(Math.min(1, L / (2 * r)));
+    if (aS > r || sweep > ARC_MAX_SWEEP) return null;
+    // Bulge to the left of travel (s > 0) means the centre is on the
+    // right, i.e. a clockwise arc.
+    const sg = s > 0 ? 1 : -1;
+    const ctr = { x: mx + nx * (s - sg * r), y: my + ny * (s - sg * r), r };
+    for (let m = i; m <= j; m++){
+      if (Math.abs(Math.hypot(P[m].x - ctr.x, P[m].y - ctr.y) - r) > ARC_FIT_TOLERANCE) return null;
       if (m < j) {
         // The arc must also hug each segment BETWEEN vertices: a long
         // segment replaced by an arc bulges by its sagitta.
         const half = Math.hypot(P[m + 1].x - P[m].x, P[m + 1].y - P[m].y) / 2;
-        if (half >= ctr.r || ctr.r - Math.sqrt(ctr.r * ctr.r - half * half) > ARC_FIT_TOLERANCE) return null;
+        if (half >= r || r - Math.sqrt(r * r - half * half) > ARC_SEGMENT_BULGE) return null;
       }
     }
-    // Sweep a -> c in the turning direction (sign > 0 is counter-clockwise).
-    let sweep = Math.atan2(c.y - ctr.y, c.x - ctr.x) - Math.atan2(a.y - ctr.y, a.x - ctr.x);
-    if (sign > 0) { while (sweep < 0) sweep += 2 * Math.PI; } else { while (sweep > 0) sweep -= 2 * Math.PI; }
-    sweep = Math.abs(sweep);
-    if (sweep > ARC_MAX_SWEEP) return null;
-    if (ctr.r * (1 - Math.cos(sweep / 2)) < ARC_MIN_SAGITTA) return null;
-    return { cw: sign < 0, ctr };
+    return { cw: s > 0, ctr };
   }
 
   // Moves that travel P[0] -> P[last] (the tool is already at P[0]),
@@ -411,11 +428,14 @@ const GCodeToolpath = (() => {
     const moves = [];
     let i = 0;
     while (i < P.length - 1){
-      let best = null, bestJ = i + 1;
-      for (let j = i + 3; j < P.length; j++){
+      // Grow the stretch while it still fits one arc. A short stretch of
+      // tiny segments (rounded coordinates) fits a circle badly even when
+      // the whole curve is a clean arc, so a failed try is not the end:
+      // look a few vertices further before giving up.
+      let best = null, bestJ = i + 1, misses = 0;
+      for (let j = i + 3; j < P.length && misses <= ARC_LOOKAHEAD; j++){
         const arc = tryArc(P, i, j);
-        if (!arc) break;
-        best = arc; bestJ = j;
+        if (arc) { best = arc; bestJ = j; misses = 0; } else misses++;
       }
       if (best) {
         moves.push({ t: 'arc', cw: best.cw, x: P[bestJ].x, y: P[bestJ].y, i: best.ctr.x - P[i].x, j: best.ctr.y - P[i].y });
