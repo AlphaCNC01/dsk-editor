@@ -3,7 +3,7 @@
 // а в фоне при наличии сети обновляется — свежая версия появляется при следующем открытии.
 // Поэтому вручную менять версию при каждом релизе не нужно. CACHE_VERSION меняйте только
 // если нужно принудительно сбросить кэш (например, переименовали/удалили файлы).
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const CACHE = 'dsk-editor-' + CACHE_VERSION;
 
 const PRECACHE = [
@@ -45,6 +45,9 @@ const PRECACHE = [
   "js/elements/usb-charger.js",
   "js/elements/wireless-charger.js",
   "js/export/dxf.js",
+  "js/export/gcode-post.js",
+  "js/export/gcode-profile.js",
+  "js/export/gcode-toolpath.js",
   "js/export/gcode.js",
   "js/export/png.js",
   "js/export/svg.js",
