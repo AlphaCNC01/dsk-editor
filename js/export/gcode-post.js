@@ -40,6 +40,7 @@ const GCodePost = (() => {
     const lines = [];
 
     lines.push('T1M6');
+    lines.push('G17');
     lines.push('G0Z' + fmt(safeZ));
     lines.push('G0X' + fmt(0) + 'Y' + fmt(0) + 'S' + rpm + 'M3');
     state.x = 0; state.y = 0;
@@ -64,7 +65,7 @@ const GCodePost = (() => {
     lines.push('G0Z' + fmt(safeZ));
     lines.push('G0X' + fmt(0) + 'Y' + fmt(0));
     lines.push('G0Z' + fmt(safeZ));
-    lines.push('G0X0Y0');
+    lines.push('G0X' + fmt(0) + 'Y' + fmt(0));
     lines.push('M30');
     return lines.join('\r\n') + '\r\n';
   }

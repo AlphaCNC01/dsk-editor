@@ -55,7 +55,7 @@
 // the entry over distance instead of a single point). See rampedPassMoves in gcode-toolpath.js.
 // ============================================================================
 const ExportGCode = (() => {
-  const { TOOLS, pickTool, resolveDepth, safeZ: profileSafeZ } = GCodeProfile;
+  const { TOOLS, pickTool, resolveDepth, feedFor, safeZ: profileSafeZ } = GCodeProfile;
   const { clipperOffset, ringArea, toMachinePolyline, buildToolpaths, toolpathMoves } = GCodeToolpath;
 
   // --------------------------------------------------------------------
@@ -95,13 +95,14 @@ const ExportGCode = (() => {
 
       const machinePts = toMachinePolyline(entry.contour, machining.side, W, H);
       const toolpaths = buildToolpaths(machinePts, millType, toolRadius, tool.stepover);
-      for (const pts of toolpaths) group.items.push({ pts, targetZ });
+      const feed = feedFor(tool, layerId);
+      for (const pts of toolpaths) group.items.push({ pts, targetZ, feed });
     }
 
     const safeZ = profileSafeZ(thickness);
     const files = [];
     for (const { side, tool, items } of groups.values()){
-      const moves = items.flatMap(item => toolpathMoves(item.pts, thickness, item.targetZ, tool, safeZ));
+      const moves = items.flatMap(item => toolpathMoves(item.pts, thickness, item.targetZ, tool, safeZ, item.feed));
       const text = GCodePost.render({ rpm: tool.rpm, safeZ, moves });
       files.push({ filename: buildFilename(orderNumber, side, tool), text });
     }

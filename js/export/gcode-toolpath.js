@@ -247,7 +247,7 @@ const GCodeToolpath = (() => {
   // pass, then retract to `safeZ`. Every contour starts fresh from the
   // up-face (no cross-layer Z-continuity) — the simple, always-correct
   // choice.
-  function toolpathMoves(pts, thickness, targetZ, tool, safeZ){
+  function toolpathMoves(pts, thickness, targetZ, tool, safeZ, feed){
     // Minimum 2 vertices: a circle is two bulge:1 vertices before
     // tessellation (see js/elements/hole.js); the guard is the absolute
     // floor for "is this a shape at all".
@@ -262,7 +262,7 @@ const GCodeToolpath = (() => {
       let fromZ = startZ;
       for (let pass = 0; pass < passCount; pass++){
         const toZ = pass === passCount - 1 ? targetZ : startZ - (totalDepth * (pass + 1) / passCount);
-        rampedPassMoves(pts, fromZ, toZ, tool.feed, moves);
+        rampedPassMoves(pts, fromZ, toZ, feed, moves);
         fromZ = toZ;
       }
     }

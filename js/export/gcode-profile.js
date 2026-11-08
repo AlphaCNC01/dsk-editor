@@ -21,25 +21,25 @@ const GCodeProfile = (() => {
   const TOOLS = {
     '4x17': {
       id: '4x17', diameter: 4, fluteLength: 17,
-      rpm: 24000, feed: 6000, plungeFeed: 6000,
+      rpm: 24000, feed: 6000, engraveFeed: 3000,
       depthPerPass: 15,   // mm of Z per pass — small bit, shallow bites
       stepover: 2,     // mm between concentric pocket-clearing rings
     },
     '4x22': {
       id: '4x22', diameter: 4, fluteLength: 22,
-      rpm: 24000, feed: 6000, plungeFeed: 6000,
+      rpm: 24000, feed: 6000, engraveFeed: 3000,
       depthPerPass: 15,
       stepover: 2,
     },
     '8x32': {
       id: '8x32', diameter: 8, fluteLength: 32,
-      rpm: 18000, feed: 4000, plungeFeed: 4000,
+      rpm: 18000, feed: 4000, engraveFeed: 4000,
       depthPerPass: 10, // matches the shop's own reference file's own step
       stepover: 2,
     },
     '8x42': {
       id: '8x42', diameter: 8, fluteLength: 42,
-      rpm: 18000, feed: 4000, plungeFeed: 4000,
+      rpm: 18000, feed: 4000, engraveFeed: 4000,
       depthPerPass: 10,
       stepover: 2,
     },
@@ -102,9 +102,20 @@ const GCodeProfile = (() => {
 
   // Height the tool retracts to between cuts and parks at, in machine Z
   // (0 = table surface).
+  // Fixed at 50 mm (the shop's own setting); only a board thicker than
+  // 40 mm would push it higher, so the tool always clears the stock.
+  const SAFE_Z = 50;
   function safeZ(thickness){
-    return Geo.cleanRound(thickness + 10, 3);
+    return Geo.cleanRound(Math.max(SAFE_Z, thickness + 10), 3);
   }
 
-  return { TOOLS, SHALLOW_DEPTH_LIMIT, pickTool, resolveDepth, safeZ };
+  // Layers cut as engraving: the whole contour runs at the slower
+  // `engraveFeed` instead of `feed` (plunge uses the same feed as the
+  // operation, as in the shop's reference programs).
+  const ENGRAVING_LAYERS = new Set(['ENGRAVING']);
+  function feedFor(tool, layerId){
+    return ENGRAVING_LAYERS.has(layerId) ? tool.engraveFeed : tool.feed;
+  }
+
+  return { TOOLS, SHALLOW_DEPTH_LIMIT, pickTool, resolveDepth, safeZ, feedFor, ENGRAVING_LAYERS };
 })();
