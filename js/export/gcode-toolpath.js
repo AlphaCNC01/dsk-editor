@@ -34,9 +34,12 @@ const GCodeToolpath = (() => {
       // X in [-H, 0], i.e. the XY zero ends up at the bottom-RIGHT of the
       // machine-side view; with it the zero is the bottom-LEFT corner.
       apply: (x, y, W, H) => ({ x: H - y, y: x }),
+      // Inverse of apply: machine space -> design space (for the preview).
+      invert: (x, y, W, H) => ({ x: y, y: H - x }),
     },
     horizontal: {
       apply: (x, y, W, H) => ({ x, y }),
+      invert: (x, y, W, H) => ({ x, y }),
     },
   };
   const ACTIVE_ORIENTATION = 'vertical'; // hardcoded for now, see file comment
@@ -119,6 +122,22 @@ const GCodeToolpath = (() => {
     const CL = requireClipperLib();
     const scaled = pts.map(p => ({ X: Math.round(p.x * CLIPPER_SCALE), Y: Math.round(p.y * CLIPPER_SCALE) }));
     return Math.abs(CL.Clipper.Area(scaled)) / (CLIPPER_SCALE * CLIPPER_SCALE);
+  }
+
+  // Machine-space point back to the drawing's own space (undoes
+  // orientation and the bottom-side mirror) — used to overlay toolpaths on
+  // the editor preview.
+  function fromMachinePoint(x, y, side, boardWidth, boardHeight){
+    const d = ORIENTATIONS[ACTIVE_ORIENTATION].invert(x, y, boardWidth, boardHeight);
+    return { x: side === 'bottom' ? boardWidth - d.x : d.x, y: d.y };
+  }
+
+  // Extent of the panel in machine space (X and Y size of the stock).
+  function machineExtent(boardWidth, boardHeight){
+    const o = ORIENTATIONS[ACTIVE_ORIENTATION];
+    const a = o.apply(0, 0, boardWidth, boardHeight);
+    const b = o.apply(boardWidth, boardHeight, boardWidth, boardHeight);
+    return { w: Math.abs(b.x - a.x), h: Math.abs(b.y - a.y) };
   }
 
   // True when a ring runs counter-clockwise (machine Y points up), by
@@ -465,6 +484,6 @@ const GCodeToolpath = (() => {
 
   return {
     ORIENTATIONS, ARC_SEGMENTS_PER_CIRCLE, clipperOffset, ringArea,
-    toMachinePolyline, toMachineShape, buildToolpaths, buildShapePaths, toolpathMoves,
+    toMachinePolyline, toMachineShape, fromMachinePoint, machineExtent, buildToolpaths, buildShapePaths, toolpathMoves,
   };
 })();

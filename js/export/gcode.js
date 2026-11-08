@@ -106,8 +106,13 @@ const ExportGCode = (() => {
     return out;
   }
 
-  function buildFiles(entries, p, orderNumber){
+  // Builds the programs (one per side + tool) as abstract moves, plus any
+  // warnings found on the way. buildFiles renders them to text; the editor
+  // preview (gcode-preview.js) reads the same programs, so what it shows
+  // is exactly what gets exported.
+  function buildPrograms(entries, p, orderNumber){
     const { W, H, thickness } = p;
+    const warnings = [];
     const groups = new Map(); // key `${side}|${toolId}` -> { side, tool, items: [{path,targetZ,feed}] }
 
     for (const [entryIdx, entry] of entries.entries()){
@@ -133,22 +138,31 @@ const ExportGCode = (() => {
       const shape = toMachineShape(entry.contour, machining.side, W, H);
       const toolpaths = buildShapePaths(shape, millType, toolRadius, tool.stepover);
       const feed = feedFor(tool, layerId);
+      if (toolpaths.length === 0 && millType !== 'contour') {
+        warnings.push(`Слой ${layerId}: фреза ф${tool.diameter} не помещается в контур, обработка пропущена`);
+      }
       for (const path of toolpaths) group.items.push({ path, targetZ, feed, entryIdx });
     }
 
     const safeZ = profileSafeZ(thickness);
-    const files = [];
+    const programs = [];
     for (const { side, tool, items } of groups.values()){
       const ordered = orderItems(items);
       const moves = ordered.flatMap(item => toolpathMoves(item.path, thickness, item.targetZ, tool, safeZ, item.feed));
-      const text = GCodePost.render({ rpm: tool.rpm, safeZ, moves });
-      files.push({ filename: buildFilename(orderNumber, side, tool), text });
+      programs.push({ filename: buildFilename(orderNumber, side, tool), side, tool, safeZ, moves });
     }
     // Stable order: side (тыл before лиц matches production order — face
     // first, back second — but files are independent so this is purely
     // for a predictable download order) then tool id.
-    files.sort((a, b) => a.filename.localeCompare(b.filename, 'ru'));
-    return files;
+    programs.sort((a, b) => a.filename.localeCompare(b.filename, 'ru'));
+    return { programs, warnings };
+  }
+
+  function buildFiles(entries, p, orderNumber){
+    return buildPrograms(entries, p, orderNumber).programs.map(prog => ({
+      filename: prog.filename,
+      text: GCodePost.render({ rpm: prog.tool.rpm, safeZ: prog.safeZ, moves: prog.moves }),
+    }));
   }
 
   // "<order>-{лиц|тыл} ф<tool>.tap" per the shop's own naming convention.
@@ -189,5 +203,5 @@ const ExportGCode = (() => {
     return files;
   }
 
-  return { buildFiles, downloadAll, downloadAs, TOOLS, pickTool, resolveDepth, clipperOffset, ringArea, toMachinePolyline, buildToolpaths };
+  return { buildPrograms, buildFiles, downloadAll, downloadAs, TOOLS, pickTool, resolveDepth, clipperOffset, ringArea, toMachinePolyline, buildToolpaths };
 })();

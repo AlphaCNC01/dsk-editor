@@ -57,6 +57,14 @@
           <span class="track"></span>
         </label>
       </div>
+      <div class="toggle-row" style="margin-bottom:12px;">
+        <span>Показать траектории G-code</span>
+        <label class="switch">
+          <input type="checkbox" id="gcodePreviewOn">
+          <span class="track"></span>
+        </label>
+      </div>
+      <div id="gcodeInfo" hidden></div>
       <div class="field" id="woodTintField" style="margin-bottom:12px;">
         <label>Цвет отделки (только превью)</label>
         <select id="woodTint"></select>
@@ -216,6 +224,7 @@
 <script defer src="js/export/gcode-toolpath.js"></script>
 <script defer src="js/export/gcode-post.js"></script>
 <script defer src="js/export/gcode.js"></script>
+<script defer src="js/export/gcode-preview.js"></script>
 <!-- UI -->
 <script defer src="js/ui/instance-list.js"></script>
 <script defer src="js/ui/field-helpers.js"></script>

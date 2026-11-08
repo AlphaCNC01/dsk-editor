@@ -563,6 +563,13 @@
   .btn-icon svg{ width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; }
   .btn-icon-danger:hover{ border-color:#c0392b; color:#c0392b; }
 
+  #gcodeInfo{
+    margin:0 0 12px; padding:8px 10px;
+    font-size:12px; line-height:1.5; color:var(--ink-dim);
+    border:1px solid var(--line, rgba(128,128,128,.3)); border-radius:6px;
+  }
+  #gcodeInfo .gcode-warning{ color:#c92a2a; }
+
   .hint{
     margin-top:10px;
     font-size:12px;
