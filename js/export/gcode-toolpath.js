@@ -257,12 +257,39 @@ const GCodeToolpath = (() => {
       && Math.abs(contour[1].bulge - 1) < 1e-9;
   }
 
+  // Machine-space points that offset curves of this contour are centred
+  // on: the centre of every arc, and every vertex (a convex corner of an
+  // offset becomes a round join centred on that vertex). The arc fitter
+  // uses them to recognise arcs exactly instead of guessing circles.
+  function arcCenters(contour, side, boardWidth, boardHeight){
+    const orient = ORIENTATIONS[ACTIVE_ORIENTATION];
+    const out = [];
+    const add = (x, y) => {
+      if (side === 'bottom') x = boardWidth - x;
+      const m = orient.apply(x, y, boardWidth, boardHeight);
+      if (!out.some(q => Math.abs(q.x - m.x) < 1e-6 && Math.abs(q.y - m.y) < 1e-6)) out.push(m);
+    };
+    const n = contour.length;
+    for (let i = 0; i < n; i++){
+      const v = contour[i], w = contour[(i + 1) % n];
+      add(v.x, v.y);
+      if (Math.abs(v.bulge) < 1e-9) continue;
+      // Centre of the arc from v to w (DXF bulge: positive = CCW, centre
+      // to the left of the chord for a shallow CCW arc).
+      const dx = w.x - v.x, dy = w.y - v.y, L = Math.hypot(dx, dy);
+      if (L < 1e-9) continue;
+      const h = (L / 2) * (1 - v.bulge * v.bulge) / (2 * v.bulge);
+      add((v.x + w.x) / 2 - dy / L * h, (v.y + w.y) / 2 + dx / L * h);
+    }
+    return out;
+  }
+
   // Machine-space shape of one drawing contour: a circle
   // { circle: {cx, cy, r} } when it is one, otherwise { pts } (tessellated
   // polyline, as toMachinePolyline). Same bottom-side mirror and panel
   // orientation as toMachinePolyline.
   function toMachineShape(contour, side, boardWidth, boardHeight){
-    if (!isCircleContour(contour)) return { pts: toMachinePolyline(contour, side, boardWidth, boardHeight) };
+    if (!isCircleContour(contour)) return { pts: toMachinePolyline(contour, side, boardWidth, boardHeight), centers: arcCenters(contour, side, boardWidth, boardHeight) };
     let cx = (contour[0].x + contour[1].x) / 2;
     const cy = (contour[0].y + contour[1].y) / 2;
     const r = Math.hypot(contour[1].x - contour[0].x, contour[1].y - contour[0].y) / 2;
@@ -288,7 +315,7 @@ const GCodeToolpath = (() => {
       // (buildToolpaths generates the rings wall-first).
       if (millType === 'pocket') rings.reverse();
       return rings
-        .map(pts => ({ pts: ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()] }));
+        .map(pts => ({ pts: ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()], centers: shape.centers }));
     }
     const { cx, cy, r } = shape.circle;
     const MIN_R = 1e-3;
@@ -470,12 +497,67 @@ const GCodeToolpath = (() => {
     return out;
   }
 
+  // How close (mm) offset vertices must stay to a KNOWN circle (an arc
+  // centre from the drawing) to count as lying on it. Offset vertices sit
+  // within a few thousandths of the true circle, so this is tight.
+  const KNOWN_ARC_TOLERANCE = 0.01;
+
+  function wrapAngle(a){
+    while (a > Math.PI) a -= 2 * Math.PI;
+    while (a <= -Math.PI) a += 2 * Math.PI;
+    return a;
+  }
+
+  // From P[i], follows the polyline around one of the known centres as
+  // far as the vertices stay on that circle (radius taken from the start
+  // point, so the arc starts exactly where the tool is). Returns the
+  // longest such arc: { cw, ctr, j, end } or null. The end point is the
+  // vertex P[j] moved onto the circle, so the controller sees equal start
+  // and end radii.
+  function tryKnownArc(P, i, centers){
+    const a = P[i];
+    let best = null;
+    for (const c of centers){
+      const rho = Math.hypot(a.x - c.x, a.y - c.y);
+      if (rho < 0.05 || rho > ARC_MAX_RADIUS) continue;
+      if (Math.abs(Math.hypot(P[i + 1].x - c.x, P[i + 1].y - c.y) - rho) > KNOWN_ARC_TOLERANCE) continue;
+      let ang = Math.atan2(a.y - c.y, a.x - c.x), cum = 0, sign = 0, bestJ = -1, bestSweep = 0;
+      for (let j = i + 1; j < P.length; j++){
+        if (Math.abs(Math.hypot(P[j].x - c.x, P[j].y - c.y) - rho) > KNOWN_ARC_TOLERANCE) break;
+        const next = Math.atan2(P[j].y - c.y, P[j].x - c.x);
+        const delta = wrapAngle(next - ang);
+        if (sign === 0) { if (Math.abs(delta) < 1e-9) continue; sign = delta > 0 ? 1 : -1; } // duplicate vertices: skip
+        if (delta * sign < -KNOWN_ARC_TOLERANCE / rho) break; // turned back
+        cum += delta; ang = next;
+        if (Math.abs(cum) > ARC_MAX_SWEEP) break;
+        if (j >= i + 2) { bestJ = j; bestSweep = Math.abs(cum); }
+      }
+      if (bestJ < 0 || rho * (1 - Math.cos(bestSweep / 2)) < ARC_MIN_SAGITTA) continue;
+      if (!best || bestJ > best.j) {
+        const endAng = Math.atan2(P[bestJ].y - c.y, P[bestJ].x - c.x);
+        best = { cw: sign < 0, ctr: c, j: bestJ, end: { x: c.x + rho * Math.cos(endAng), y: c.y + rho * Math.sin(endAng) } };
+      }
+    }
+    return best;
+  }
+
   // Moves that travel P[0] -> P[last] (the tool is already at P[0]),
-  // using arcs where the polyline allows it and G1 lines elsewhere.
-  function fitArcMoves(P){
+  // using arcs where the polyline allows it and G1 lines elsewhere. First
+  // choice is an arc on one of the drawing's own circles (`centers`);
+  // otherwise a free least-squares arc fit; otherwise a line.
+  function fitArcMoves(P, centers){
+    centers = centers || [];
     const moves = [];
     let i = 0;
+    let cur = P[0]; // where the tool actually is (an arc end may be nudged onto its circle)
     while (i < P.length - 1){
+      P[i] = cur;
+      const known = centers.length ? tryKnownArc(P, i, centers) : null;
+      if (known) {
+        moves.push({ t: 'arc', cw: known.cw, x: known.end.x, y: known.end.y, i: known.ctr.x - cur.x, j: known.ctr.y - cur.y });
+        cur = known.end; i = known.j;
+        continue;
+      }
       // Grow the stretch while it still fits one arc. A short stretch of
       // tiny segments (rounded coordinates) fits a circle badly even when
       // the whole curve is a clean arc, so a failed try is not the end:
@@ -490,14 +572,14 @@ const GCodeToolpath = (() => {
       } else {
         moves.push({ t: 'line', x: P[bestJ].x, y: P[bestJ].y });
       }
-      i = bestJ;
+      cur = P[bestJ]; i = bestJ;
     }
     return simplifyLineRuns(P[0], moves);
   }
 
   // Ramped zigzag entry + full-depth pass of one closed polyline, as moves.
   // See buildRampIndexSequence for why the ramp must end on a forward leg.
-  function rampedPassMoves(pts, fromZ, toZ, feed, moves){
+  function rampedPassMoves(pts, fromZ, toZ, feed, moves, centers){
     const n = pts.length;
     const rampCount = Math.min(RAMP_SEGMENT_COUNT, n - 1);
     const rampIdxSeq = buildRampIndexSequence(rampCount);
@@ -519,7 +601,7 @@ const GCodeToolpath = (() => {
     // from wherever the ramp left off back around to the start point.
     const rest = [];
     for (let i = rampCount; i <= n; i++) rest.push(pts[i % n]);
-    moves.push(...fitArcMoves(rest));
+    moves.push(...fitArcMoves(rest, centers));
   }
 
   // Every depth pass for one toolpath (already tool-radius compensated,
@@ -546,7 +628,7 @@ const GCodeToolpath = (() => {
       let fromZ = startZ;
       for (let pass = 0; pass < passCount; pass++){
         const toZ = pass === passCount - 1 ? targetZ : startZ - (totalDepth * (pass + 1) / passCount);
-        rampedPassMoves(pts, fromZ, toZ, feed, moves);
+        rampedPassMoves(pts, fromZ, toZ, feed, moves, path.centers);
         fromZ = toZ;
       }
     }
