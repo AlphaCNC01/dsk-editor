@@ -1,6 +1,8 @@
 // ============================================================================
-// Element: Лоток для сетевого фильтра (cable/power-strip tray). Two size
-// variants (60cm / 80cm), same VARIANTS pattern as the underframe. Each
+// Element: Лоток для сетевого фильтра (cable/power-strip tray). Variants:
+// 'HOOK' (current 60 cm tray, default for new projects), legacy '60' (kept
+// so projects saved before PROJECT_FILE_VERSION 2 render unchanged) and
+// '80', same VARIANTS pattern as the underframe. Each
 // variant has a 3-piece physical outline (two end brackets + the tray
 // body) and 4 mounting holes, each built via Holes.at() (see
 // js/elements/hole.js) — shared hole/counterbore geometry used by every
@@ -14,11 +16,23 @@
 const TRAY_VARIANTS = registerSimpleEmbeddable({
   id: 'tray',
   paramsKey: 'trays',
-  defaultVariant: '60',
+  defaultVariant: 'HOOK',
   variants: {
+    'HOOK': {
+      sku: 'HOOK',
+      label: 'Лоток 60 см',
+      parts: [
+      { verts: [{x:200.0,y:69.0,bulge:0},{x:200.0,y:-69.0,bulge:0},{x:225.0,y:-69.0,bulge:0},{x:225.0,y:69.0,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:-225.0,y:69.0,bulge:0},{x:-225.0,y:-69.0,bulge:0},{x:-200.0,y:-69.0,bulge:0},{x:-200.0,y:69.0,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:-300.0,y:66.0,bulge:0},{x:-300.0,y:-66.0,bulge:0},{x:300.0,y:-66.0,bulge:0},{x:300.0,y:66.0,bulge:0}], layer: 'PHYSICAL' },
+      ...Holes.at(-212.5, 30, 'B'),
+      ...Holes.at(-212.5, -30, 'B'),
+      ...Holes.at(212.5, 30, 'B'),
+      ...Holes.at(212.5, -30, 'B'),
+    ] },
     '60': {
       sku: 'ЛОТ-60',
-      label: 'Лоток 60 см',
+      label: 'Лоток 60 см (старый)',
       parts: [
       { verts: [{x:171.5,y:65.0,bulge:0},{x:171.5,y:-65.0,bulge:0},{x:191.5,y:-65.0,bulge:0},{x:191.5,y:65.0,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:-191.5,y:65.0,bulge:0},{x:-191.5,y:-65.0,bulge:0},{x:-171.5,y:-65.0,bulge:0},{x:-171.5,y:65.0,bulge:0}], layer: 'PHYSICAL' },
