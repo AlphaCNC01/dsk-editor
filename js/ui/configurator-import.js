@@ -21,7 +21,7 @@
 //   items.cable[]                                    -> top wire notches
 //   opts.wireless/usb + pos.wireless/usb             -> charger instances
 //   items.outlets[]                                  -> outlet blocks
-//   items.hook[]                                     -> 60 cm trays
+//   items.hook[]                                     -> HOOK tray
 //   shape 'corner', fit.*                            -> NOT supported here;
 //     'corner' aborts the import, fit.* is only the configurator's laptop/monitor
 //     preview and has no counterpart in a drawing).
@@ -122,9 +122,9 @@ const ConfiguratorImport = (() => {
       insetX: Math.round(num(p.fx, 0.5) * L),
       insetY: Math.round(num(p.fy, 0.5) * W),
     });
-    // The site's "hook" ("подвес" on its drawing) is the 60 cm power-strip
+    // The site's "hook" ("подвес" on its drawing) is the HOOK 60 cm power-strip
     // tray: 60 cm body with two end brackets, centered on (fx, fy).
-    const trays = (items.hook || []).map(h => ({ type: '60', ...place(h) }));
+    const trays = (items.hook || []).map(h => ({ type: 'HOOK', ...place(h) }));
     const outletBlocks = (items.outlets || []).map(place);
     const opts = c.opts || {}, pos = c.pos || {};
     const chargers = [];
@@ -141,7 +141,7 @@ const ConfiguratorImport = (() => {
     return {
       project: {
         fileType: 'tabletop-layout-project',
-        version: 1,
+        version: 2, // = PROJECT_FILE_VERSION in app-project.js
         values,
         instances: { topNotches, chargers, usbChargers, outletBlocks, trays },
       },

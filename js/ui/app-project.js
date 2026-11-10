@@ -13,7 +13,9 @@
   const el = UI.el;
   const inputs = UI.inputs;
 
-  const PROJECT_FILE_VERSION = 1;
+  // v2: default tray is 'HOOK'; v1 files may omit the tray type, where the
+  // old 60 cm tray was the default (see migration in applyProjectData).
+  const PROJECT_FILE_VERSION = 2;
   const SIMPLE_INPUT_IDS = [
     'orderNumber', 'rectW', 'rectH', 'rectThickness', 'rTop', 'rBottom', 'rNotch',
     'notchOn', 'notchH', 'notchBottom', 'notchTop',
@@ -81,6 +83,11 @@
           r: parseFloat(v.rTopNotch) || 0,
         }];
       }
+    }
+    // Migrate v1 files: pin the old default tray type so it doesn't
+    // silently become 'HOOK'.
+    if (!(data.version >= 2) && Array.isArray(inst.trays)) {
+      inst.trays = inst.trays.map(t => (t && !t.type) ? { ...t, type: '60' } : t);
     }
     for (const { key, mgr } of UI.ELEMENT_MANAGERS) mgr.setItems(inst[key]);
     UI.render();
