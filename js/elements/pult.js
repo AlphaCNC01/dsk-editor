@@ -39,8 +39,8 @@ const PULT_VARIANTS = registerSimpleEmbeddable({
   defaultVariant: 'standard',
   variants: {
     standard: {
-      sku: 'ПУ-СТ',
-      label: 'Стандартный',
+      sku: 'ST',
+      label: 'Пульт ST',
       parts: [
         { verts: [{x:-45.0,y:50.0,bulge:0},{x:-45.0,y:0.0,bulge:0},{x:45.0,y:0.0,bulge:0},{x:45.0,y:50.0,bulge:0}], layer: 'PHYSICAL' },
         ...Holes.at(-30, 30, 'B'),
@@ -58,8 +58,8 @@ const PULT_VARIANTS = registerSimpleEmbeddable({
       ],
     },
     embeddedUsb: {
-      sku: 'ПУ-USB',
-      label: 'Встраиваемый с USB',
+      sku: 'SST',
+      label: 'Встроенный пульт SST',
       parts: [
         { verts: [{x:-36.0,y:41.0,bulge:-0.414214},{x:-41.0,y:36.0,bulge:0},{x:-76.5,y:36.0,bulge:0.414214},{x:-80.5,y:32.0,bulge:0},{x:-80.5,y:22.0,bulge:0.414214},{x:-76.5,y:18.0,bulge:0},{x:76.5,y:18.0,bulge:0.414214},{x:80.5,y:22.0,bulge:0},{x:80.5,y:32.0,bulge:0.414214},{x:76.5,y:36.0,bulge:0},{x:-13.0,y:36.0,bulge:-0.414214},{x:-18.0,y:41.0,bulge:0},{x:-18.0,y:46.0,bulge:0.414214},{x:-23.0,y:51.0,bulge:0},{x:-31.0,y:51.0,bulge:0.414214},{x:-36.0,y:46.0,bulge:0}], layer: 'EMBEDED_USB_POCKET' },
         { verts: [{x:-79.0,y:34.0,bulge:0},{x:-79.0,y:0.0,bulge:0},{x:79.0,y:0.0,bulge:0},{x:79.0,y:34.0,bulge:0}], layer: 'PHYSICAL' },
@@ -73,8 +73,8 @@ const PULT_VARIANTS = registerSimpleEmbeddable({
       cableNode: { x: -27, y: 51, dir: { x: 0, y: 1 } },
     },
     moveDeskMax: {
-      sku: 'NT33-2AF3-D5',
-      label: 'Пульт MoveDesk MAX',
+      sku: 'DM70',
+      label: 'Пульт DM70',
       parts: [
         { verts: [{x:-65.0,y:-25.0,bulge:0},{x:65.0,y:-25.0,bulge:0},{x:65.0,y:40.0,bulge:0},{x:-65.0,y:40.0,bulge:0}], layer: 'PHYSICAL' },
         { verts: [{x:-65.0,y:0.0,bulge:0},{x:65.0,y:0.0,bulge:0},{x:65.0,y:40.0,bulge:0},{x:-65.0,y:40.0,bulge:0}], layer: 'PHYSICAL' },
@@ -83,8 +83,8 @@ const PULT_VARIANTS = registerSimpleEmbeddable({
       ],
     },
     rivalHome: {
-      sku: 'D13',
-      label: 'Пульт Rival Home',
+      sku: 'RH60',
+      label: 'Пульт RH60',
       parts: [
         { verts: [{x:-67.0,y:-20.0,bulge:0},{x:67.0,y:-20.0,bulge:0},{x:67.0,y:50.0,bulge:0},{x:-67.0,y:50.0,bulge:0}], layer: 'PHYSICAL' },
         { verts: [{x:-67.0,y:0.0,bulge:0},{x:67.0,y:0.0,bulge:0},{x:67.0,y:50.0,bulge:0},{x:-67.0,y:50.0,bulge:0}], layer: 'PHYSICAL' },
