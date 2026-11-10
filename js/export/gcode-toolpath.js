@@ -289,13 +289,123 @@ const GCodeToolpath = (() => {
   // polyline, as toMachinePolyline). Same bottom-side mirror and panel
   // orientation as toMachinePolyline.
   function toMachineShape(contour, side, boardWidth, boardHeight){
-    if (!isCircleContour(contour)) return { pts: toMachinePolyline(contour, side, boardWidth, boardHeight), centers: arcCenters(contour, side, boardWidth, boardHeight) };
+    if (!isCircleContour(contour)) return { pts: toMachinePolyline(contour, side, boardWidth, boardHeight), centers: arcCenters(contour, side, boardWidth, boardHeight), verts: toMachineVertices(contour, side, boardWidth, boardHeight) };
     let cx = (contour[0].x + contour[1].x) / 2;
     const cy = (contour[0].y + contour[1].y) / 2;
     const r = Math.hypot(contour[1].x - contour[0].x, contour[1].y - contour[0].y) / 2;
     if (side === 'bottom') cx = boardWidth - cx;
     const c = ORIENTATIONS[ACTIVE_ORIENTATION].apply(cx, cy, boardWidth, boardHeight);
     return { circle: { cx: c.x, cy: c.y, r } };
+  }
+
+  // --------------------------------------------------------------------
+  // Exact offsets with cavalier-contours (arcs stay arcs)
+  // --------------------------------------------------------------------
+  // The drawing contour as machine-space vertices {x, y, bulge}, wound
+  // counter-clockwise (the convention cavalier offsets by: positive
+  // distance = inward). Null when it cannot be used.
+  function toMachineVertices(contour, side, boardWidth, boardHeight){
+    const orient = ORIENTATIONS[ACTIVE_ORIENTATION];
+    const o = orient.apply(0, 0, boardWidth, boardHeight);
+    const ax = orient.apply(1, 0, boardWidth, boardHeight), ay = orient.apply(0, 1, boardWidth, boardHeight);
+    const det = (ax.x - o.x) * (ay.y - o.y) - (ax.y - o.y) * (ay.x - o.x);
+    const flip = (side === 'bottom') !== (det < 0);
+    // The drawing stores quarter-circle bulges rounded (0.4142); cavalier
+    // wants them exact or its offsetter chokes on the near-tangent joins.
+    const Q = Math.tan(Math.PI / 8);
+    const snap = b => (Math.abs(Math.abs(b) - Q) < 2e-4 ? Math.sign(b) * Q : b);
+    let v = [];
+    for (const c of contour){
+      const x = side === 'bottom' ? boardWidth - c.x : c.x;
+      const m = orient.apply(x, c.y, boardWidth, boardHeight);
+      const last = v[v.length - 1];
+      if (last && Math.hypot(last.x - m.x, last.y - m.y) < 1e-6) continue;
+      v.push({ x: m.x, y: m.y, bulge: snap(flip ? -(c.bulge || 0) : (c.bulge || 0)) });
+    }
+    if (v.length > 1 && Math.hypot(v[0].x - v[v.length - 1].x, v[0].y - v[v.length - 1].y) < 1e-6) v.pop();
+    if (v.length < 3) return null;
+    // Signed area including the arcs' circular segments.
+    let a = 0;
+    for (let i = 0; i < v.length; i++){
+      const p = v[i], q = v[(i + 1) % v.length];
+      a += (p.x * q.y - q.x * p.y) / 2;
+      if (p.bulge) {
+        const L = Math.hypot(q.x - p.x, q.y - p.y), th = 4 * Math.atan(p.bulge), r = L / (2 * Math.sin(th / 2));
+        a += r * r * (th - Math.sin(th)) / 2;
+      }
+    }
+    if (a < 0) {
+      // Reverse: vertex i keeps its position, takes the negated bulge of the segment that used to arrive at it.
+      const n = v.length;
+      v = v.map((_, k) => { const i = n - 1 - k; return { x: v[i].x, y: v[i].y, bulge: -v[(i - 1 + n) % n].bulge }; });
+    }
+    return v;
+  }
+
+  function cavalierAvailable(){
+    return typeof CavalierContours !== 'undefined' && !!CavalierContours.parallelOffset;
+  }
+
+  // Closed cavalier polyline -> { pts (tessellated exactly on its arcs),
+  // centers (every arc's centre) } as the arc fitter wants them.
+  function cavalierToPath(pl){
+    const n = pl.vertexCount, pts = [], centers = [];
+    for (let i = 0; i < n; i++){
+      const v = pl.at(i), w = pl.at((i + 1) % n);
+      pts.push({ x: v.x, y: v.y });
+      if (Math.abs(v.bulge) < 1e-9) continue;
+      const dx = w.x - v.x, dy = w.y - v.y, L = Math.hypot(dx, dy);
+      if (L < 1e-9) continue;
+      const th = 4 * Math.atan(v.bulge);                  // signed sweep
+      const r = L / (2 * Math.sin(Math.abs(th) / 2));
+      const h = (L / 2) * (1 - v.bulge * v.bulge) / (2 * v.bulge);
+      const cx = (v.x + w.x) / 2 - dy / L * h, cy = (v.y + w.y) / 2 + dx / L * h;
+      if (!centers.some(q => Math.abs(q.x - cx) < 1e-4 && Math.abs(q.y - cy) < 1e-4)) centers.push({ x: cx, y: cy });
+      const steps = Math.max(1, Math.ceil(Math.abs(th) / (2 * Math.PI / ARC_SEGMENTS_PER_CIRCLE)));
+      const a0 = Math.atan2(v.y - cy, v.x - cx);
+      for (let k = 1; k < steps; k++){
+        const a = a0 + th * k / steps;
+        pts.push({ x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
+      }
+    }
+    return { pts, centers };
+  }
+
+  // Tool-radius-compensated rings of a non-circular shape via cavalier, or
+  // null if the library is missing / fails (caller falls back to Clipper).
+  // Rings are in offset order (pockets: wall first, then inward).
+  function cavalierRings(shape, millType, toolRadius, stepover){
+    if (!shape.verts || !cavalierAvailable()) return null;
+    try {
+      const { Polyline, PlineVertex, parallelOffset } = CavalierContours;
+      const base = Polyline.fromVertexes(shape.verts.map(v => new PlineVertex(v.x, v.y, v.bulge)), true);
+      const off = (pl, d) => parallelOffset(pl, d, {}).filter(r => r.vertexCount >= 2);
+      let rings;
+      if (millType === 'outside') rings = off(base, -toolRadius);
+      else if (millType === 'inside') rings = off(base, toolRadius);
+      else if (millType === 'pocket') {
+        // Stop when the rings stop shrinking (fully cleared) — same
+        // rule as the Clipper version — so degenerate slivers left by
+        // collapsing arcs never make endless rings.
+        const areaOf = rs => rs.reduce((t, r) => t + Math.abs(r.area()), 0);
+        rings = [];
+        let cur = off(base, toolRadius), curArea = areaOf(cur);
+        for (let g = 0; g < 500 && cur.length && curArea > 1e-3; g++){
+          rings.push(...cur);
+          const next = cur.flatMap(r => off(r, stepover));
+          const nextArea = areaOf(next);
+          if (!next.length || nextArea < 1e-3 || nextArea >= curArea) break;
+          cur = next; curArea = nextArea;
+        }
+      } else return null;
+      // Nothing left (e.g. a slot exactly as wide as the tool): let Clipper
+      // decide what to do with the degenerate case, as before.
+      if (!rings.length) return null;
+      return rings.map(cavalierToPath);
+    } catch (e) {
+      if (typeof console !== 'undefined') console.warn('cavalier offset failed, using Clipper', e);
+      return null;
+    }
   }
 
   // Tool paths for one shape, same millType semantics as buildToolpaths.
@@ -308,14 +418,16 @@ const GCodeToolpath = (() => {
       // Climb milling: inside cuts run counter-clockwise, outside cuts
       // clockwise, like the circles below.
       const wantCCW = millType !== 'outside';
-      const rings = buildToolpaths(shape.pts, millType, toolRadius, stepover);
+      const exact = cavalierRings(shape, millType, toolRadius, stepover);
+      const rings = exact ? exact.map(r => r.pts) : buildToolpaths(shape.pts, millType, toolRadius, stepover);
+      const centers = exact ? null : shape.centers;
       // Pockets are cut from the inside out, so the wall ring — the
       // surface that stays — is the LAST cut, with only a stepover's worth
       // of material left on it, instead of the first, full-width one
       // (buildToolpaths generates the rings wall-first).
       if (millType === 'pocket') rings.reverse();
       return rings
-        .map(pts => ({ pts: ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()], centers: shape.centers }));
+        .map((pts, k) => ({ pts: ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()], centers: exact ? exact[millType === 'pocket' ? exact.length - 1 - k : k].centers : centers }));
     }
     const { cx, cy, r } = shape.circle;
     const MIN_R = 1e-3;

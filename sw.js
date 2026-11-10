@@ -3,7 +3,7 @@
 // а в фоне при наличии сети обновляется — свежая версия появляется при следующем открытии.
 // Поэтому вручную менять версию при каждом релизе не нужно. CACHE_VERSION меняйте только
 // если нужно принудительно сбросить кэш (например, переименовали/удалили файлы).
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v5';
 const CACHE = 'dsk-editor-' + CACHE_VERSION;
 
 const PRECACHE = [
@@ -65,6 +65,7 @@ const PRECACHE = [
   "js/ui/zoom.js",
   "manifest.webmanifest",
   "vendor/clipper.min.js",
+  "vendor/cavalier-contours.min.js",
   "vendor/codemirror/codemirror.min.css",
   "vendor/codemirror/codemirror.min.js",
   "vendor/codemirror/dracula.min.css",
