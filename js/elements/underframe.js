@@ -138,6 +138,23 @@ Elements.register((() => {
       ...Holes.at(430, 0, 'A'),
       ],
     },
+    'DMDF': {
+      sku: 'DMDF MC-DNELC03',
+      label: 'Подъемное подстолье Deskos DMDF',
+      width: 402.5, height: 470,
+      parts: [
+      { verts: [{x:0,y:235,bulge:0},{x:40,y:235,bulge:0},{x:40,y:-235,bulge:0},{x:0,y:-235,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:40,y:-68.75,bulge:0},{x:402.5,y:-68.75,bulge:0},{x:402.5,y:-48.75,bulge:0},{x:40,y:-48.75,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:40,y:48.75,bulge:0},{x:402.5,y:48.75,bulge:0},{x:402.5,y:68.75,bulge:0},{x:40,y:68.75,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:40,y:-48.75,bulge:0},{x:184,y:-48.75,bulge:0},{x:184,y:48.75,bulge:0},{x:40,y:48.75,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:377.5,y:-48.75,bulge:0},{x:402.5,y:-48.75,bulge:0},{x:402.5,y:48.75,bulge:0},{x:377.5,y:48.75,bulge:0}], layer: 'PHYSICAL' },
+      ...Holes.at(17.5, -200, 'A'),
+      ...Holes.at(17.5, -125, 'A'),
+      ...Holes.at(17.5, 125, 'A'),
+      ...Holes.at(17.5, 200, 'A'),
+      ...Holes.at(390, 0, 'A'),
+      ],
+    },
   };
   
   // Builds one leg-side's geometry at a given placement, optionally

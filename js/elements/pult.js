@@ -92,5 +92,17 @@ const PULT_VARIANTS = registerSimpleEmbeddable({
         ...Holes.at(52.5, 25, 'B'),
       ],
     },
+    dmdf: {
+      sku: 'DMDF MC-DNELC03',
+      label: 'Пульт DMDF',
+      parts: [
+        // 128x28 body above the tabletop edge
+        { verts: [{x:-64.0,y:0.0,bulge:0},{x:64.0,y:0.0,bulge:0},{x:64.0,y:28.0,bulge:0},{x:-64.0,y:28.0,bulge:0}], layer: 'PHYSICAL' },
+        // 148x20 rounded flange below the edge (semicircular ends, r=10)
+        { verts: [{x:-64.0,y:-20.0,bulge:0},{x:64.0,y:-20.0,bulge:1},{x:64.0,y:0.0,bulge:0},{x:-64.0,y:0.0,bulge:1}], layer: 'PHYSICAL' },
+        ...Holes.at(-48.75, 20, 'B'),
+        ...Holes.at(48.75, 20, 'B'),
+      ],
+    },
   },
 });
