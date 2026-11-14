@@ -43,8 +43,8 @@
 Elements.register((() => {
   const UNDERFRAME_VARIANTS = {
     '60': {
-      sku: 'ПОДСТ-60',
-      label: 'Подстолье 60',
+      sku: 'ST60',
+      label: 'Подъемное подстолье Deskos ST60',
       width: 503, height: 575,
       parts: [
       { verts: [{x:240.5,y:48.5,bulge:0},{x:265.5,y:48.5,bulge:0},{x:265.5,y:-48.5,bulge:0},{x:240.5,y:-48.5,bulge:0}], layer: 'PHYSICAL' },
@@ -88,8 +88,8 @@ Elements.register((() => {
       ],
     },
     '70': {
-      sku: 'ПОДСТ-70',
-      label: 'Подстолье 70',
+      sku: 'ST70',
+      label: 'Подъемное подстолье Deskos ST70 усиленное',
       width: 548, height: 575,
       parts: [
       { verts: [{x:278,y:80,bulge:0},{x:298,y:80,bulge:0},{x:298,y:-80,bulge:0},{x:278,y:-80,bulge:0}], layer: 'PHYSICAL' },
@@ -106,8 +106,8 @@ Elements.register((() => {
       ],
     },
     'MoveDesk-MAX': {
-      sku: 'NT33-2AF3-D5',
-      label: 'Подстолье MoveDesk MAX',
+      sku: 'DM70',
+      label: 'Подъемное подстолье Deskos DM70 усиленное',
       width: 475, height: 700,
       parts: [
       { verts: [{x:0,y:287.5,bulge:0},{x:30,y:287.5,bulge:0},{x:30,y:-287.5,bulge:0},{x:0,y:-287.5,bulge:0}], layer: 'PHYSICAL' },
@@ -122,8 +122,8 @@ Elements.register((() => {
       ],
     },
     'Rival-Home': {
-      sku: 'D13',
-      label: 'Подстолье Rival Home',
+      sku: 'RH60',
+      label: 'Подъемное подстолье Deskos RH60',
       width: 560, height: 580,
       parts: [
       { verts: [{x:0,y:250,bulge:0},{x:20,y:250,bulge:0},{x:20,y:-250,bulge:0},{x:0,y:-250,bulge:0}], layer: 'PHYSICAL' },
@@ -136,6 +136,23 @@ Elements.register((() => {
       ...Holes.at(10, -223.75, 'A'),
       ...Holes.at(10, 223.75, 'A'),
       ...Holes.at(430, 0, 'A'),
+      ],
+    },
+    'DMDF': {
+      sku: 'DMDF MC-DNELC03',
+      label: 'Подъемное подстолье Deskos DMDF',
+      width: 402.5, height: 470,
+      parts: [
+      { verts: [{x:0,y:235,bulge:0},{x:40,y:235,bulge:0},{x:40,y:-235,bulge:0},{x:0,y:-235,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:40,y:-68.75,bulge:0},{x:402.5,y:-68.75,bulge:0},{x:402.5,y:-48.75,bulge:0},{x:40,y:-48.75,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:40,y:48.75,bulge:0},{x:402.5,y:48.75,bulge:0},{x:402.5,y:68.75,bulge:0},{x:40,y:68.75,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:40,y:-48.75,bulge:0},{x:184,y:-48.75,bulge:0},{x:184,y:48.75,bulge:0},{x:40,y:48.75,bulge:0}], layer: 'PHYSICAL' },
+      { verts: [{x:377.5,y:-48.75,bulge:0},{x:402.5,y:-48.75,bulge:0},{x:402.5,y:48.75,bulge:0},{x:377.5,y:48.75,bulge:0}], layer: 'PHYSICAL' },
+      ...Holes.at(17.5, -200, 'A'),
+      ...Holes.at(17.5, -125, 'A'),
+      ...Holes.at(17.5, 125, 'A'),
+      ...Holes.at(17.5, 200, 'A'),
+      ...Holes.at(390, 0, 'A'),
       ],
     },
   };
@@ -202,7 +219,7 @@ Elements.register((() => {
 // index.html's markup, since the HTML no longer lists '60'/'70' as
 // static options at all (see below). Must be a real key of
 // UNDERFRAME_VARIANTS.
-const UNDERFRAME_DEFAULT_TYPE = '60';
+const UNDERFRAME_DEFAULT_TYPE = 'Rival-Home';
 
 (function populateUnderframeTypeOptions(){
   const select = document.getElementById('underframeType');

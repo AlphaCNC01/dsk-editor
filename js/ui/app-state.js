@@ -227,14 +227,15 @@
         // render rather than blocking the app from opening at all.
       }
     }
-    // Blank default project: two standard control panels, one anchored to
-    // the bottom-right corner and one to the bottom-left. Inset
+    // Blank default project: two control panels matching the default
+    // underframe (Rival Home -> RH60 pult), one anchored to the
+    // bottom-right corner and one to the bottom-left. Inset
     // fields are left unset so both follow the underframe-linked default.
     const pultEntry = UI.ELEMENT_MANAGERS.find(e => e.key === 'pults');
     if (pultEntry) {
       pultEntry.mgr.setItems([
-        { type: 'standard', anchor: 'bottomRight' },
-        { type: 'standard', anchor: 'bottomLeft' },
+        { type: 'rivalHome', anchor: 'bottomRight' },
+        { type: 'rivalHome', anchor: 'bottomLeft' },
       ]);
     }
     UI.render();

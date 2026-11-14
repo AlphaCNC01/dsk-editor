@@ -140,8 +140,8 @@
   // than a separate one). Only extra markup here is the type selector.
   const trayMgr = UI.createEmbeddableManager({
     key: 'trays', label: 'Лотки для сетевого фильтра', addLabel: 'Добавить лоток',
-    defaults: { type: '60', anchor: 'top', insetX: 0, insetY: 115 },
-    typeSelector: { label: 'Тип лотка', options: [{value:'60', text:'Лоток 60 см'}, {value:'80', text:'Лоток 80 см'}] },
+    defaults: { type: 'HOOK', anchor: 'top', insetX: 0, insetY: 115 },
+    typeSelector: { label: 'Тип лотка', options: [{value:'HOOK', text:'Лоток 60 см (HOOK)'}, {value:'60', text:'Лоток 60 см (старый)'}, {value:'80', text:'Лоток 80 см'}] },
     dimensionsDefault: false
   });
 
@@ -202,6 +202,7 @@
         insetX: (inst, p) => {
           const tray = p.trays && p.trays[0];
           if (!tray || !tray.type || tray.type === 'none') return 250;
+          if (tray.type === 'HOOK') return (tray.insetX || 0) + 250;
           if (tray.type === '60') return (tray.insetX || 0) + 250;
           if (tray.type === '80') return (tray.insetX || 0) + 400;
           return 250;
