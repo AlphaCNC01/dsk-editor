@@ -68,13 +68,16 @@ const Layers = (() => {
   //                  'plunge' — straight down. Only for shallow work
   //                             (engraving), where a gentler entry buys
   //                             nothing. Any bit.
-  //                  'zigzag' — ramps down while bouncing back and forth
-  //                             along the first stretch of the contour.
+  //                  'zigzag' — ramps down at ~45 degrees while bouncing
+  //                             back and forth over 1.25 tool diameters
+  //                             (5 mm for the 4 mm bit) of the contour.
   //                             For narrow slots/grooves (cable channels)
   //                             where a spiral does not fit, and for
   //                             through cuts along the outline. Any bit.
   //                  'spiral' — goes down a little on every lap around the
-  //                             contour (circles: a helix). For holes,
+  //                             contour (circles: a helix), at least ~10
+  //                             degrees steep; a contour too long for that
+  //                             is entered by zigzag instead. For holes,
   //                             counterbores and pockets; needs a bit that
   //                             can cut with its side while going down
   //                             (end mill, not a drill), and a pocket wide

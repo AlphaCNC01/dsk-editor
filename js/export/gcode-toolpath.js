@@ -207,42 +207,6 @@ const GCodeToolpath = (() => {
   }
 
   // --------------------------------------------------------------------
-  // Ramped zigzag entry + full-depth pass
-  // --------------------------------------------------------------------
-  // How far along the contour (as a fraction of its own total length) one
-  // full forward-then-back zigzag lap of the ramp covers, per depth step
-  // available to reach target — i.e. how gradual the plunge is. Smaller
-  // = steeper ramp over less distance; the shop's own reference files
-  // ramp over roughly the first 10-15% of a small contour's own perimeter
-  // per lap, so a small closed shape gets several back-and-forth laps
-  // while descending.
-  const RAMP_SEGMENT_COUNT = 8; // how many polyline points the ramp zigzags across
-
-  // Emits one full depth-pass of a closed toolpath: a ramped zigzag entry
-  // from `fromZ` down to `toZ` across the first RAMP_SEGMENT_COUNT points
-  // of `pts` (bouncing forward/back along that same short stretch,
-  // descending a little more each traversal — the "zigzag" plunge),
-  // followed by one full lap of the remaining contour at the reached
-  // depth, ending back at the pass's own start point (closing the loop).
-  // Returns the array of G-code lines for this one pass; `state` is the
-  // shared "last emitted axis value" tracker (see moveLine) so consecutive
-  // passes/contours keep omitting unchanged axes correctly across the
-  // whole file, and `feed` is the tool's own cutting feedrate.
-  // Builds the "zigzag then land forward" ramp index sequence used by
-  // rampedPassMoves (see its own comment for why it must always end on a
-  // forward leg, at rampCount, rather than back at 0).
-  function buildRampIndexSequence(rampCount){
-    const oneWay = [];
-    for (let i = 0; i <= rampCount; i++) oneWay.push(i);
-    const backWay = [...oneWay].reverse().slice(1);
-    const roundTrips = 2; // matching "врезание зигзагом" — a genuine back-and-forth entry
-    const seq = [];
-    for (let t = 0; t < roundTrips; t++) seq.push(...oneWay, ...backWay);
-    seq.push(...oneWay);
-    return seq;
-  }
-
-  // --------------------------------------------------------------------
   // Full circles (holes, round pockets) — handled analytically
   // --------------------------------------------------------------------
   // A circle is authored as two bulge:1 vertices (see js/elements/hole.js).
@@ -454,7 +418,6 @@ const GCodeToolpath = (() => {
 
   // How steeply the helical entry descends (mm of Z per revolution) and
   // how finely a revolution is cut into straight G1 segments.
-  const HELIX_PITCH = 3;
   const HELIX_SEGMENTS = 24;
 
   // Moves for one circular path over all depth passes. Each pass: helical
@@ -479,7 +442,10 @@ const GCodeToolpath = (() => {
         // Back to the centre ring at the (already cleared) previous depth.
         if (pass > 0) moves.push({ t: 'line', x: cx + r0, y: cy });
         moves.push({ t: 'line', z: fromZ, f: feed });
-        const revs = Math.max(1, Math.ceil((fromZ - toZ) / HELIX_PITCH - 1e-9));
+        // At least 3 mm of depth per turn (a tiny helix would otherwise
+        // go round hundreds of times), at least SPIRAL_ANGLE steep where
+        // the circle is big enough to allow it.
+        const revs = Math.max(1, Math.min(Math.ceil((fromZ - toZ) / 3 - 1e-9), Math.floor((fromZ - toZ) / (2 * Math.PI * r0 * Math.tan(SPIRAL_ANGLE)) + 1e-9)));
         const steps = entry === 'plunge' ? 0 : revs * HELIX_SEGMENTS;
         if (entry === 'plunge') moves.push({ t: 'line', z: toZ });
         for (let m = 1; m <= steps; m++){
@@ -732,31 +698,37 @@ const GCodeToolpath = (() => {
     return mergeArcs(P[0], simplifyLineRuns(P[0], moves));
   }
 
-  // Ramped zigzag entry + full-depth pass of one closed polyline, as moves.
-  // See buildRampIndexSequence for why the ramp must end on a forward leg.
-  function rampedPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown){
+  // Zigzag entry + full lap of one closed polyline. The cutter goes back
+  // and forth along the first stretch of the contour, each leg exactly
+  // ZIGZAG_LENGTH_FACTOR tool diameters long in XY (fixed, so a 4 mm bit
+  // always zigzags over 5 mm) and descending at about ZIGZAG_ANGLE. An even
+  // number of legs, so the last one brings the tool back to the start at
+  // full depth; then one flat lap of the whole contour.
+  const ZIGZAG_LENGTH_FACTOR = 1.25;
+  const ZIGZAG_ANGLE = 45 * Math.PI / 180;
+  function zigzagPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown, diameter){
     const n = pts.length;
-    const rampCount = Math.min(RAMP_SEGMENT_COUNT, n - 1);
-    const rampIdxSeq = buildRampIndexSequence(rampCount);
-    const totalRampSteps = rampIdxSeq.length - 1;
-    const dz = (toZ - fromZ) / Math.max(1, totalRampSteps);
-
-    // First point of the ramp: plunge straight down to fromZ at the
-    // contour's own start (no XY move yet), matching the reference
-    // files' own "G1Z<depth>F<feed>" first line of a pass.
+    const cum = [0];
+    for (let i = 1; i <= n; i++) cum.push(cum[i - 1] + Math.hypot(pts[i % n].x - pts[i - 1].x, pts[i % n].y - pts[i - 1].y));
+    const perimeter = cum[n];
+    const L = Math.min(ZIGZAG_LENGTH_FACTOR * diameter, perimeter / 2);
+    // The ramp stretch R: start point, every vertex before L, the point at L.
+    const R = [{ x: pts[0].x, y: pts[0].y, c: 0 }];
+    for (let i = 1; i < n && cum[i] < L - 1e-9; i++) R.push({ x: pts[i].x, y: pts[i].y, c: cum[i] });
+    const j = R.length;
+    const a = pts[j - 1], b = pts[j % n], t = (L - cum[j - 1]) / ((cum[j] - cum[j - 1]) || 1);
+    R.push({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, c: L });
+    const depth = fromZ - toZ;
+    let legs = Math.max(2, Math.ceil(depth / (L * Math.tan(ZIGZAG_ANGLE)) - 1e-9));
+    if (legs % 2) legs++;
     if (!alreadyDown) moves.push({ t: 'line', z: fromZ, f: feed });
-
-    for (let k = 1; k < rampIdxSeq.length; k++){
-      const p = pts[rampIdxSeq[k]];
-      const z = k === rampIdxSeq.length - 1 ? toZ : fromZ + dz * k;
-      moves.push({ t: 'line', x: p.x, y: p.y, z });
+    for (let k = 0; k < legs; k++){
+      const z0 = fromZ - depth * k / legs, dz = -depth / legs;
+      if (k % 2 === 0) for (let m = 1; m < R.length; m++) moves.push({ t: 'line', x: R[m].x, y: R[m].y, z: z0 + dz * R[m].c / L });
+      else for (let m = R.length - 2; m >= 0; m--) moves.push({ t: 'line', x: R[m].x, y: R[m].y, z: z0 + dz * (L - R[m].c) / L });
+      if (k === legs - 1) moves[moves.length - 1].z = toZ;
     }
-
-    // Remainder of the full lap at the reached depth, continuing forward
-    // from wherever the ramp left off back around to the start point.
-    const rest = [];
-    for (let i = rampCount; i <= n; i++) rest.push(pts[i % n]);
-    moves.push(...fitArcMoves(rest, centers));
+    moves.push(...fitArcMoves(pts.concat([pts[0]]), centers));
   }
 
   // Entry strategies for one depth pass of a closed polyline:
@@ -764,9 +736,11 @@ const GCodeToolpath = (() => {
   //   'spiral' — descend a little each lap around the contour (G1 only:
   //              arcs can't change Z), then one flat lap with real arcs
   //   'plunge' — straight down at the start point (shallow cuts only)
-  const SPIRAL_PITCH = 3; // mm of depth per lap
+  // Steepness of the spiral descent. A contour too long to descend at
+  // least this steeply in one lap is entered by zigzag instead.
+  const SPIRAL_ANGLE = 10 * Math.PI / 180;
   const SPIRAL_SIMPLIFY_TOLERANCE = 0.02; // mm, descent path only
-  function entryPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown, entry){
+  function entryPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown, entry, diameter){
     if (entry === 'plunge' || toZ >= fromZ - 1e-9) {
       if (!alreadyDown) moves.push({ t: 'line', z: fromZ, f: feed });
       if (toZ < fromZ - 1e-9) moves.push(alreadyDown ? { t: 'line', z: toZ, f: feed } : { t: 'line', z: toZ });
@@ -785,8 +759,11 @@ const GCodeToolpath = (() => {
         total += seg[i - 1];
       }
       if (total > 1e-6) {
+        const steep = Math.floor((fromZ - toZ) / (total * Math.tan(SPIRAL_ANGLE)) + 1e-9);
+        // ...but not so many laps that a tiny contour spins hundreds of times (>= 3 mm per lap).
+        const laps = Math.min(steep, Math.ceil((fromZ - toZ) / 3 - 1e-9));
+        if (laps < 1) { zigzagPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown, diameter); return; }
         if (!alreadyDown) moves.push({ t: 'line', z: fromZ, f: feed });
-        const laps = Math.max(1, Math.ceil((fromZ - toZ) / SPIRAL_PITCH - 1e-9));
         const span = total * laps;
         let run = 0;
         for (let l = 0; l < laps; l++){
@@ -800,7 +777,7 @@ const GCodeToolpath = (() => {
         return;
       }
     }
-    rampedPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown);
+    zigzagPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown, diameter);
   }
 
   // Every depth pass for one toolpath (already tool-radius compensated,
@@ -827,7 +804,7 @@ const GCodeToolpath = (() => {
       let fromZ = startZ;
       for (let pass = 0; pass < passCount; pass++){
         const toZ = pass === passCount - 1 ? targetZ : startZ - (totalDepth * (pass + 1) / passCount);
-        entryPassMoves(pts, fromZ, toZ, feed, moves, path.centers, false, entry);
+        entryPassMoves(pts, fromZ, toZ, feed, moves, path.centers, false, entry, tool.diameter);
         fromZ = toZ;
       }
     }
@@ -882,11 +859,11 @@ const GCodeToolpath = (() => {
           // or the cleared pocket from the previous pass).
           const z = k === 0 ? fromZ : toZ;
           moves.push({ t: 'line', x: s.x, y: s.y, z });
-          if (k === 0) entryPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers, true, entry);
+          if (k === 0) entryPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers, true, entry, tool.diameter);
           else moves.push(...fitArcMoves(path.pts.concat([path.pts[0]]), path.centers));
         } else {
           if (at) { moves.push({ t: 'rapid', z: safeZ }); moves.push({ t: 'rapid', x: s.x, y: s.y }); }
-          entryPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers, false, entry);
+          entryPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers, false, entry, tool.diameter);
         }
         at = s;
       });
