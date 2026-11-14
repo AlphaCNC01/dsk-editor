@@ -587,6 +587,40 @@ const GCodeToolpath = (() => {
   // segments (Clipper output on curves too noisy to fit an arc); thin
   // them out so programs stay light. Arcs and run end points are kept.
   const LINE_SIMPLIFY_TOLERANCE = 0.005; // mm
+  // Neighbouring arcs on one circle and turning the same way (the fitter
+  // cuts at 90°, and offsets split long arcs at vertices) become one arc,
+  // up to 340° — a single G2/G3 can span far more than a quarter turn.
+  function mergeArcs(start, moves){
+    const out = [];
+    let pos = start;      // end of the last move pushed
+    let last = null, lastStart = null; // last pushed arc and where it began
+    for (const m of moves){
+      const from = pos;
+      if (m.t === 'arc' && last && last === out[out.length - 1] && m.cw === last.cw) {
+        const c1 = { x: lastStart.x + last.i, y: lastStart.y + last.j };
+        const c2 = { x: from.x + m.i, y: from.y + m.j };
+        if (Math.hypot(c1.x - c2.x, c1.y - c2.y) < 0.005) {
+          const a0 = Math.atan2(lastStart.y - c1.y, lastStart.x - c1.x);
+          const a1 = Math.atan2(m.y - c1.y, m.x - c1.x);
+          let sweep = last.cw ? a0 - a1 : a1 - a0;
+          sweep = ((sweep % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+          // Same-direction accumulation only: A then B must not wrap past a full turn.
+          const sA = Math.atan2(from.y - c1.y, from.x - c1.x);
+          let swA = last.cw ? a0 - sA : sA - a0; swA = ((swA % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+          if (sweep < 340 * Math.PI / 180 && sweep >= swA - 1e-9) {
+            last.x = m.x; last.y = m.y;
+            pos = { x: m.x, y: m.y };
+            continue;
+          }
+        }
+      }
+      out.push(m);
+      if (m.t === 'arc') { last = m; lastStart = from; } else last = null;
+      pos = { x: m.x, y: m.y };
+    }
+    return out;
+  }
+
   function simplifyLineRuns(start, moves){
     const out = [];
     let pos = start, run = null;
@@ -686,7 +720,7 @@ const GCodeToolpath = (() => {
       }
       cur = P[bestJ]; i = bestJ;
     }
-    return simplifyLineRuns(P[0], moves);
+    return mergeArcs(P[0], simplifyLineRuns(P[0], moves));
   }
 
   // Ramped zigzag entry + full-depth pass of one closed polyline, as moves.
