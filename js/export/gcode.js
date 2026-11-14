@@ -56,7 +56,7 @@
 // ============================================================================
 const ExportGCode = (() => {
   const { TOOLS, pickTool, resolveDepth, feedFor, safeZ: profileSafeZ } = GCodeProfile;
-  const { clipperOffset, ringArea, toMachinePolyline, toMachineShape, buildToolpaths, buildShapePaths, toolpathMoves } = GCodeToolpath;
+  const { clipperOffset, ringArea, toMachinePolyline, toMachineShape, buildToolpaths, buildShapePaths, toolpathMoves, ringGroupMoves } = GCodeToolpath;
 
   // --------------------------------------------------------------------
   // Top-level: entries -> grouped files
@@ -148,7 +148,17 @@ const ExportGCode = (() => {
     const programs = [];
     for (const { side, tool, items } of groups.values()){
       const ordered = orderItems(items);
-      const moves = ordered.flatMap(item => toolpathMoves(item.path, thickness, item.targetZ, tool, safeZ, item.feed));
+      // Rings of one pocket (same entry, all carrying a generation) are cut
+      // as one group, linked at depth without lifting where that is safe.
+      const moves = [];
+      for (let i = 0; i < ordered.length; ){
+        let j = i + 1;
+        const it = ordered[i];
+        if (it.path.gen !== undefined) while (j < ordered.length && ordered[j].entryIdx === it.entryIdx && ordered[j].path.gen !== undefined) j++;
+        if (j - i > 1) moves.push(...ringGroupMoves(ordered.slice(i, j).map(x => x.path), thickness, it.targetZ, tool, safeZ, it.feed));
+        else moves.push(...toolpathMoves(it.path, thickness, it.targetZ, tool, safeZ, it.feed));
+        i = j;
+      }
       programs.push({ filename: buildFilename(orderNumber, side, tool), side, tool, safeZ, moves });
     }
     // Stable order: side (тыл before лиц matches production order — face

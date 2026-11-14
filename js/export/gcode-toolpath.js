@@ -391,6 +391,7 @@ const GCodeToolpath = (() => {
         rings = [];
         let cur = off(base, toolRadius), curArea = areaOf(cur);
         for (let g = 0; g < 500 && cur.length && curArea > 1e-3; g++){
+          cur.forEach(r => { r.gen = g; });
           rings.push(...cur);
           const next = cur.flatMap(r => off(r, stepover));
           const nextArea = areaOf(next);
@@ -401,7 +402,7 @@ const GCodeToolpath = (() => {
       // Nothing left (e.g. a slot exactly as wide as the tool): let Clipper
       // decide what to do with the degenerate case, as before.
       if (!rings.length) return null;
-      return rings.map(cavalierToPath);
+      return rings.map(r => Object.assign(cavalierToPath(r), { gen: r.gen }));
     } catch (e) {
       if (typeof console !== 'undefined') console.warn('cavalier offset failed, using Clipper', e);
       return null;
@@ -427,7 +428,7 @@ const GCodeToolpath = (() => {
       // (buildToolpaths generates the rings wall-first).
       if (millType === 'pocket') rings.reverse();
       return rings
-        .map((pts, k) => ({ pts: ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()], centers: exact ? exact[millType === 'pocket' ? exact.length - 1 - k : k].centers : centers }));
+        .map((pts, k) => ({ pts: ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()], centers: exact ? exact[millType === 'pocket' ? exact.length - 1 - k : k].centers : centers, gen: exact && millType === 'pocket' ? exact[exact.length - 1 - k].gen : undefined }));
     }
     const { cx, cy, r } = shape.circle;
     const MIN_R = 1e-3;
@@ -725,7 +726,7 @@ const GCodeToolpath = (() => {
 
   // Ramped zigzag entry + full-depth pass of one closed polyline, as moves.
   // See buildRampIndexSequence for why the ramp must end on a forward leg.
-  function rampedPassMoves(pts, fromZ, toZ, feed, moves, centers){
+  function rampedPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown){
     const n = pts.length;
     const rampCount = Math.min(RAMP_SEGMENT_COUNT, n - 1);
     const rampIdxSeq = buildRampIndexSequence(rampCount);
@@ -735,7 +736,7 @@ const GCodeToolpath = (() => {
     // First point of the ramp: plunge straight down to fromZ at the
     // contour's own start (no XY move yet), matching the reference
     // files' own "G1Z<depth>F<feed>" first line of a pass.
-    moves.push({ t: 'line', z: fromZ, f: feed });
+    if (!alreadyDown) moves.push({ t: 'line', z: fromZ, f: feed });
 
     for (let k = 1; k < rampIdxSeq.length; k++){
       const p = pts[rampIdxSeq[k]];
@@ -782,8 +783,69 @@ const GCodeToolpath = (() => {
     return moves;
   }
 
+  // ---- Concentric rings of one pocket, linked without lifting ----------
+  // A link (straight G1 at depth) from one ring to the next is allowed when
+  // it stays inside the wall ring (gen 0 = the tool-centre region of the
+  // pocket): then it can never touch the wall, even if offsetting split the
+  // pocket into several pieces (a link between pieces crosses the wall ring).
+  function segCross(a, b, c, d){
+    const o = (p, q, r) => (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
+    const e = 1e-6;
+    const d1 = o(a, b, c), d2 = o(a, b, d), d3 = o(c, d, a), d4 = o(c, d, b);
+    return ((d1 > e && d2 < -e) || (d1 < -e && d2 > e)) && ((d3 > e && d4 < -e) || (d3 < -e && d4 > e));
+  }
+  function linkInsideWall(a, b, walls){
+    let inside = false;
+    const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    for (const w of walls){
+      const n = w.length;
+      for (let i = 0; i < n; i++){
+        const c = w[i], d = w[(i + 1) % n];
+        if (segCross(a, b, c, d)) return false;
+        if ((c.y > m.y) !== (d.y > m.y) && m.x < (d.x - c.x) * (m.y - c.y) / (d.y - c.y) + c.x) inside = !inside;
+      }
+    }
+    return inside;
+  }
+
+  // Moves for all rings of one pocket (paths ordered inside-out, each with
+  // .gen). Each depth pass: ramped entry on the first ring, then the other
+  // rings one after another, linked at depth where the link is safe,
+  // otherwise lifted and re-entered as usual.
+  function ringGroupMoves(paths, thickness, targetZ, tool, safeZ, feed){
+    const walls = paths.filter(p => p.gen === 0).map(p => p.pts);
+    const moves = [];
+    const totalDepth = thickness - targetZ;
+    const startOf = p => p.pts[0];
+    moves.push({ t: 'rapid', x: startOf(paths[0]).x, y: startOf(paths[0]).y });
+    if (totalDepth <= 1e-6) { moves.push({ t: 'rapid', z: safeZ }); return moves; }
+    const passCount = Math.max(1, Math.ceil(totalDepth / tool.depthPerPass));
+    let fromZ = thickness, at = null; // at = where the tool is (null: lifted)
+    for (let pass = 0; pass < passCount; pass++){
+      const toZ = pass === passCount - 1 ? targetZ : thickness - (totalDepth * (pass + 1) / passCount);
+      paths.forEach((path, k) => {
+        const s = startOf(path);
+        if (at && linkInsideWall(at, s, walls)) {
+          // Same depth as the tool already is at (previous ring this pass,
+          // or the cleared pocket from the previous pass).
+          const z = k === 0 ? fromZ : toZ;
+          moves.push({ t: 'line', x: s.x, y: s.y, z });
+          if (k === 0) rampedPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers, true);
+          else moves.push(...fitArcMoves(path.pts.concat([path.pts[0]]), path.centers));
+        } else {
+          if (at) { moves.push({ t: 'rapid', z: safeZ }); moves.push({ t: 'rapid', x: s.x, y: s.y }); }
+          rampedPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers);
+        }
+        at = s;
+      });
+      fromZ = toZ;
+    }
+    moves.push({ t: 'rapid', z: safeZ });
+    return moves;
+  }
+
   return {
     ORIENTATIONS, ARC_SEGMENTS_PER_CIRCLE, clipperOffset, ringArea,
-    toMachinePolyline, toMachineShape, fromMachinePoint, machineExtent, buildToolpaths, buildShapePaths, toolpathMoves,
+    toMachinePolyline, toMachineShape, fromMachinePoint, machineExtent, buildToolpaths, buildShapePaths, toolpathMoves, ringGroupMoves,
   };
 })();
