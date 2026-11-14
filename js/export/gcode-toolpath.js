@@ -456,7 +456,7 @@ const GCodeToolpath = (() => {
   // along +X without lifting — the same way the shop's reference programs
   // clear round pockets. Every ring starts and ends at angle 0 (its +X
   // point).
-  function circleMoves(path, thickness, targetZ, tool, safeZ, feed){
+  function circleMoves(path, thickness, targetZ, tool, safeZ, feed, entry){
     const { cx, cy } = path.circle;
     const dir = path.ccw ? 1 : -1;
     const at = (rr, a) => ({ x: cx + rr * Math.cos(a), y: cy + rr * Math.sin(a) });
@@ -473,7 +473,8 @@ const GCodeToolpath = (() => {
         if (pass > 0) moves.push({ t: 'line', x: cx + r0, y: cy });
         moves.push({ t: 'line', z: fromZ, f: feed });
         const revs = Math.max(1, Math.ceil((fromZ - toZ) / HELIX_PITCH - 1e-9));
-        const steps = revs * HELIX_SEGMENTS;
+        const steps = entry === 'plunge' ? 0 : revs * HELIX_SEGMENTS;
+        if (entry === 'plunge') moves.push({ t: 'line', z: toZ });
         for (let m = 1; m <= steps; m++){
           const p = at(r0, dir * 2 * Math.PI * m / HELIX_SEGMENTS);
           moves.push({ t: 'line', x: p.x, y: p.y, z: m === steps ? toZ : fromZ + (toZ - fromZ) * m / steps });
@@ -751,6 +752,50 @@ const GCodeToolpath = (() => {
     moves.push(...fitArcMoves(rest, centers));
   }
 
+  // Entry strategies for one depth pass of a closed polyline:
+  //   'zigzag' — ramp down while bouncing along the start of the contour
+  //   'spiral' — descend a little each lap around the contour (G1 only:
+  //              arcs can't change Z), then one flat lap with real arcs
+  //   'plunge' — straight down at the start point (shallow cuts only)
+  const SPIRAL_PITCH = 3; // mm of depth per lap
+  const SPIRAL_SIMPLIFY_TOLERANCE = 0.02; // mm, descent path only
+  function entryPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown, entry){
+    if (entry === 'plunge' || toZ >= fromZ - 1e-9) {
+      if (!alreadyDown) moves.push({ t: 'line', z: fromZ, f: feed });
+      if (toZ < fromZ - 1e-9) moves.push(alreadyDown ? { t: 'line', z: toZ, f: feed } : { t: 'line', z: toZ });
+      moves.push(...fitArcMoves(pts.concat([pts[0]]), centers));
+      return;
+    }
+    if (entry === 'spiral') {
+      // Closed lap with straight runs thinned out (keeps the file light);
+      // the spiral only has to be a descending path, the floor lap below
+      // is the one that must be exact.
+      const lap = simplifyPolyline(pts.concat([pts[0]]), SPIRAL_SIMPLIFY_TOLERANCE);
+      const seg = [];
+      let total = 0;
+      for (let i = 1; i < lap.length; i++){
+        seg.push(Math.hypot(lap[i].x - lap[i - 1].x, lap[i].y - lap[i - 1].y));
+        total += seg[i - 1];
+      }
+      if (total > 1e-6) {
+        if (!alreadyDown) moves.push({ t: 'line', z: fromZ, f: feed });
+        const laps = Math.max(1, Math.ceil((fromZ - toZ) / SPIRAL_PITCH - 1e-9));
+        const span = total * laps;
+        let run = 0;
+        for (let l = 0; l < laps; l++){
+          for (let i = 1; i < lap.length; i++){
+            run += seg[i - 1];
+            const z = (l === laps - 1 && i === lap.length - 1) ? toZ : fromZ + (toZ - fromZ) * run / span;
+            moves.push({ t: 'line', x: lap[i].x, y: lap[i].y, z });
+          }
+        }
+        moves.push(...fitArcMoves(pts.concat([pts[0]]), centers)); // flat floor lap
+        return;
+      }
+    }
+    rampedPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown);
+  }
+
   // Every depth pass for one toolpath (already tool-radius compensated,
   // machine-space): rapid to its start point, then step from the
   // material's up-face (Z = thickness) down to `targetZ` in
@@ -758,8 +803,8 @@ const GCodeToolpath = (() => {
   // pass, then retract to `safeZ`. Every contour starts fresh from the
   // up-face (no cross-layer Z-continuity) — the simple, always-correct
   // choice.
-  function toolpathMoves(path, thickness, targetZ, tool, safeZ, feed){
-    if (path.circle) return circleMoves(path, thickness, targetZ, tool, safeZ, feed);
+  function toolpathMoves(path, thickness, targetZ, tool, safeZ, feed, entry){
+    if (path.circle) return circleMoves(path, thickness, targetZ, tool, safeZ, feed, entry);
     const pts = path.pts;
     // Minimum 2 vertices: a circle is two bulge:1 vertices before
     // tessellation (see js/elements/hole.js); the guard is the absolute
@@ -775,7 +820,7 @@ const GCodeToolpath = (() => {
       let fromZ = startZ;
       for (let pass = 0; pass < passCount; pass++){
         const toZ = pass === passCount - 1 ? targetZ : startZ - (totalDepth * (pass + 1) / passCount);
-        rampedPassMoves(pts, fromZ, toZ, feed, moves, path.centers);
+        entryPassMoves(pts, fromZ, toZ, feed, moves, path.centers, false, entry);
         fromZ = toZ;
       }
     }
@@ -812,7 +857,7 @@ const GCodeToolpath = (() => {
   // .gen). Each depth pass: ramped entry on the first ring, then the other
   // rings one after another, linked at depth where the link is safe,
   // otherwise lifted and re-entered as usual.
-  function ringGroupMoves(paths, thickness, targetZ, tool, safeZ, feed){
+  function ringGroupMoves(paths, thickness, targetZ, tool, safeZ, feed, entry){
     const walls = paths.filter(p => p.gen === 0).map(p => p.pts);
     const moves = [];
     const totalDepth = thickness - targetZ;
@@ -830,11 +875,11 @@ const GCodeToolpath = (() => {
           // or the cleared pocket from the previous pass).
           const z = k === 0 ? fromZ : toZ;
           moves.push({ t: 'line', x: s.x, y: s.y, z });
-          if (k === 0) rampedPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers, true);
+          if (k === 0) entryPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers, true, entry);
           else moves.push(...fitArcMoves(path.pts.concat([path.pts[0]]), path.centers));
         } else {
           if (at) { moves.push({ t: 'rapid', z: safeZ }); moves.push({ t: 'rapid', x: s.x, y: s.y }); }
-          rampedPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers);
+          entryPassMoves(path.pts, fromZ, toZ, feed, moves, path.centers, false, entry);
         }
         at = s;
       });

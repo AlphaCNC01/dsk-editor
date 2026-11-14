@@ -63,18 +63,35 @@ const Layers = (() => {
   //                'contour' by default. These cutter-compensation
   //                settings aren't dialed in yet (values above are
   //                placeholders) — to be configured later.
+  //   entry      — how the cutter goes down into the material (G-code
+  //                export only), per layer:
+  //                  'plunge' — straight down. Only for shallow work
+  //                             (engraving), where a gentler entry buys
+  //                             nothing. Any bit.
+  //                  'zigzag' — ramps down while bouncing back and forth
+  //                             along the first stretch of the contour.
+  //                             For narrow slots/grooves (cable channels)
+  //                             where a spiral does not fit, and for
+  //                             through cuts along the outline. Any bit.
+  //                  'spiral' — goes down a little on every lap around the
+  //                             contour (circles: a helix). For holes,
+  //                             counterbores and pockets; needs a bit that
+  //                             can cut with its side while going down
+  //                             (end mill, not a drill), and a pocket wide
+  //                             enough for the bit to turn.
+  //                'zigzag' when omitted.
   // DIMENSIONS has no `machining` — it's pure on-screen/on-paper
   // reference, never actually cut.
   const registry = {
   // tabletop silhouette
   OUTLINE: { name: 'OUTLINE', color: 7,
     style: { stroke: '#ff8a3d', fillOpacity: 0, strokeWidth: 2 },
-    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'outside' } },
+    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'outside', entry: 'zigzag' } },
 
   // tabletop cutouts
   CUTOUT: { name: 'CUTOUT', color: 7,
     style: { stroke: '#ff8a3d', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside' } },
+    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside', entry: 'zigzag' } },
 
   // physical parts that is not part of a tabletop, for reference
   PHYSICAL: { name: 'PHYSICAL', color: 8,
@@ -96,53 +113,53 @@ const Layers = (() => {
   // before) pending real tool/production numbers.
   HOLE_A: { name: 'HOLE_A', color: 6,
     style: { stroke: '#b06fe0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 14, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 14, depthAnchor: 'bottom', millType: 'pocket', entry: 'spiral' } },
 
   HOLE_A_CS: { name: 'HOLE_A_CS', color: 6,
     style: { stroke: '#b06fe0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 1.5, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 1.5, depthAnchor: 'bottom', millType: 'pocket', entry: 'spiral' } },
 
   HOLE_B: { name: 'HOLE_B', color: 6,
     style: { stroke: '#8a4fc0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 10, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 10, depthAnchor: 'bottom', millType: 'pocket', entry: 'spiral' } },
 
   HOLE_B_CS: { name: 'HOLE_B_CS', color: 6,
     style: { stroke: '#8a4fc0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 0.7, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 0.7, depthAnchor: 'bottom', millType: 'pocket', entry: 'spiral' } },
 
   ENGRAVING: { name: 'ENGRAVING', color: 3,
     style: { stroke: '#4cc97c', fillOpacity: 0 },
-    machining: { side: 'top', depth: 0.5, depthAnchor: 'top', millType: 'pocket' } },
+    machining: { side: 'top', depth: 0.5, depthAnchor: 'top', millType: 'pocket', entry: 'plunge' } },
 
   PHONESTAND: { name: 'PHONESTAND', color: 3,
     style: { stroke: '#4cc97c', fillOpacity: 0 },
-    machining: { side: 'top', depth: 11, depthAnchor: 'top', millType: 'pocket' } },
+    machining: { side: 'top', depth: 11, depthAnchor: 'top', millType: 'pocket', entry: 'spiral' } },
 
   WIRELESS_POCKET: { name: 'WIRELESS_POCKET',  color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, dashed: true },
-    machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 3, depthAnchor: 'top', millType: 'pocket', entry: 'spiral' } },
 
   USB_CHARGER_POCKET: { name: 'USB_CHARGER_POCKET', color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, dashed: true },
-    machining: { side: 'bottom', depth: 6, depthAnchor: 'center', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 6, depthAnchor: 'center', millType: 'pocket', entry: 'spiral' } },
 
   EMBEDED_USB_POCKET:  { name: 'EMBEDED_USB_POCKET',  color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, dashed: true },
-    machining: { side: 'bottom', depth: 12, depthAnchor: 'center', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 12, depthAnchor: 'center', millType: 'pocket', entry: 'spiral' } },
 
    // 4x4mm cable channel groove
   CABLE_CHANNEL_4:  { name: 'CABLE_CHANNEL_4',  color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, strokeWidth: 1, dashed: true },
-    machining: { side: 'bottom', depth: 4, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 4, depthAnchor: 'bottom', millType: 'pocket', entry: 'zigzag' } },
 
   // 5.5x5.5mm cable channel groove
   CABLE_CHANNEL_5_5:  { name: 'CABLE_CHANNEL_5_5',  color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, strokeWidth: 1.5, dashed: true },
-    machining: { side: 'bottom', depth: 5.5, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 5.5, depthAnchor: 'bottom', millType: 'pocket', entry: 'zigzag' } },
 
   CABLE_POCKET: { name: 'CABLE_POCKET', color: 4,
     style: { stroke: '#e0a84a', fillOpacity: 0, strokeWidth: 1.5, dashed: true },
-    machining: { side: 'bottom', depth: 15, depthAnchor: 'bottom', millType: 'pocket' } },
+    machining: { side: 'bottom', depth: 15, depthAnchor: 'bottom', millType: 'pocket', entry: 'spiral' } },
 
   // dimension lines — pure reference, never milled, so no `machining` at all
   DIMENSIONS: { name: 'DIMENSIONS', color: 1,

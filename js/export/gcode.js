@@ -141,7 +141,7 @@ const ExportGCode = (() => {
       if (toolpaths.length === 0 && millType !== 'contour') {
         warnings.push(`Слой ${layerId}: фреза ф${tool.diameter} не помещается в контур, обработка пропущена`);
       }
-      for (const path of toolpaths) group.items.push({ path, targetZ, feed, entryIdx });
+      for (const path of toolpaths) group.items.push({ path, targetZ, feed, entryIdx, entry: machining.entry });
     }
 
     const safeZ = profileSafeZ(thickness);
@@ -155,8 +155,8 @@ const ExportGCode = (() => {
         let j = i + 1;
         const it = ordered[i];
         if (it.path.gen !== undefined) while (j < ordered.length && ordered[j].entryIdx === it.entryIdx && ordered[j].path.gen !== undefined) j++;
-        if (j - i > 1) moves.push(...ringGroupMoves(ordered.slice(i, j).map(x => x.path), thickness, it.targetZ, tool, safeZ, it.feed));
-        else moves.push(...toolpathMoves(it.path, thickness, it.targetZ, tool, safeZ, it.feed));
+        if (j - i > 1) moves.push(...ringGroupMoves(ordered.slice(i, j).map(x => x.path), thickness, it.targetZ, tool, safeZ, it.feed, it.entry));
+        else moves.push(...toolpathMoves(it.path, thickness, it.targetZ, tool, safeZ, it.feed, it.entry));
         i = j;
       }
       programs.push({ filename: buildFilename(orderNumber, side, tool), side, tool, safeZ, moves });
