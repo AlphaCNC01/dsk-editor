@@ -380,16 +380,24 @@ const GCodeToolpath = (() => {
       const { Polyline, PlineVertex, parallelOffset } = CavalierContours;
       const base = Polyline.fromVertexes(shape.verts.map(v => new PlineVertex(v.x, v.y, v.bulge)), true);
       const off = (pl, d) => parallelOffset(pl, d, {}).filter(r => r.vertexCount >= 2);
+      // A slot exactly as wide as the tool offsets to nothing; stepping in
+      // by a hair less leaves a hair-thin ring, i.e. the cutter goes along
+      // the slot centre line and back (slot ends up ~0.02 mm wider).
+      const SLOT_SLACK = 0.01;
+      const inward = pl => {
+        const r = off(pl, toolRadius);
+        return r.reduce((t, q) => t + Math.abs(q.area()), 0) > 1e-3 ? r : off(pl, toolRadius - SLOT_SLACK);
+      };
       let rings;
       if (millType === 'outside') rings = off(base, -toolRadius);
-      else if (millType === 'inside') rings = off(base, toolRadius);
+      else if (millType === 'inside') rings = inward(base);
       else if (millType === 'pocket') {
         // Stop when the rings stop shrinking (fully cleared) — same
         // rule as the Clipper version — so degenerate slivers left by
         // collapsing arcs never make endless rings.
         const areaOf = rs => rs.reduce((t, r) => t + Math.abs(r.area()), 0);
         rings = [];
-        let cur = off(base, toolRadius), curArea = areaOf(cur);
+        let cur = inward(base), curArea = areaOf(cur);
         for (let g = 0; g < 500 && cur.length && curArea > 1e-3; g++){
           cur.forEach(r => { r.gen = g; });
           rings.push(...cur);
@@ -399,9 +407,8 @@ const GCodeToolpath = (() => {
           cur = next; curArea = nextArea;
         }
       } else return null;
-      // Nothing left (e.g. a slot exactly as wide as the tool): let Clipper
-      // decide what to do with the degenerate case, as before.
-      if (!rings.length) return null;
+      // (A slot narrower than the tool: nothing to cut — the caller warns.)
+      if (!rings.length) return [];
       return rings.map(r => Object.assign(cavalierToPath(r), { gen: r.gen }));
     } catch (e) {
       if (typeof console !== 'undefined') console.warn('cavalier offset failed, using Clipper', e);
