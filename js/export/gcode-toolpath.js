@@ -207,42 +207,6 @@ const GCodeToolpath = (() => {
   }
 
   // --------------------------------------------------------------------
-  // Ramped zigzag entry + full-depth pass
-  // --------------------------------------------------------------------
-  // How far along the contour (as a fraction of its own total length) one
-  // full forward-then-back zigzag lap of the ramp covers, per depth step
-  // available to reach target — i.e. how gradual the plunge is. Smaller
-  // = steeper ramp over less distance; the shop's own reference files
-  // ramp over roughly the first 10-15% of a small contour's own perimeter
-  // per lap, so a small closed shape gets several back-and-forth laps
-  // while descending.
-  const RAMP_SEGMENT_COUNT = 8; // how many polyline points the ramp zigzags across
-
-  // Emits one full depth-pass of a closed toolpath: a ramped zigzag entry
-  // from `fromZ` down to `toZ` across the first RAMP_SEGMENT_COUNT points
-  // of `pts` (bouncing forward/back along that same short stretch,
-  // descending a little more each traversal — the "zigzag" plunge),
-  // followed by one full lap of the remaining contour at the reached
-  // depth, ending back at the pass's own start point (closing the loop).
-  // Returns the array of G-code lines for this one pass; `state` is the
-  // shared "last emitted axis value" tracker (see moveLine) so consecutive
-  // passes/contours keep omitting unchanged axes correctly across the
-  // whole file, and `feed` is the tool's own cutting feedrate.
-  // Builds the "zigzag then land forward" ramp index sequence used by
-  // rampedPassMoves (see its own comment for why it must always end on a
-  // forward leg, at rampCount, rather than back at 0).
-  function buildRampIndexSequence(rampCount){
-    const oneWay = [];
-    for (let i = 0; i <= rampCount; i++) oneWay.push(i);
-    const backWay = [...oneWay].reverse().slice(1);
-    const roundTrips = 2; // matching "врезание зигзагом" — a genuine back-and-forth entry
-    const seq = [];
-    for (let t = 0; t < roundTrips; t++) seq.push(...oneWay, ...backWay);
-    seq.push(...oneWay);
-    return seq;
-  }
-
-  // --------------------------------------------------------------------
   // Full circles (holes, round pockets) — handled analytically
   // --------------------------------------------------------------------
   // A circle is authored as two bulge:1 vertices (see js/elements/hole.js).
@@ -723,31 +687,14 @@ const GCodeToolpath = (() => {
     return mergeArcs(P[0], simplifyLineRuns(P[0], moves));
   }
 
-  // Ramped zigzag entry + full-depth pass of one closed polyline, as moves.
-  // See buildRampIndexSequence for why the ramp must end on a forward leg.
-  function rampedPassMoves(pts, fromZ, toZ, feed, moves, centers){
-    const n = pts.length;
-    const rampCount = Math.min(RAMP_SEGMENT_COUNT, n - 1);
-    const rampIdxSeq = buildRampIndexSequence(rampCount);
-    const totalRampSteps = rampIdxSeq.length - 1;
-    const dz = (toZ - fromZ) / Math.max(1, totalRampSteps);
-
-    // First point of the ramp: plunge straight down to fromZ at the
-    // contour's own start (no XY move yet), matching the reference
-    // files' own "G1Z<depth>F<feed>" first line of a pass.
+  // One depth pass of a closed polyline: plain vertical plunge at the
+  // start point (at the operation feed), then one full lap at that depth
+  // back to the start. A proper ramped entry is to be added later.
+  function plungedPassMoves(pts, fromZ, toZ, feed, moves, centers){
     moves.push({ t: 'line', z: fromZ, f: feed });
-
-    for (let k = 1; k < rampIdxSeq.length; k++){
-      const p = pts[rampIdxSeq[k]];
-      const z = k === rampIdxSeq.length - 1 ? toZ : fromZ + dz * k;
-      moves.push({ t: 'line', x: p.x, y: p.y, z });
-    }
-
-    // Remainder of the full lap at the reached depth, continuing forward
-    // from wherever the ramp left off back around to the start point.
-    const rest = [];
-    for (let i = rampCount; i <= n; i++) rest.push(pts[i % n]);
-    moves.push(...fitArcMoves(rest, centers));
+    if (toZ < fromZ - 1e-9) moves.push({ t: 'line', z: toZ });
+    const lap = pts.concat([pts[0]]);
+    moves.push(...fitArcMoves(lap, centers));
   }
 
   // Every depth pass for one toolpath (already tool-radius compensated,
@@ -774,7 +721,7 @@ const GCodeToolpath = (() => {
       let fromZ = startZ;
       for (let pass = 0; pass < passCount; pass++){
         const toZ = pass === passCount - 1 ? targetZ : startZ - (totalDepth * (pass + 1) / passCount);
-        rampedPassMoves(pts, fromZ, toZ, feed, moves, path.centers);
+        plungedPassMoves(pts, fromZ, toZ, feed, moves, path.centers);
         fromZ = toZ;
       }
     }

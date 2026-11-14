@@ -46,13 +46,7 @@
 // TOOLPATH STRATEGY:
 // Every milled layer becomes one or more closed toolpaths, radius-
 // compensated per its `millType` (contour/outside/inside/pocket — see
-// layers.js), cut in successive depth passes (never plunging straight to
-// full depth in one go). Each pass enters the material by ramping Z down
-// while zigzagging back and forth along the contour's own first stretch,
-// then finishes the remainder of that pass's lap at the reached depth —
-// the same entry strategy visible in this shop's own reference .tap files
-// (a straight plunge would shock a large-diameter cutter; ramping spreads
-// the entry over distance instead of a single point). See rampedPassMoves in gcode-toolpath.js.
+// layers.js), cut in successive depth passes (each pass: vertical plunge, then one lap; a ramped entry is planned)
 // ============================================================================
 const ExportGCode = (() => {
   const { TOOLS, pickTool, resolveDepth, feedFor, safeZ: profileSafeZ } = GCodeProfile;
