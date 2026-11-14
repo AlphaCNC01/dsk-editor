@@ -21,7 +21,9 @@
     dimensionsOn: el('dimensionsOn'),
     schematicOn: el('schematicOn'),
     woodTint: el('woodTint'),
+    gcodePreviewOn: el('gcodePreviewOn'),
   };
+  const gcodeInfo = el('gcodeInfo');
   const notchFieldsWrap = el('notchFields');
   const underframeFieldsWrap = el('underframeFields');
   const woodTintFieldWrap = el('woodTintField');
@@ -158,7 +160,35 @@
     const vbX = minX, vbW = maxX - minX;
     const svgMinY = p.H - maxY, vbH = maxY - minY;
     svg.setAttribute('viewBox', `${vbX} ${svgMinY} ${vbW} ${vbH}`);
-    svg.innerHTML = svgMarkup;
+    svg.innerHTML = svgMarkup + gcodeOverlay(entries, p);
+  }
+
+  // Optional G-code preview: toolpath overlay on the drawing plus a small
+  // report (machining time per program, warnings) in #gcodeInfo. Off by
+  // default; any failure here must never break the normal preview.
+  function gcodeOverlay(entries, p){
+    gcodeInfo.hidden = !inputs.gcodePreviewOn.checked;
+    if (!inputs.gcodePreviewOn.checked) return '';
+    gcodeInfo.textContent = '';
+    try {
+      const { programs, warnings } = ExportGCode.buildPrograms(entries, p, (inputs.orderNumber.value || '').trim());
+      const report = GCodePreview.analyze(programs, p, warnings);
+      const fmtMin = m => m < 1 ? '< 1 мин' : `≈ ${Math.round(m)} мин`;
+      const addLine = (text, cls) => {
+        const div = document.createElement('div');
+        if (cls) div.className = cls;
+        div.textContent = text;
+        gcodeInfo.appendChild(div);
+      };
+      if (!report.programs.length) addLine('Нет обрабатываемых контуров.');
+      for (const r of report.programs) addLine(`${r.filename}: ${fmtMin(r.minutes)}`);
+      if (report.programs.length > 1) addLine(`Итого: ${fmtMin(report.totalMinutes)} (оценка)`);
+      for (const w of report.warnings) addLine('⚠ ' + w, 'gcode-warning');
+      return GCodePreview.overlaySvg(programs, p);
+    } catch (err) {
+      gcodeInfo.textContent = 'Не удалось построить траектории: ' + err.message;
+      return '';
+    }
   }
 
   // debouncedRender — same render(), just delayed by DEBOUNCE_MS after the

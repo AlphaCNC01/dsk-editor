@@ -9,6 +9,7 @@
 <meta name="theme-color" content="#0f1722">
 <script defer src="vendor/decimal.min.js"></script>
 <script defer src="vendor/clipper.min.js"></script>
+<script defer src="vendor/cavalier-contours.min.js"></script>
 <link rel="stylesheet" href="css/styles.css">
 <link rel="stylesheet" href="css/mobile.css">
 </head>
@@ -57,6 +58,14 @@
           <span class="track"></span>
         </label>
       </div>
+      <div class="toggle-row" style="margin-bottom:12px;">
+        <span>Показать траектории G-code</span>
+        <label class="switch">
+          <input type="checkbox" id="gcodePreviewOn">
+          <span class="track"></span>
+        </label>
+      </div>
+      <div id="gcodeInfo" hidden></div>
       <div class="field" id="woodTintField" style="margin-bottom:12px;">
         <label>Цвет отделки (только превью)</label>
         <select id="woodTint"></select>
@@ -212,7 +221,11 @@
 <script defer src="js/export/dxf.js"></script>
 <script defer src="js/export/svg.js"></script>
 <script defer src="js/export/png.js"></script>
+<script defer src="js/export/gcode-profile.js"></script>
+<script defer src="js/export/gcode-toolpath.js"></script>
+<script defer src="js/export/gcode-post.js"></script>
 <script defer src="js/export/gcode.js"></script>
+<script defer src="js/export/gcode-preview.js"></script>
 <!-- UI -->
 <script defer src="js/ui/instance-list.js"></script>
 <script defer src="js/ui/field-helpers.js"></script>
