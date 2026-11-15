@@ -88,52 +88,84 @@ Elements.register((() => {
     return [];
   }
 
-  // Every configured top notch (T-slot or rectangular), concatenated into
-  // one flat corner list for the top edge. The top edge is walked right
-  // to left (TR -> TL, see buildContours), so notches are sorted by
-  // descending center X first — each notch's own corners already run
-  // right-arm-to-left-arm (see oneNotchCorners), so simply placing
-  // right-to-center notches before left-of-center ones, in that order,
-  // keeps the whole top edge's winding consistent with a single physical
-  // pass across it. Overlapping notches (the user's own responsibility to
-  // avoid — no collision check here) will produce a self-intersecting
-  // contour, same as any other invalid geometry this app doesn't guard
-  // against elsewhere.
-  function buildTopNotchCorners(p){
-    const { W, H, topNotches } = p;
-    const notches = (topNotches || []).filter(n => n.type !== 'none' && n.width > 0);
-    notches.sort((a, b) => (b.offset || 0) - (a.offset || 0));
-    const corners = [];
-    for (const notch of notches) corners.push(...oneNotchCorners({ ...notch, __H: H }, W));
-    return corners;
+  // ------------------------------------------------------------------
+  // The tabletop is a BASE SHAPE minus a list of CUTOUTS.
+  //
+  //   base shape — today always the rectangle W x H with its own corner
+  //                radii (rBottom at the bottom, rTop at the top); more
+  //                shapes can be added here later.
+  //   cutouts    — each is a polygon of {pt, r} corners whose "mouth"
+  //                vertices lie exactly ON the base shape's edge: the
+  //                bottom trapezoid notch, and every top notch (T-slot or
+  //                rectangular). `r` is the fillet radius of that corner.
+  //
+  // The subtraction is done on the SHARP polygons (ClipperLib is exact for
+  // straight edges — integers, scale 1000), then every vertex of the result
+  // gets the radius it had in its source polygon (found by position), and
+  // the whole thing goes through Geo.roundedPolygon as before. So the
+  // fillets where a cutout meets the edge come out exactly as when the
+  // cutout was part of one hand-built corner list, and overlapping cutouts
+  // now simply merge instead of producing a self-intersecting contour.
+  // ------------------------------------------------------------------
+  function baseShapeCorners(p){
+    const { W, H, rTop, rBottom } = p;
+    return [
+      { pt: [0, 0], r: rBottom }, { pt: [W, 0], r: rBottom },
+      { pt: [W, H], r: rTop },    { pt: [0, H], r: rTop },
+    ];
+  }
+
+  function cutoutPolygons(p){
+    const { W, H, topNotches, rNotch, notchOn, notchH, notchBottom, notchTop } = p;
+    const out = [];
+    if (notchOn && notchH > 0 && notchBottom > 0) {
+      const cx = W/2;
+      out.push([
+        { pt: [cx - notchBottom/2, 0], r: rNotch }, { pt: [cx - notchTop/2, notchH], r: rNotch },
+        { pt: [cx + notchTop/2, notchH], r: rNotch }, { pt: [cx + notchBottom/2, 0], r: rNotch },
+      ]);
+    }
+    for (const notch of (topNotches || [])) {
+      if (notch.type === 'none' || !(notch.width > 0)) continue;
+      const corners = oneNotchCorners({ ...notch, __H: H }, W);
+      if (corners.length) out.push(corners);
+    }
+    return out;
+  }
+
+  const CLIP_SCALE = 1000;
+  const keyOf = (x, y) => Math.round(x * CLIP_SCALE) + ',' + Math.round(y * CLIP_SCALE);
+
+  // Base minus cutouts, as rounded-polygon corner lists (one per resulting
+  // outline; normally exactly one, counter-clockwise).
+  function subtractCutouts(base, cutouts){
+    const radii = new Map();
+    const note = list => list.forEach(c => radii.set(keyOf(c.pt[0], c.pt[1]), c.r));
+    note(base);
+    cutouts.forEach(note); // a cutout's own corner radius wins on a shared point
+    const toPath = list => list.map(c => ({ X: Math.round(c.pt[0] * CLIP_SCALE), Y: Math.round(c.pt[1] * CLIP_SCALE) }));
+    const clipper = new ClipperLib.Clipper();
+    clipper.AddPath(toPath(base), ClipperLib.PolyType.ptSubject, true);
+    cutouts.forEach(c => clipper.AddPath(toPath(c), ClipperLib.PolyType.ptClip, true));
+    const solution = [];
+    clipper.Execute(ClipperLib.ClipType.ctDifference, solution, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+    return solution.map(path => {
+      let pts = path.map(q => ({ x: q.X / CLIP_SCALE, y: q.Y / CLIP_SCALE, r: radii.get(q.X + ',' + q.Y) || 0 }));
+      let area = 0;
+      pts.forEach((q, i) => { const w = pts[(i + 1) % pts.length]; area += q.x * w.y - w.x * q.y; });
+      if (area < 0) pts.reverse();                       // counter-clockwise
+      // Start at the vertex nearest the origin (bottom-left), like the
+      // hand-built list did.
+      let start = 0;
+      pts.forEach((q, i) => { if (q.x + q.y < pts[start].x + pts[start].y - 1e-9) start = i; });
+      pts = pts.slice(start).concat(pts.slice(0, start));
+      return pts.map(q => ({ pt: [q.x, q.y], r: q.r }));
+    });
   }
 
   function buildContours(p){
-    const { W, H, rTop, rBottom, rNotch, notchOn, notchH, notchBottom, notchTop } = p;
-    const BL = [0, 0], BR = [W, 0], TR = [W, H], TL = [0, H];
-    const topCorners = buildTopNotchCorners(p);
-
-    let corners;
-    if (notchOn && notchH > 0 && notchBottom > 0) {
-      const cx = W/2;
-      const nBL = [cx - notchBottom/2, 0];
-      const nBR = [cx + notchBottom/2, 0];
-      const nTR = [cx + notchTop/2, notchH];
-      const nTL = [cx - notchTop/2, notchH];
-      corners = [
-        { pt: BL, r: rBottom }, { pt: nBL, r: rNotch }, { pt: nTL, r: rNotch },
-        { pt: nTR, r: rNotch }, { pt: nBR, r: rNotch }, { pt: BR, r: rBottom },
-        { pt: TR, r: rTop }, ...topCorners, { pt: TL, r: rTop },
-      ];
-    } else {
-      corners = [
-        { pt: BL, r: rBottom }, { pt: BR, r: rBottom },
-        { pt: TR, r: rTop }, ...topCorners, { pt: TL, r: rTop },
-      ];
-    }
-
-    const contour = Geo.roundedPolygon(corners);
-    return [{ contour, layer: 'OUTLINE' }];
+    const outlines = subtractCutouts(baseShapeCorners(p), cutoutPolygons(p));
+    return outlines.map(corners => ({ contour: Geo.roundedPolygon(corners), layer: 'OUTLINE' }));
   }
 
   return { id: 'tabletopOutline', buildContours };
