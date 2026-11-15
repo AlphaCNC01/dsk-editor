@@ -60,6 +60,10 @@ const Layers = (() => {
   //                              opening inside the path ends up at its
   //                              full nominal size (e.g. a cutout whose
   //                              hole needs to fit an insert)
+  //                  'raster'  — clear the whole area with parallel
+  //                              passes 1 mm apart, from the side where
+  //                              there is no material inward (see
+  //                              TSLOT_ENTRY), then a finishing lap
   //                'contour' by default. These cutter-compensation
   //                settings aren't dialed in yet (values above are
   //                placeholders) — to be configured later.
@@ -83,13 +87,39 @@ const Layers = (() => {
   //                             (end mill, not a drill), and a pocket wide
   //                             enough for the bit to turn.
   //                'zigzag' when omitted.
+  //   stages     — (millType 'raster') how many equal depth stages the
+  //                area is cleared in; 2 = half the thickness at a time
+  //   order      — (through cuts only) layers with a higher `order` are
+  //                cut after those with a lower one (0 when omitted), so
+  //                the T-slot comes after the silhouette
+  //   cnc        — (layer level, not inside `machining`) true: a layer
+  //                that exists only for G-code, hidden everywhere else
   // DIMENSIONS has no `machining` — it's pure on-screen/on-paper
   // reference, never actually cut.
   const registry = {
   // tabletop silhouette
   OUTLINE: { name: 'OUTLINE', color: 7,
-    style: { stroke: '#ff8a3d', fillOpacity: 0, strokeWidth: 2 },
+    style: { stroke: '#ff8a3d', fillOpacity: 0, strokeWidth: 2 } },
+
+  // CNC-only layers (`cnc: true`): never drawn in the preview and never
+  // written to DXF/SVG/PNG — they exist only so the G-code export can cut
+  // the tabletop the way the shop does it, which differs from how it is
+  // drawn: the silhouette is cut WITHOUT the T-slot, and the T-slot is cut
+  // afterwards in two parts (see js/elements/tabletop.js).
+  //   OUTLINE_CNC  — the silhouette with the T-slot notches closed
+  //   TSLOT_ENTRY  — the T-slot's stem (plus a bit of the base): cleared
+  //                  by a raster in two depth stages, entered from the air
+  //                  side, 1 mm of material per step
+  //   TSLOT_CUT    — the T-slot's base, cut along its contour afterwards
+  OUTLINE_CNC: { name: 'OUTLINE_CNC', color: 7, cnc: true,
+    style: { stroke: '#ff8a3d', fillOpacity: 0 },
     machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'outside', entry: 'zigzag' } },
+  TSLOT_ENTRY: { name: 'TSLOT_ENTRY', color: 7, cnc: true,
+    style: { stroke: '#ff8a3d', fillOpacity: 0 },
+    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'raster', stages: 2, order: 1 } },
+  TSLOT_CUT: { name: 'TSLOT_CUT', color: 7, cnc: true,
+    style: { stroke: '#ff8a3d', fillOpacity: 0 },
+    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside', entry: 'zigzag', order: 2 } },
 
   // tabletop cutouts
   CUTOUT: { name: 'CUTOUT', color: 7,

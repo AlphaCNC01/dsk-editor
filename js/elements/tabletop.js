@@ -115,20 +115,21 @@ Elements.register((() => {
     ];
   }
 
+  // Each cutout: { corners, tslot (the notch itself when it is a T-slot) }.
   function cutoutPolygons(p){
     const { W, H, topNotches, rNotch, notchOn, notchH, notchBottom, notchTop } = p;
     const out = [];
     if (notchOn && notchH > 0 && notchBottom > 0) {
       const cx = W/2;
-      out.push([
+      out.push({ corners: [
         { pt: [cx - notchBottom/2, 0], r: rNotch }, { pt: [cx - notchTop/2, notchH], r: rNotch },
         { pt: [cx + notchTop/2, notchH], r: rNotch }, { pt: [cx + notchBottom/2, 0], r: rNotch },
-      ]);
+      ] });
     }
     for (const notch of (topNotches || [])) {
       if (notch.type === 'none' || !(notch.width > 0)) continue;
       const corners = oneNotchCorners({ ...notch, __H: H }, W);
-      if (corners.length) out.push(corners);
+      if (corners.length) out.push({ corners, tslot: notch.type === 'tslot' ? notch : null });
     }
     return out;
   }
@@ -163,9 +164,59 @@ Elements.register((() => {
     });
   }
 
+  // How the shop cuts a T-slot (see the CNC layers in layers.js): the
+  // silhouette first WITHOUT the slot, then the slot in two parts —
+  //   entry: the stem plus the strip of the base right behind it, as one
+  //          region reaching MOUTH_MARGIN out into the air past the table
+  //          edge, so the cutter can come in from where there is no
+  //          material and eat 1 mm per raster step inward;
+  //   cut:   the base, along its own contour.
+  // Both are the REMOVED shape (T-slot with the same fillets the drawn
+  // outline gets at its corners), not the drawn outline itself.
+  const MOUTH_MARGIN = 20;
+  function tSlotEntryRegion(notch, p){
+    const { W, H } = p;
+    const r = notch.r || 0, cx = W/2 + (notch.offset || 0);
+    const half = Math.min(T_STEM_W/2 + r + 2, notch.width/2); // strip across the base
+    const sh = T_STEM_W/2, yJ = H - T_STEM_H, yF = H - T_STEM_H - T_BASE_H;
+    return Geo.roundedPolygon([
+      { pt: [cx - half, H + MOUTH_MARGIN], r: 0 }, { pt: [cx - half, H], r: 0 },
+      { pt: [cx - sh, H], r }, { pt: [cx - sh, yJ], r },
+      { pt: [cx - half, yJ], r: 0 }, { pt: [cx - half, yF], r: 0 },
+      { pt: [cx + half, yF], r: 0 }, { pt: [cx + half, yJ], r: 0 },
+      { pt: [cx + sh, yJ], r }, { pt: [cx + sh, H], r },
+      { pt: [cx + half, H], r: 0 }, { pt: [cx + half, H + MOUTH_MARGIN], r: 0 },
+    ]);
+  }
+  function tSlotBaseContour(notch, p){
+    const { W, H } = p;
+    const r = notch.r || 0, cx = W/2 + (notch.offset || 0);
+    const yJ = H - T_STEM_H, yF = H - T_STEM_H - T_BASE_H;
+    return Geo.roundedPolygon([
+      { pt: [cx - notch.width/2, yJ], r }, { pt: [cx - notch.width/2, yF], r },
+      { pt: [cx + notch.width/2, yF], r }, { pt: [cx + notch.width/2, yJ], r },
+    ]);
+  }
+
   function buildContours(p){
-    const outlines = subtractCutouts(baseShapeCorners(p), cutoutPolygons(p));
-    return outlines.map(corners => ({ contour: Geo.roundedPolygon(corners), layer: 'OUTLINE' }));
+    const base = baseShapeCorners(p), cutouts = cutoutPolygons(p);
+    const parts = [];
+    // As drawn: every cutout subtracted.
+    for (const corners of subtractCutouts(base, cutouts.map(c => c.corners)))
+      parts.push({ contour: Geo.roundedPolygon(corners), layer: 'OUTLINE' });
+    // For the machine: T-slots stay closed, they are cut separately below.
+    for (const corners of subtractCutouts(base, cutouts.filter(c => !c.tslot).map(c => c.corners)))
+      parts.push({ contour: Geo.roundedPolygon(corners), layer: 'OUTLINE_CNC' });
+    for (const { tslot } of cutouts) {
+      if (!tslot) continue;
+      // Direction the cutter advances into the table: away from the edge
+      // the slot opens on (the top edge: straight down), or a given angle
+      // (degrees, counter-clockwise from +X) when the slot sets one.
+      const a = Number.isFinite(tslot.entryAngle) ? tslot.entryAngle * Math.PI / 180 : -Math.PI / 2;
+      parts.push({ contour: tSlotEntryRegion(tslot, p), layer: 'TSLOT_ENTRY', entryDir: { x: Math.cos(a), y: Math.sin(a) } });
+      parts.push({ contour: tSlotBaseContour(tslot, p), layer: 'TSLOT_CUT' });
+    }
+    return parts;
   }
 
   return { id: 'tabletopOutline', buildContours };

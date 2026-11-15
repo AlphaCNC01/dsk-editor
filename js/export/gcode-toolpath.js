@@ -828,6 +828,92 @@ const GCodeToolpath = (() => {
     return moves;
   }
 
+  // --------------------------------------------------------------------
+  // Raster pocket (see TSLOT_ENTRY in layers.js)
+  // --------------------------------------------------------------------
+  // Direction in the drawing -> the same direction in machine space.
+  function toMachineDirection(dir, side, boardWidth, boardHeight){
+    const orient = ORIENTATIONS[ACTIVE_ORIENTATION];
+    const o = orient.apply(0, 0, boardWidth, boardHeight);
+    const a = orient.apply(side === 'bottom' ? -dir.x : dir.x, dir.y, boardWidth, boardHeight);
+    return { x: a.x - o.x, y: a.y - o.y };
+  }
+
+  // Clears the whole region (machine-space vertices with bulges, CCW) with
+  // parallel passes RASTER_STEP apart, advancing along `dir` — from the
+  // side where there is no material (the region reaches out into the air)
+  // inward, so the cutter never takes more than RASTER_STEP of material
+  // per pass — then laps the region's own contour. `stages` equal depth
+  // stages from the top down; every stage starts from the air side
+  // again. Returns { start, moves }, [] if the tool does not fit, or null
+  // if it cannot be done (no library, a pass that would cross the region
+  // twice). Moves marked `air` are meant to leave the board (the approach
+  // from the side with no material); the preview does not flag them.
+  const RASTER_STEP = 1; // mm
+  function rasterPocketMoves(verts, dir, thickness, targetZ, tool, safeZ, feed, stages){
+    if (!verts || !cavalierAvailable()) return null;
+    const { Polyline, PlineVertex, parallelOffset } = CavalierContours;
+    const outline = Polyline.fromVertexes(verts.map(v => new PlineVertex(v.x, v.y, v.bulge)), true);
+    const rings = parallelOffset(outline, tool.diameter / 2, {}).filter(r => r.vertexCount >= 3);
+    if (!rings.length) return [];
+    rings.sort((a, b) => Math.abs(b.area()) - Math.abs(a.area()));
+    const { pts, centers } = cavalierToPath(rings[0]);
+    const len = Math.hypot(dir.x, dir.y) || 1;
+    const d = { x: dir.x / len, y: dir.y / len }, nrm = { x: -d.y, y: d.x };
+    const U = pts.map(q => q.x * d.x + q.y * d.y);
+    const uMin = Math.min(...U), uMax = Math.max(...U);
+    const at = (u, v) => ({ x: d.x * u + nrm.x * v, y: d.y * u + nrm.y * v });
+    const lines = [];
+    for (let u = uMin + 1e-3; u < uMax; u += RASTER_STEP){
+      const vs = [];
+      for (let i = 0; i < pts.length; i++){
+        const j = (i + 1) % pts.length;
+        if ((U[i] - u) * (U[j] - u) < 0) {
+          const t = (u - U[i]) / (U[j] - U[i]);
+          const x = pts[i].x + (pts[j].x - pts[i].x) * t, y = pts[i].y + (pts[j].y - pts[i].y) * t;
+          vs.push(x * nrm.x + y * nrm.y);
+        }
+      }
+      if (vs.length !== 2) { if (vs.length) return null; continue; }
+      vs.sort((a, b) => a - b);
+      lines.push({ a: at(u, vs[0]), b: at(u, vs[1]) });
+    }
+    if (!lines.length) return [];
+    const moves = [];
+    const total = thickness - targetZ;
+    const first = lines[0].a;
+    for (let s = 1; s <= stages; s++){
+      const toZ = s === stages ? targetZ : thickness - total * s / stages;
+      moves.push({ t: 'rapid', x: first.x, y: first.y });
+      moves.push({ t: 'rapid', z: thickness + 2 });
+      moves.push({ t: 'line', z: toZ, f: feed, air: true });   // down in the air, outside the board
+      let last = first;
+      lines.forEach((ln, k) => {
+        const [p, q] = k % 2 === 0 ? [ln.a, ln.b] : [ln.b, ln.a];
+        moves.push({ t: 'line', x: p.x, y: p.y, air: true });
+        moves.push({ t: 'line', x: q.x, y: q.y, air: true });
+        last = q;
+      });
+      // Lap the contour, starting where the raster ended (that point is on it).
+      let bi = 0, bt = 0, bd = Infinity;
+      for (let i = 0; i < pts.length; i++){
+        const a = pts[i], b = pts[(i + 1) % pts.length];
+        const ex = b.x - a.x, ey = b.y - a.y, l2 = ex * ex + ey * ey || 1;
+        const t = Math.max(0, Math.min(1, ((last.x - a.x) * ex + (last.y - a.y) * ey) / l2));
+        const dd = Math.hypot(a.x + ex * t - last.x, a.y + ey * t - last.y);
+        if (dd < bd) { bd = dd; bi = i; bt = t; }
+      }
+      const a = pts[bi], b = pts[(bi + 1) % pts.length];
+      const sp = { x: a.x + (b.x - a.x) * bt, y: a.y + (b.y - a.y) * bt };
+      const ring = [sp, ...pts.slice(bi + 1), ...pts.slice(0, bi + 1)];
+      moves.push({ t: 'line', x: sp.x, y: sp.y });
+      moves.push(...fitArcMoves(ring.concat([sp]), centers));
+      moves.push({ t: 'rapid', z: safeZ });
+    }
+    moves.forEach(m => { m.air = true; }); // the whole job leaves the board on the air side
+    return { start: first, moves };
+  }
+
   // ---- Concentric rings of one pocket, linked without lifting ----------
   // A link (straight G1 at depth) from one ring to the next is allowed when
   // it stays inside the wall ring (gen 0 = the tool-centre region of the
@@ -891,6 +977,6 @@ const GCodeToolpath = (() => {
 
   return {
     ORIENTATIONS, ARC_SEGMENTS_PER_CIRCLE, clipperOffset, ringArea,
-    toMachinePolyline, toMachineShape, fromMachinePoint, machineExtent, buildToolpaths, buildShapePaths, toolpathMoves, ringGroupMoves,
+    toMachinePolyline, toMachineShape, fromMachinePoint, machineExtent, buildToolpaths, buildShapePaths, toolpathMoves, ringGroupMoves, rasterPocketMoves, toMachineDirection,
   };
 })();

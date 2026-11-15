@@ -11,7 +11,7 @@ const ExportDXF = (() => {
   const ARC_SEGMENTS_PER_CIRCLE = 128; // keeps tessellated arcs visually smooth
 
   function buildLayerTable(add){
-    const layers = Layers.all();
+    const layers = Layers.all().filter(l => !l.cnc);
     add(0,'SECTION'); add(2,'TABLES');
     add(0,'TABLE'); add(2,'LAYER'); add(70, layers.length);
     for (const layer of layers){
