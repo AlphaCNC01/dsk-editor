@@ -80,6 +80,36 @@ const ExportGCode = (() => {
   // class, whole drawing entries (all rings of one pocket stay together,
   // in their own order) are visited nearest-first from where the tool
   // parked, to keep the rapid travel short.
+  // A counterbore and the hole below it share a centre: cut them one after
+  // the other, shallow first, and let the deeper one start from where the
+  // shallow one left the tool (at the centre, already at its depth) instead
+  // of lifting out and plunging in again. Only for blind circles whose
+  // outer ring lies inside the shallower one's.
+  function chainCoaxialCircles(ordered){
+    const isBlindCircle = it => it.path.circle && it.targetZ > 1e-6;
+    const same = (a, b) => Math.hypot(a.path.circle.cx - b.path.circle.cx, a.path.circle.cy - b.path.circle.cy) < 1e-6;
+    const used = new Set(), out = [];
+    ordered.forEach((it, i) => {
+      if (used.has(i)) return;
+      used.add(i);
+      out.push(it);
+      if (!isBlindCircle(it)) return;
+      const rest = [];
+      ordered.forEach((o, j) => { if (!used.has(j) && isBlindCircle(o) && same(it, o)) rest.push([o, j]); });
+      rest.sort((a, b) => b[0].targetZ - a[0].targetZ);
+      let prev = it;
+      for (const [o, j] of rest){
+        if (!(o.targetZ < prev.targetZ - 1e-6) || o.path.radii[0] > prev.path.radii[0] + 1e-6) continue;
+        used.add(j);
+        prev.link = Object.assign({}, prev.link, { keepDown: true });
+        o.link = { continueZ: prev.targetZ };
+        out.push(o);
+        prev = o;
+      }
+    });
+    return out;
+  }
+
   function orderItems(items){
     const isThrough = it => it.targetZ <= 1e-6;
     const out = [];
@@ -147,7 +177,7 @@ const ExportGCode = (() => {
     const safeZ = profileSafeZ(thickness);
     const programs = [];
     for (const { side, tool, items } of groups.values()){
-      const ordered = orderItems(items);
+      const ordered = chainCoaxialCircles(orderItems(items));
       // Rings of one pocket (same entry, all carrying a generation) are cut
       // as one group, linked at depth without lifting where that is safe.
       const moves = [];
@@ -156,7 +186,7 @@ const ExportGCode = (() => {
         const it = ordered[i];
         if (it.path.gen !== undefined) while (j < ordered.length && ordered[j].entryIdx === it.entryIdx && ordered[j].path.gen !== undefined) j++;
         if (j - i > 1) moves.push(...ringGroupMoves(ordered.slice(i, j).map(x => x.path), thickness, it.targetZ, tool, safeZ, it.feed, it.entry));
-        else moves.push(...toolpathMoves(it.path, thickness, it.targetZ, tool, safeZ, it.feed, it.entry));
+        else moves.push(...toolpathMoves(it.path, thickness, it.targetZ, tool, safeZ, it.feed, it.entry, it.link));
         i = j;
       }
       programs.push({ filename: buildFilename(orderNumber, side, tool), side, tool, safeZ, moves });

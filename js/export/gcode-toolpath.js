@@ -382,7 +382,7 @@ const GCodeToolpath = (() => {
 
   // Tool paths for one shape, same millType semantics as buildToolpaths.
   // Returns [{ pts }] (polyline) and/or [{ circle: {cx,cy}, radii, ccw }]:
-  // one circular path cuts every ring in `radii` (ascending) in one go.
+  // one circular path cuts every ring in `radii` (outermost first) in one go.
   // Circles are cut climb-style: inside cuts counter-clockwise (G3),
   // outside cuts clockwise (G2) — as in the reference programs.
   function buildShapePaths(shape, millType, toolRadius, stepover){
@@ -407,45 +407,59 @@ const GCodeToolpath = (() => {
     if (millType === 'outside') return one(r + toolRadius, false);
     if (millType === 'inside')  return r - toolRadius > MIN_R ? one(r - toolRadius, true) : [];
     if (millType === 'pocket') {
-      // Concentric rings from the wall inward, until nothing is left —
-      // then cut from the centre outward (see circleMoves).
+      // Concentric rings from the wall inward (the wall ring first, as in
+      // the shop's own hole programs). When the core left inside a ring is
+      // no wider than the tool, it is cleared by a straight pass to the
+      // centre instead of one more tiny ring.
       const radii = [];
-      for (let rr = r - toolRadius; rr > MIN_R && radii.length < 500; rr -= stepover) radii.push(rr);
-      return radii.length ? [{ circle: { cx, cy }, radii: radii.reverse(), ccw: true }] : [];
+      let centerLine = false;
+      for (let rr = r - toolRadius; rr > MIN_R && radii.length < 500; rr -= stepover) {
+        radii.push(rr);
+        const core = rr - toolRadius;
+        if (core <= toolRadius) { centerLine = core > 0.01; break; }
+      }
+      return radii.length ? [{ circle: { cx, cy }, radii, ccw: true, centerLine }] : [];
     }
     return one(r, true); // 'contour'
   }
 
   // How steeply the helical entry descends (mm of Z per revolution) and
   // how finely a revolution is cut into straight G1 segments.
-  const HELIX_SEGMENTS = 24;
+  const HELIX_SEGMENTS = 40;
+  // One turn per pass, unless that would descend steeper than this (a tiny
+  // circle cut very deep): then it takes more turns.
+  const HELIX_MAX_ANGLE = 60 * Math.PI / 180;
 
   // Moves for one circular path over all depth passes. Each pass: helical
-  // descent on the innermost ring, then every ring as a full circle of
-  // four 90° arcs, innermost to outermost, joined by short straight steps
-  // along +X without lifting — the same way the shop's reference programs
-  // clear round pockets. Every ring starts and ends at angle 0 (its +X
-  // point).
-  function circleMoves(path, thickness, targetZ, tool, safeZ, feed, entry){
+  // descent (one turn) on the outermost ring — the wall — then that ring as
+  // a full circle of four 90° arcs, then the inner rings joined by short
+  // straight steps along +X without lifting, and finally a straight pass to
+  // the centre if a core is left; the shop's own hole programs do it this
+  // way. Every ring starts and ends at angle 0 (its +X point).
+  // `link` (optional): { continueZ } — the tool is already down at the
+  // centre of this circle at that Z (a shallower cut of the same place just
+  // finished), so no rapid and no plunge; { keepDown } — do not retract
+  // afterwards because the next cut continues from here.
+  function circleMoves(path, thickness, targetZ, tool, safeZ, feed, entry, link){
     const { cx, cy } = path.circle;
     const dir = path.ccw ? 1 : -1;
     const at = (rr, a) => ({ x: cx + rr * Math.cos(a), y: cy + rr * Math.sin(a) });
     const r0 = path.radii[0];
-    const moves = [{ t: 'rapid', x: cx + r0, y: cy }];
-    const startZ = thickness;
+    const continueZ = link && link.continueZ;
+    const moves = continueZ === undefined ? [{ t: 'rapid', x: cx + r0, y: cy }] : [{ t: 'line', x: cx + r0, y: cy }];
+    const startZ = continueZ === undefined ? thickness : continueZ;
     const totalDepth = startZ - targetZ;
     if (totalDepth > 1e-6) {
       const passCount = Math.max(1, Math.ceil(totalDepth / tool.depthPerPass));
       let fromZ = startZ;
       for (let pass = 0; pass < passCount; pass++){
         const toZ = pass === passCount - 1 ? targetZ : startZ - (totalDepth * (pass + 1) / passCount);
-        // Back to the centre ring at the (already cleared) previous depth.
+        // Back to the wall ring at the (already cleared) previous depth.
         if (pass > 0) moves.push({ t: 'line', x: cx + r0, y: cy });
-        moves.push({ t: 'line', z: fromZ, f: feed });
-        // At least 3 mm of depth per turn (a tiny helix would otherwise
-        // go round hundreds of times), at least SPIRAL_ANGLE steep where
-        // the circle is big enough to allow it.
-        const revs = Math.max(1, Math.min(Math.ceil((fromZ - toZ) / 3 - 1e-9), Math.floor((fromZ - toZ) / (2 * Math.PI * r0 * Math.tan(SPIRAL_ANGLE)) + 1e-9)));
+        if (!(pass === 0 && continueZ !== undefined)) moves.push({ t: 'line', z: fromZ, f: feed });
+        // One turn of helix per pass (like the shop's own programs), more
+        // only to stay under HELIX_MAX_ANGLE.
+        const revs = Math.max(1, Math.ceil((fromZ - toZ) / (2 * Math.PI * r0 * Math.tan(HELIX_MAX_ANGLE)) - 1e-9));
         const steps = entry === 'plunge' ? 0 : revs * HELIX_SEGMENTS;
         if (entry === 'plunge') moves.push({ t: 'line', z: toZ });
         for (let m = 1; m <= steps; m++){
@@ -460,10 +474,11 @@ const GCodeToolpath = (() => {
             moves.push({ t: 'arc', cw: !path.ccw, x: p1.x, y: p1.y, i: cx - p0.x, j: cy - p0.y });
           }
         });
+        if (path.centerLine) moves.push({ t: 'line', x: cx, y: cy });
         fromZ = toZ;
       }
     }
-    moves.push({ t: 'rapid', z: safeZ });
+    if (!(link && link.keepDown)) moves.push({ t: 'rapid', z: safeZ });
     return moves;
   }
 
@@ -736,9 +751,9 @@ const GCodeToolpath = (() => {
   //   'spiral' — descend a little each lap around the contour (G1 only:
   //              arcs can't change Z), then one flat lap with real arcs
   //   'plunge' — straight down at the start point (shallow cuts only)
-  // Steepness of the spiral descent. A contour too long to descend at
-  // least this steeply in one lap is entered by zigzag instead.
-  const SPIRAL_ANGLE = 10 * Math.PI / 180;
+  // A contour too long to descend at least this steeply in one lap is
+  // entered by zigzag instead.
+  const SPIRAL_MIN_ANGLE = 3 * Math.PI / 180;
   const SPIRAL_SIMPLIFY_TOLERANCE = 0.02; // mm, descent path only
   function entryPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown, entry, diameter){
     if (entry === 'plunge' || toZ >= fromZ - 1e-9) {
@@ -759,10 +774,11 @@ const GCodeToolpath = (() => {
         total += seg[i - 1];
       }
       if (total > 1e-6) {
-        const steep = Math.floor((fromZ - toZ) / (total * Math.tan(SPIRAL_ANGLE)) + 1e-9);
-        // ...but not so many laps that a tiny contour spins hundreds of times (>= 3 mm per lap).
-        const laps = Math.min(steep, Math.ceil((fromZ - toZ) / 3 - 1e-9));
-        if (laps < 1) { zigzagPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown, diameter); return; }
+        // One lap, like the circles — more only to stay under
+        // HELIX_MAX_ANGLE; and a contour so long that even one lap descends
+        // under SPIRAL_MIN_ANGLE is entered by zigzag instead.
+        const laps = Math.max(1, Math.ceil((fromZ - toZ) / (total * Math.tan(HELIX_MAX_ANGLE)) - 1e-9));
+        if ((fromZ - toZ) / (total * laps) < Math.tan(SPIRAL_MIN_ANGLE)) { zigzagPassMoves(pts, fromZ, toZ, feed, moves, centers, alreadyDown, diameter); return; }
         if (!alreadyDown) moves.push({ t: 'line', z: fromZ, f: feed });
         const span = total * laps;
         let run = 0;
@@ -787,8 +803,8 @@ const GCodeToolpath = (() => {
   // pass, then retract to `safeZ`. Every contour starts fresh from the
   // up-face (no cross-layer Z-continuity) — the simple, always-correct
   // choice.
-  function toolpathMoves(path, thickness, targetZ, tool, safeZ, feed, entry){
-    if (path.circle) return circleMoves(path, thickness, targetZ, tool, safeZ, feed, entry);
+  function toolpathMoves(path, thickness, targetZ, tool, safeZ, feed, entry, link){
+    if (path.circle) return circleMoves(path, thickness, targetZ, tool, safeZ, feed, entry, link);
     const pts = path.pts;
     // Minimum 2 vertices: a circle is two bulge:1 vertices before
     // tessellation (see js/elements/hole.js); the guard is the absolute
