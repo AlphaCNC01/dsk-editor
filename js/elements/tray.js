@@ -21,6 +21,8 @@ const TRAY_VARIANTS = registerSimpleEmbeddable({
     'HOOK': {
       sku: 'HOOK',
       label: 'Лоток 60 см',
+      supplierSku: '',
+      supplierMark: '',
       parts: [
       { verts: [{x:200.0,y:69.0,bulge:0},{x:200.0,y:-69.0,bulge:0},{x:225.0,y:-69.0,bulge:0},{x:225.0,y:69.0,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:-225.0,y:69.0,bulge:0},{x:-225.0,y:-69.0,bulge:0},{x:-200.0,y:-69.0,bulge:0},{x:-200.0,y:69.0,bulge:0}], layer: 'PHYSICAL' },
@@ -33,6 +35,8 @@ const TRAY_VARIANTS = registerSimpleEmbeddable({
     '60': {
       sku: 'ЛОТ-60',
       label: 'Лоток 60 см (старый)',
+      supplierSku: '',
+      supplierMark: '',
       parts: [
       { verts: [{x:171.5,y:65.0,bulge:0},{x:171.5,y:-65.0,bulge:0},{x:191.5,y:-65.0,bulge:0},{x:191.5,y:65.0,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:-191.5,y:65.0,bulge:0},{x:-191.5,y:-65.0,bulge:0},{x:-171.5,y:-65.0,bulge:0},{x:-171.5,y:65.0,bulge:0}], layer: 'PHYSICAL' },
@@ -45,6 +49,8 @@ const TRAY_VARIANTS = registerSimpleEmbeddable({
     '80': {
       sku: 'ЛОТ-80',
       label: 'Лоток 80 см',
+      supplierSku: '',
+      supplierMark: '',
       parts: [
       { verts: [{x:350.0,y:-65.0,bulge:0},{x:350.0,y:65.0,bulge:0},{x:330.0,y:65.0,bulge:0},{x:330.0,y:-65.0,bulge:0}], layer: 'PHYSICAL' },
       { verts: [{x:-330.0,y:-65.0,bulge:0},{x:-330.0,y:65.0,bulge:0},{x:-350.0,y:65.0,bulge:0},{x:-350.0,y:-65.0,bulge:0}], layer: 'PHYSICAL' },

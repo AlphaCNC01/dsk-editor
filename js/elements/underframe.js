@@ -45,6 +45,8 @@ Elements.register((() => {
     '60': {
       sku: 'ST60',
       label: 'Подъемное подстолье Deskos ST60',
+      supplierSku: '',
+      supplierMark: '',
       width: 503, height: 575,
       parts: [
       { verts: [{x:240.5,y:48.5,bulge:0},{x:265.5,y:48.5,bulge:0},{x:265.5,y:-48.5,bulge:0},{x:240.5,y:-48.5,bulge:0}], layer: 'PHYSICAL' },
@@ -64,6 +66,8 @@ Elements.register((() => {
     'X2DM-PRO': {
       sku: 'X2DM-PRO',
       label: 'Подстолье',
+      supplierSku: '',
+      supplierMark: '',
       width: 504, height: 700,
       parts: [
       { verts: [{x:504,y:-68.5,bulge:0},{x:479,y:-68.5,bulge:0},{x:479,y:68.5,bulge:0},{x:504,y:68.5,bulge:0}], layer: 'PHYSICAL' },
@@ -90,6 +94,8 @@ Elements.register((() => {
     '70': {
       sku: 'ST70',
       label: 'Подъемное подстолье Deskos ST70 усиленное',
+      supplierSku: '',
+      supplierMark: '',
       width: 548, height: 575,
       parts: [
       { verts: [{x:278,y:80,bulge:0},{x:298,y:80,bulge:0},{x:298,y:-80,bulge:0},{x:278,y:-80,bulge:0}], layer: 'PHYSICAL' },
@@ -108,6 +114,8 @@ Elements.register((() => {
     'MoveDesk-MAX': {
       sku: 'DM70',
       label: 'Подъемное подстолье Deskos DM70 усиленное',
+      supplierSku: '',
+      supplierMark: '',
       width: 475, height: 700,
       parts: [
       { verts: [{x:0,y:287.5,bulge:0},{x:30,y:287.5,bulge:0},{x:30,y:-287.5,bulge:0},{x:0,y:-287.5,bulge:0}], layer: 'PHYSICAL' },
@@ -124,6 +132,8 @@ Elements.register((() => {
     'Rival-Home': {
       sku: 'RH60',
       label: 'Подъемное подстолье Deskos RH60',
+      supplierSku: '',
+      supplierMark: '',
       width: 560, height: 580,
       parts: [
       { verts: [{x:0,y:250,bulge:0},{x:20,y:250,bulge:0},{x:20,y:-250,bulge:0},{x:0,y:-250,bulge:0}], layer: 'PHYSICAL' },
@@ -141,6 +151,8 @@ Elements.register((() => {
     'DMDF': {
       sku: 'DMDF MC-DNELC03',
       label: 'Подъемное подстолье Deskos DMDF',
+      supplierSku: '',
+      supplierMark: '',
       width: 402.5, height: 470,
       parts: [
       { verts: [{x:0,y:235,bulge:0},{x:40,y:235,bulge:0},{x:40,y:-235,bulge:0},{x:0,y:-235,bulge:0}], layer: 'PHYSICAL' },

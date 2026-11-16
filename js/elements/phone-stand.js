@@ -11,6 +11,8 @@ const PHONE_STAND_VARIANTS = registerSimpleEmbeddable({
     standard: {
       sku: 'ПОДСТ-ТЛФ',
       label: 'Подставка для телефона',
+      supplierSku: '',
+      supplierMark: '',
       parts: [
       { verts: [{x:-125.0,y:-5.5,bulge:0},{x:125.0,y:-5.5,bulge:0},{x:125.0,y:5.5,bulge:0},{x:-125.0,y:5.5,bulge:0}], layer: 'PHONESTAND' },
     ] },

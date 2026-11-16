@@ -26,6 +26,8 @@ const PULLOUT_VARIANTS = registerSimpleEmbeddable({
     standard: {
       sku: 'ВЫДВ-СТ',
       label: 'Выдвижная подставка',
+      supplierSku: '',
+      supplierMark: '',
       parts: [
         { verts: [{x:242.5,y:0,bulge:0},{x:242.5,y:281,bulge:0},{x:-242.5,y:281,bulge:0},{x:-242.5,y:0,bulge:0}], layer: 'PHYSICAL' },
         { verts: [{x:262.5,y:0,bulge:0},{x:262.5,y:281,bulge:0},{x:-262.5,y:281,bulge:0},{x:-262.5,y:0,bulge:0}], layer: 'PHYSICAL' },
@@ -38,6 +40,8 @@ const PULLOUT_VARIANTS = registerSimpleEmbeddable({
     drawer: {
       sku: 'ВЫДВ-786',
       label: 'Выдвижной ящик',
+      supplierSku: '',
+      supplierMark: '',
       parts: [
         { verts: [{x:365,y:0,bulge:0},{x:365,y:265,bulge:0},{x:-365,y:265,bulge:0},{x:-365,y:0,bulge:0}], layer: 'PHYSICAL' },
         { verts: [{x:393,y:0,bulge:0},{x:393,y:265,bulge:0},{x:-393,y:265,bulge:0},{x:-393,y:0,bulge:0}], layer: 'PHYSICAL' },
@@ -50,6 +54,8 @@ const PULLOUT_VARIANTS = registerSimpleEmbeddable({
     drawer610: {
       sku: 'FT-DB0B4',
       label: 'Выдвижной ящик 610мм',
+      supplierSku: '',
+      supplierMark: '',
       parts: [
         { verts: [{x:265,y:0,bulge:0},{x:265,y:252,bulge:0},{x:-265,y:252,bulge:0},{x:-265,y:0,bulge:0}], layer: 'PHYSICAL' },
         { verts: [{x:305,y:0,bulge:0},{x:305,y:252,bulge:0},{x:-305,y:252,bulge:0},{x:-305,y:0,bulge:0}], layer: 'PHYSICAL' },
