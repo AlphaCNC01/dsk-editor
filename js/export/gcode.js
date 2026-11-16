@@ -56,7 +56,7 @@
 // ============================================================================
 const ExportGCode = (() => {
   const { TOOLS, pickTool, resolveDepth, feedFor, safeZ: profileSafeZ } = GCodeProfile;
-  const { clipperOffset, ringArea, toMachinePolyline, toMachineShape, buildToolpaths, buildShapePaths, toolpathMoves, ringGroupMoves } = GCodeToolpath;
+  const { clipperOffset, ringArea, toMachinePolyline, toMachineShape, buildToolpaths, buildShapePaths, toolpathMoves, ringGroupMoves, rasterPocketMoves, toMachineDirection } = GCodeToolpath;
 
   // --------------------------------------------------------------------
   // Top-level: entries -> grouped files
@@ -71,6 +71,7 @@ const ExportGCode = (() => {
   // `orderNumber` — raw order-number string, sanitized into the filename.
   // Where a toolpath's first cutting move starts.
   function startOf(path){
+    if (path.moves) return path.start;
     if (path.circle) return { x: path.circle.cx + path.radii[0], y: path.circle.cy };
     return path.pts[0];
   }
@@ -114,9 +115,14 @@ const ExportGCode = (() => {
     const isThrough = it => it.targetZ <= 1e-6;
     const out = [];
     let pos = { x: 0, y: 0 };
-    for (const through of [false, true]){
+    // Blind cuts first; then through cuts, lowest `order` first (the
+    // T-slot after the silhouette), each batch nearest-neighbour.
+    const passes = [{ through: false, order: 0 }];
+    [...new Set(items.filter(isThrough).map(it => it.order || 0))].sort((a, b) => a - b)
+      .forEach(order => passes.push({ through: true, order }));
+    for (const { through, order } of passes){
       const byEntry = new Map();
-      for (const it of items) if (isThrough(it) === through) {
+      for (const it of items) if (isThrough(it) === through && (!through || (it.order || 0) === order)) {
         if (!byEntry.has(it.entryIdx)) byEntry.set(it.entryIdx, []);
         byEntry.get(it.entryIdx).push(it);
       }
@@ -166,12 +172,19 @@ const ExportGCode = (() => {
       const group = groups.get(key);
 
       const shape = toMachineShape(entry.contour, machining.side, W, H);
-      const toolpaths = buildShapePaths(shape, millType, toolRadius, tool.stepover);
       const feed = feedFor(tool, layerId);
+      if (millType === 'raster') {
+        const dir = toMachineDirection(entry.entryDir || { x: 0, y: -1 }, machining.side, W, H);
+        const r = rasterPocketMoves(shape.verts, dir, thickness, targetZ, tool, profileSafeZ(thickness), feed, machining.stages || 2);
+        if (!r || !r.moves) warnings.push(`Слой ${layerId}: растровая выборка не построена${r ? ': фреза не помещается' : ''}`);
+        else group.items.push({ path: r, targetZ, feed, entryIdx, entry: machining.entry, order: machining.order });
+        continue;
+      }
+      const toolpaths = buildShapePaths(shape, millType, toolRadius, tool.stepover);
       if (toolpaths.length === 0 && millType !== 'contour') {
         warnings.push(`Слой ${layerId}: фреза ф${tool.diameter} не помещается в контур, обработка пропущена`);
       }
-      for (const path of toolpaths) group.items.push({ path, targetZ, feed, entryIdx, entry: machining.entry });
+      for (const path of toolpaths) group.items.push({ path, targetZ, feed, entryIdx, entry: machining.entry, order: machining.order });
     }
 
     const safeZ = profileSafeZ(thickness);
@@ -184,6 +197,7 @@ const ExportGCode = (() => {
       for (let i = 0; i < ordered.length; ){
         let j = i + 1;
         const it = ordered[i];
+        if (it.path.moves) { moves.push(...it.path.moves); i++; continue; }
         if (it.path.gen !== undefined) while (j < ordered.length && ordered[j].entryIdx === it.entryIdx && ordered[j].path.gen !== undefined) j++;
         if (j - i > 1) moves.push(...ringGroupMoves(ordered.slice(i, j).map(x => x.path), thickness, it.targetZ, tool, safeZ, it.feed, it.entry));
         else moves.push(...toolpathMoves(it.path, thickness, it.targetZ, tool, safeZ, it.feed, it.entry, it.link));

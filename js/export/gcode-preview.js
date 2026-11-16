@@ -61,7 +61,7 @@ const GCodePreview = (() => {
         }
         cutMM += len; minutes += len / feed;
         if (b.z < -1e-6) belowTable = true;
-        if (b.x < -margin || b.y < -margin || b.x > ext.w + margin || b.y > ext.h + margin) outside = true;
+        if (!m.air && (b.x < -margin || b.y < -margin || b.x > ext.w + margin || b.y > ext.h + margin)) outside = true;
       });
       if (belowTable) out.warnings.push(`${program.filename}: рез ниже поверхности стола (Z < 0)`);
       if (outside) out.warnings.push(`${program.filename}: траектория выходит за пределы заготовки`);

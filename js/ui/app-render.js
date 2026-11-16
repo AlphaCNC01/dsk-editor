@@ -171,7 +171,7 @@
     if (!inputs.gcodePreviewOn.checked) return '';
     gcodeInfo.textContent = '';
     try {
-      const { programs, warnings } = ExportGCode.buildPrograms(entries, p, (inputs.orderNumber.value || '').trim());
+      const { programs, warnings } = ExportGCode.buildPrograms(Drawing.build(p, true), p, (inputs.orderNumber.value || '').trim());
       const report = GCodePreview.analyze(programs, p, warnings);
       const fmtMin = m => m < 1 ? '< 1 мин' : `≈ ${Math.round(m)} мин`;
       const addLine = (text, cls) => {
@@ -253,7 +253,7 @@
     // Dimension lines carry no `machining` in layers.js, so ExportGCode
     // already skips them on its own; passed as just Drawing's own
     // entries here (no need to add dims.entries) for the same result.
-    const entries = Drawing.build(p);
+    const entries = Drawing.build(p, true);
     ExportGCode.downloadAs(entries, p, (inputs.orderNumber.value || '').trim());
   }
 
