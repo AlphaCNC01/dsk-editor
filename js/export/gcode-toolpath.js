@@ -37,13 +37,19 @@ const GCodeToolpath = (() => {
       // Without the shift the rotation alone puts the panel at
       // X in [-H, 0], i.e. the XY zero ends up at the bottom-RIGHT of the
       // machine-side view; with it the zero is the bottom-LEFT corner.
-      apply: (x, y, W, H) => ({ x: H - y, y: x }),
+      //
+      // Bottom (back) side: x arrives ALREADY mirrored (W - x), because the
+      // panel is flipped over. The back-side program must have the panel's
+      // back edge on the RIGHT and its front edge on the LEFT, so it is
+      // rotated 90 CW instead: (x', y) -> (y, W - x'), i.e. machine X =
+      // design y, machine Y = unmirrored design x.
+      apply: (x, y, W, H, side) => side === 'bottom' ? { x: y, y: W - x } : { x: H - y, y: x },
       // Inverse of apply: machine space -> design space (for the preview).
-      invert: (x, y, W, H) => ({ x: y, y: H - x }),
+      invert: (x, y, W, H, side) => side === 'bottom' ? { x: W - y, y: x } : { x: y, y: H - x },
     },
     horizontal: {
-      apply: (x, y, W, H) => ({ x, y }),
-      invert: (x, y, W, H) => ({ x, y }),
+      apply: (x, y, W, H, side) => ({ x, y }),
+      invert: (x, y, W, H, side) => ({ x, y }),
     },
   };
   const ACTIVE_ORIENTATION = 'vertical'; // hardcoded for now, see file comment
@@ -132,7 +138,7 @@ const GCodeToolpath = (() => {
   // orientation and the bottom-side mirror) — used to overlay toolpaths on
   // the editor preview.
   function fromMachinePoint(x, y, side, boardWidth, boardHeight){
-    const d = ORIENTATIONS[ACTIVE_ORIENTATION].invert(x, y, boardWidth, boardHeight);
+    const d = ORIENTATIONS[ACTIVE_ORIENTATION].invert(x, y, boardWidth, boardHeight, side);
     return { x: side === 'bottom' ? boardWidth - d.x : d.x, y: d.y };
   }
 
@@ -167,7 +173,7 @@ const GCodeToolpath = (() => {
       pts = pts.map(p => ({ x: boardWidth - p.x, y: p.y }));
     }
     const orient = ORIENTATIONS[ACTIVE_ORIENTATION];
-    pts = pts.map(p => orient.apply(p.x, p.y, boardWidth, boardHeight));
+    pts = pts.map(p => orient.apply(p.x, p.y, boardWidth, boardHeight, side));
     return pts;
   }
 
@@ -230,7 +236,7 @@ const GCodeToolpath = (() => {
     const out = [];
     const add = (x, y) => {
       if (side === 'bottom') x = boardWidth - x;
-      const m = orient.apply(x, y, boardWidth, boardHeight);
+      const m = orient.apply(x, y, boardWidth, boardHeight, side);
       if (!out.some(q => Math.abs(q.x - m.x) < 1e-6 && Math.abs(q.y - m.y) < 1e-6)) out.push(m);
     };
     const n = contour.length;
@@ -258,7 +264,7 @@ const GCodeToolpath = (() => {
     const cy = (contour[0].y + contour[1].y) / 2;
     const r = Math.hypot(contour[1].x - contour[0].x, contour[1].y - contour[0].y) / 2;
     if (side === 'bottom') cx = boardWidth - cx;
-    const c = ORIENTATIONS[ACTIVE_ORIENTATION].apply(cx, cy, boardWidth, boardHeight);
+    const c = ORIENTATIONS[ACTIVE_ORIENTATION].apply(cx, cy, boardWidth, boardHeight, side);
     return { circle: { cx: c.x, cy: c.y, r } };
   }
 
@@ -270,8 +276,8 @@ const GCodeToolpath = (() => {
   // distance = inward). Null when it cannot be used.
   function toMachineVertices(contour, side, boardWidth, boardHeight){
     const orient = ORIENTATIONS[ACTIVE_ORIENTATION];
-    const o = orient.apply(0, 0, boardWidth, boardHeight);
-    const ax = orient.apply(1, 0, boardWidth, boardHeight), ay = orient.apply(0, 1, boardWidth, boardHeight);
+    const o = orient.apply(0, 0, boardWidth, boardHeight, side);
+    const ax = orient.apply(1, 0, boardWidth, boardHeight, side), ay = orient.apply(0, 1, boardWidth, boardHeight, side);
     const det = (ax.x - o.x) * (ay.y - o.y) - (ax.y - o.y) * (ay.x - o.x);
     const flip = (side === 'bottom') !== (det < 0);
     // The drawing stores quarter-circle bulges rounded (0.4142); cavalier
@@ -281,7 +287,7 @@ const GCodeToolpath = (() => {
     let v = [];
     for (const c of contour){
       const x = side === 'bottom' ? boardWidth - c.x : c.x;
-      const m = orient.apply(x, c.y, boardWidth, boardHeight);
+      const m = orient.apply(x, c.y, boardWidth, boardHeight, side);
       const last = v[v.length - 1];
       if (last && Math.hypot(last.x - m.x, last.y - m.y) < 1e-6) continue;
       v.push({ x: m.x, y: m.y, bulge: snap(flip ? -(c.bulge || 0) : (c.bulge || 0)) });
@@ -834,8 +840,8 @@ const GCodeToolpath = (() => {
   // Direction in the drawing -> the same direction in machine space.
   function toMachineDirection(dir, side, boardWidth, boardHeight){
     const orient = ORIENTATIONS[ACTIVE_ORIENTATION];
-    const o = orient.apply(0, 0, boardWidth, boardHeight);
-    const a = orient.apply(side === 'bottom' ? -dir.x : dir.x, dir.y, boardWidth, boardHeight);
+    const o = orient.apply(0, 0, boardWidth, boardHeight, side);
+    const a = orient.apply(side === 'bottom' ? -dir.x : dir.x, dir.y, boardWidth, boardHeight, side);
     return { x: a.x - o.x, y: a.y - o.y };
   }
 
