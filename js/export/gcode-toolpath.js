@@ -391,7 +391,9 @@ const GCodeToolpath = (() => {
   // one circular path cuts every ring in `radii` (outermost first) in one go.
   // Circles are cut climb-style: inside cuts counter-clockwise (G3),
   // outside cuts clockwise (G2) — as in the reference programs.
-  function buildShapePaths(shape, millType, toolRadius, stepover){
+  // `startAtMinXY` (optional): start every ring at its lowest point of the
+  // left-most edge in machine space (bottom-left), e.g. the T-slot base.
+  function buildShapePaths(shape, millType, toolRadius, stepover, startAtMinXY){
     if (!shape.circle) {
       // Climb milling: inside cuts run counter-clockwise, outside cuts
       // clockwise, like the circles below.
@@ -404,8 +406,17 @@ const GCodeToolpath = (() => {
       // of material left on it, instead of the first, full-width one
       // (buildToolpaths generates the rings wall-first).
       if (millType === 'pocket') rings.reverse();
+      const startAt = pts => {
+        if (!startAtMinXY) return pts;
+        let bi = 0;
+        for (let i = 1; i < pts.length; i++){
+          const p = pts[i], b = pts[bi];
+          if (p.x < b.x - 1e-6 || (Math.abs(p.x - b.x) <= 1e-6 && p.y < b.y)) bi = i;
+        }
+        return [...pts.slice(bi), ...pts.slice(0, bi)];
+      };
       return rings
-        .map((pts, k) => ({ pts: ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()], centers: exact ? exact[millType === 'pocket' ? exact.length - 1 - k : k].centers : centers, gen: exact && millType === 'pocket' ? exact[exact.length - 1 - k].gen : undefined }));
+        .map((pts, k) => ({ pts: startAt(ringIsCCW(pts) === wantCCW ? pts : [pts[0], ...pts.slice(1).reverse()]), centers: exact ? exact[millType === 'pocket' ? exact.length - 1 - k : k].centers : centers, gen: exact && millType === 'pocket' ? exact[exact.length - 1 - k].gen : undefined }));
     }
     const { cx, cy, r } = shape.circle;
     const MIN_R = 1e-3;

@@ -119,7 +119,7 @@ const Layers = (() => {
     machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'raster', stages: 2, order: 1 } },
   TSLOT_CUT: { name: 'TSLOT_CUT', color: 7, cnc: true,
     style: { stroke: '#ff8a3d', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside', entry: 'zigzag', order: 2 } },
+    machining: { side: 'bottom', depth: 0, depthAnchor: 'top', millType: 'inside', entry: 'zigzag', order: 2, startAtMinXY: true } },
 
   // tabletop cutouts
   CUTOUT: { name: 'CUTOUT', color: 7,

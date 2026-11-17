@@ -180,7 +180,7 @@ const ExportGCode = (() => {
         else group.items.push({ path: r, targetZ, feed, entryIdx, entry: machining.entry, order: machining.order });
         continue;
       }
-      const toolpaths = buildShapePaths(shape, millType, toolRadius, tool.stepover);
+      const toolpaths = buildShapePaths(shape, millType, toolRadius, tool.stepover, !!machining.startAtMinXY);
       if (toolpaths.length === 0 && millType !== 'contour') {
         warnings.push(`Слой ${layerId}: фреза ф${tool.diameter} не помещается в контур, обработка пропущена`);
       }
