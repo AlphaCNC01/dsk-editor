@@ -67,5 +67,19 @@ const PULLOUT_VARIANTS = registerSimpleEmbeddable({
         ...Holes.at(295, 62, 'B'),
       ],
     },
+    fh500: {
+      sku: 'FH500',
+      label: 'FUNKY HOUSE, выдвижной ящик 500мм',
+      supplierSku: '5025',
+      supplierMark: 'Выдвижной ящик под стол, металлический 500 мм',
+      parts: [
+        { verts: [{x:255,y:18,bulge:0},{x:255,y:265,bulge:0},{x:-255,y:265,bulge:0},{x:-255,y:18,bulge:0}], layer: 'PHYSICAL' },
+        { verts: [{x:277.5,y:0,bulge:0},{x:277.5,y:265,bulge:0},{x:-277.5,y:265,bulge:0},{x:-277.5,y:0,bulge:0}], layer: 'PHYSICAL' },
+        ...Holes.at(-243.5, 48, 'B'),
+        ...Holes.at(-243.5, 233, 'B'),
+        ...Holes.at(243.5, 233, 'B'),
+        ...Holes.at(243.5, 48, 'B'),
+      ],
+    },
   },
 });
