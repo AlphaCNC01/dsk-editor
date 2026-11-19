@@ -146,11 +146,11 @@ const Layers = (() => {
   // before) pending real tool/production numbers.
   HOLE_A: { name: 'HOLE_A', color: 6,
     style: { stroke: '#b06fe0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 14, depthAnchor: 'bottom', millType: 'pocket', entry: 'spiral' } },
+    machining: { side: 'bottom', depth: 14, depthAnchor: 'bottom', millType: 'inside', entry: 'spiral' } },
 
   HOLE_A_CS: { name: 'HOLE_A_CS', color: 6,
     style: { stroke: '#b06fe0', fillOpacity: 0 },
-    machining: { side: 'bottom', depth: 1.5, depthAnchor: 'bottom', millType: 'pocket', entry: 'spiral' } },
+    machining: { side: 'bottom', depth: 1.5, depthAnchor: 'bottom', millType: 'inside', entry: 'spiral' } },
 
   HOLE_B: { name: 'HOLE_B', color: 6,
     style: { stroke: '#8a4fc0', fillOpacity: 0 },
