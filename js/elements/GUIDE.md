@@ -18,7 +18,7 @@ This is a step-by-step checklist. Follow it from top to bottom and the new eleme
 
 ---
 
-> **Where the data lives now.** Variant data (`sku`, `label`, `supplierSku`, `supplierMark`, `parts`, `cableNode`, ...) is kept in `js/data/<element>.js` (one file per element type, all its variants inside), not in the element file. The element file only calls `variants: ElementData.variants('myElement')`. Add or change a variant in that data file (by hand or via the geometry editor, which rewrites that file). A NEW data file is picked up automatically once `node tools/build-manifest.js` has run (the GitHub Action does it on push); mounting holes there are written as `{ hole: { x, y, kind } }` instead of `...Holes.at(x, y, kind)`. The code samples below show the older inline form: put the same fields into the data file instead.
+> **Where the data lives now.** Variant data (`sku`, `label`, `supplierSku`, `supplierMark`, `parts`, `cableNode`, ...) is kept in `js/data/<element>.js` (one file per element type, all its variants inside), not in the element file. The element file only calls `variants: ElementData.variants('myElement')`. Add or change a variant in that data file (by hand or via the geometry editor, which rewrites that file). A NEW data file must also be added by name to the list in `js/data/manifest.js`; mounting holes there are written as `{ hole: { x, y, kind } }` instead of `...Holes.at(x, y, kind)`. The code samples below show the older inline form: put the same fields into the data file instead.
 
 ## Step 1 — Geometry
 
