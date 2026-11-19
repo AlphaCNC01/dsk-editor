@@ -1,23 +1,24 @@
 // ============================================================================
 // Save — turns the current EditorState back into the project's data file.
 //
-// All element variants now live in ONE plain data file,
-// js/data/element-variants.js (see js/core/element-data.js). Save rebuilds
-// that WHOLE file in memory — the page already loaded every variant via
-// ElementData.raw() — swaps in the edited variant (sku, label, contours,
+// Each element type's variants live in ONE plain data file,
+// js/data/<element>.js (see js/core/element-data.js). Save rebuilds that
+// element's WHOLE file in memory — the page already loaded every variant
+// via ElementData.raw() — swaps in the edited variant (sku, label, contours,
 // extras like supplierSku/cableNode kept as they were) and serializes it
-// with ElementData.serialize(), the same serializer that wrote the file in
-// the first place. So the downloaded file is a drop-in replacement: no
-// find-and-paste of one block, and untouched variants come out unchanged.
+// with ElementData.serializeElement(), the same serializer that wrote the
+// file in the first place. So the downloaded file is a drop-in replacement:
+// no find-and-paste of one block, and the element's other variants come out
+// unchanged.
 //
 // This editor still cannot write the file on disk by itself (file:// has
 // no write access, and on GitHub Pages the repo is read-only from here),
-// so Save downloads element-variants.js; put it over js/data/element-
-// variants.js (or hand it to whoever commits).
+// so Save downloads <element>.js; put it over js/data/<element>.js (or hand
+// it to whoever commits).
 //
 // Blank geometry (no source element attached) has no variant to replace,
 // so Save just downloads the parts: [ ... ] entries in the same data
-// format, for pasting into a variant's `parts` in the data file.
+// format, for pasting into a variant's `parts` in a data file.
 // ============================================================================
 const Save = (() => {
 
@@ -40,11 +41,9 @@ const Save = (() => {
 
   function buildDataFile(){
     const meta = EditorState.getMeta();
-    const data = ElementData.raw();
-    if (!data[meta.elementId]) data[meta.elementId] = {};
-    const stored = data[meta.elementId][meta.variantKey];
-    data[meta.elementId][meta.variantKey] = mergeVariant(stored, meta, EditorState.getEntries());
-    return ElementData.serialize(data);
+    const variants = ElementData.raw()[meta.elementId] || {};
+    variants[meta.variantKey] = mergeVariant(variants[meta.variantKey], meta, EditorState.getEntries());
+    return ElementData.serializeElement(meta.elementId, variants);
   }
 
   function buildEntriesText(){
@@ -71,9 +70,9 @@ const Save = (() => {
   function save(){
     const meta = EditorState.getMeta();
     if (meta.elementId) {
-      downloadFile(buildDataFile(), 'element-variants.js');
+      downloadFile(buildDataFile(), ElementData.fileName(meta.elementId) + '.js');
     } else {
-      const header = '// Новая геометрия — вставьте как содержимое parts: [ ... ] нужного варианта в js/data/element-variants.js:\n\n';
+      const header = '// Новая геометрия — вставьте как содержимое parts: [ ... ] нужного варианта в js/data/<элемент>.js:\n\n';
       downloadFile(header + buildEntriesText() + '\n', 'new-element.parts.snippet.js');
     }
   }
