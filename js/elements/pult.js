@@ -44,9 +44,12 @@ const PULT_VARIANTS = registerSimpleEmbeddable({
       supplierSku: '',
       supplierMark: '',
       parts: [
-        { verts: [{x:-45.0,y:50.0,bulge:0},{x:-45.0,y:0.0,bulge:0},{x:45.0,y:0.0,bulge:0},{x:45.0,y:50.0,bulge:0}], layer: 'PHYSICAL' },
-        ...Holes.at(-30, 30, 'B'),
-        ...Holes.at(30, 30, 'B'),
+        // 110x40 body above the tabletop edge
+        { verts: [{x:-55.0,y:0.0,bulge:0},{x:55.0,y:0.0,bulge:0},{x:55.0,y:40.0,bulge:0},{x:-55.0,y:40.0,bulge:0}], layer: 'PHYSICAL' },
+        // 120x20 flange below the edge
+        { verts: [{x:-60.0,y:-20.0,bulge:0},{x:60.0,y:-20.0,bulge:0},{x:60.0,y:0.0,bulge:0},{x:-60.0,y:0.0,bulge:0}], layer: 'PHYSICAL' },
+        ...Holes.at(-46, 25, 'B'),
+        ...Holes.at(46, 25, 'B'),
       ],
     },
     sensor: {
