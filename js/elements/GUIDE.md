@@ -18,6 +18,8 @@ This is a step-by-step checklist. Follow it from top to bottom and the new eleme
 
 ---
 
+> **Where the data lives now.** Variant data (`sku`, `label`, `supplierSku`, `supplierMark`, `parts`, `cableNode`, ...) is kept in `js/data/element-variants.js`, not in the element file. The element file only calls `variants: ElementData.variants('myElement')`. Add or change a variant in the data file (by hand or via the geometry editor, which rewrites that file); mounting holes there are written as `{ hole: { x, y, kind } }` instead of `...Holes.at(x, y, kind)`. The code samples below show the older inline form: put the same fields into the data file instead.
+
 ## Step 1 — Geometry
 
 Find the **Elements** section further down and add:
