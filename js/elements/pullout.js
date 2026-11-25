@@ -58,7 +58,7 @@ const PULLOUT_VARIANTS = registerSimpleEmbeddable({
       supplierMark: '',
       parts: [
         { verts: [{x:265,y:0,bulge:0},{x:265,y:252,bulge:0},{x:-265,y:252,bulge:0},{x:-265,y:0,bulge:0}], layer: 'PHYSICAL' },
-        { verts: [{x:305,y:0,bulge:0},{x:305,y:252,bulge:0},{x:-305,y:252,bulge:0},{x:-305,y:0,bulge:0}], layer: 'PHYSICAL' },
+        { verts: [{x:302.5,y:0,bulge:0},{x:302.5,y:252,bulge:0},{x:-302.5,y:252,bulge:0},{x:-302.5,y:0,bulge:0}], layer: 'PHYSICAL' },
         ...Holes.at(-292.5, 62, 'B'),
         ...Holes.at(-292.5, 142, 'B'),
         ...Holes.at(-292.5, 222, 'B'),
